@@ -20,6 +20,9 @@ const MOB_DEFS = {
 };
 const PROF_COLORS = { farmer: 0xC8A060, librarian: 0xE8E4D8, smith: 0x4A4A4E, cleric: 0x7A3A9A, butcher: 0xE8E8E8, shepherd: 0x8E6A4A, fletcher: 0x5A8A3A, none: 0x6A8A4A };
 const SHEEP_COLORS = [[0, 81], [7, 5], [8, 5], [15, 5], [12, 3], [6, 1]];
+// ai() runs before physics(), which applies gravity before moving; 0.5 leaves ~0.42 on the first
+// tick so mobs clear a full block (~1.25) like the player does
+const MOB_JUMP = 0.5;
 class Mob extends Entity {
   constructor(kind, x, y, z, data) {
     super(kind, x, y, z);
@@ -165,6 +168,7 @@ class Mob extends Entity {
     const s = speed * (this.slowTicks > 0 ? 0.5 : 1);
     this.vx += (dx / d * s - this.vx) * f; this.vz += (dz / d * s - this.vz) * f;
     this.bodyYaw += angleDiff(this.bodyYaw, this.yaw) * 0.3;
+    if (this.onGround && this.collidedH && !this.def.flying) this.vy = MOB_JUMP;
   }
   followPath(speed) {
     if (!this.path || this.pathIdx >= this.path.length) { this.path = null; return false; }
@@ -173,7 +177,7 @@ class Mob extends Entity {
     const dx = tx - this.x, dz = tz - this.z;
     if (dx * dx + dz * dz < 0.12 && Math.abs(n[1] - this.y) < 1.2) { this.pathIdx++; return true; }
     this.moveToward(tx, tz, speed);
-    if (this.onGround && (n[1] > this.y + 0.5 || this.collidedH)) this.vy = 0.42;
+    if (this.onGround && (n[1] > this.y + 0.5 || this.collidedH)) this.vy = MOB_JUMP;
     if (this.inWater && n[1] >= this.y) this.vy = Math.max(this.vy, 0.06);
     if (++this.pathT > 100) { this.path = null; }
     return true;

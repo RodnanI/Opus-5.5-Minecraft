@@ -223,7 +223,7 @@ class Player extends Entity {
     if (SETTINGS.autoJump && this.onGround && this.collidedH && (Math.abs(f) + Math.abs(s)) > 0.3 && !this.sneaking) {
       const ax = this.x + mx * 0.6, az = this.z + mz * 0.6, fy = Math.floor(this.y + 0.5);
       const hb = w.getBlock(Math.floor(ax), fy, Math.floor(az));
-      if (SOLID[hb & 4095] && !SOLID[w.getId(Math.floor(ax), fy + 1, Math.floor(az))] && !SOLID[w.getId(Math.floor(ax), fy + 2, Math.floor(az))] && !SOLID[w.getId(Math.floor(this.x), Math.floor(this.y + 2.2), Math.floor(this.z))]) this.vy = 0.42;
+      if (SOLID[hb & 4095] && !SOLID[w.getId(Math.floor(ax), fy + 1, Math.floor(az))] && !SOLID[w.getId(Math.floor(ax), fy + 2, Math.floor(az))] && !SOLID[w.getId(Math.floor(this.x), Math.floor(this.y + 2.2), Math.floor(this.z))]) this.vy = 0.42 / 0.98 + 0.08; // this runs after the move, so pre-compensate this tick's gravity/drag to get a full 0.42 jump (~1.25 blocks)
     }
     this.vy -= 0.08; this.vy *= 0.98;
     this.vx *= slip; this.vz *= slip;

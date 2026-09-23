@@ -655,7 +655,19 @@ class UI {
     this.clearScreen(); this.screen.className = 'menu inv';
     this.backFn = () => this.closeScreen();
     this.screen.appendChild(scr.el);
-    this.screen.addEventListener('pointerdown', this._bgDown = (e) => { if (e.target === this.screen && this.cursor) { g.dropStack(this.cursor); this.cursor = null; this.refresh(); } });
+    // close button, since touch has no E/Esc key
+    const panel = scr.el.classList.contains('invpanel') ? scr.el : scr.el.querySelector('.invpanel');
+    if (panel) {
+      const x = h('button', { class: 'invclose', title: 'Close' }, '✕');
+      x.addEventListener('pointerdown', (e) => e.stopPropagation());
+      x.onclick = () => this.closeScreen();
+      panel.classList.add('hasx'); panel.appendChild(x);
+    }
+    // tapping outside the window drops the held stack, or closes the window if nothing is held
+    this.screen.addEventListener('pointerdown', this._bgDown = (e) => {
+      if (e.target !== this.screen && e.target !== scr.el) return;
+      if (this.cursor) { g.dropStack(this.cursor); this.cursor = null; this.refresh(); } else { e.preventDefault(); this.closeScreen(); }
+    });
     this._up = () => this.endDrag();
     window.addEventListener('pointerup', this._up);
     this.refresh();
