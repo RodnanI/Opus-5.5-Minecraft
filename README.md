@@ -29,6 +29,13 @@ Press F5 in the Stormcrow or the Wraith until you are in the pilot's seat.
 - Faint motes in the air streak past, the wingtips pull vapour trails at high G, and rain streaks along the airflow instead of falling in sheets.
 - Two new options under Settings, Controls: "Jet Cockpit: Pull Back For Nose Up" (stick-style pitch) and "Jet Cockpit: G-Forces & Buffeting".
 
+**Taking off from rough ground**
+- A wingtip, the tail or the belly clipping a bump no longer blows the jet up on takeoff, landing or a low pass: it rides over and scrapes, with dust and a little hull damage at speed. For a moment after lifting off, a wing still passing through a rock or bush beside the runway only scrapes too.
+- A jet deployed a few blocks above the ground (common with `/vehicle` on hills) or crawling off a ledge settles onto its gear. It used to take crash damage on every physics step while stuck in the dirt until it exploded.
+- Grass, flowers and sugar cane no longer count as ground, so the takeoff roll stops bouncing on grass and no longer stops dead at cane.
+- Reversing (S at idle throttle) works when a jet is parked nose-first against a hill.
+- Flying the nose into a hill, a wall or a tree, or diving steeply into the ground, still destroys the jet.
+
 ## Update 3: the End, three new vehicles, fixes
 
 **The End**

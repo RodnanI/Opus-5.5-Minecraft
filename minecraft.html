@@ -12143,11 +12143,12 @@ class Jet extends Vehicle {
       Q.fromHPR(this.q, yaw, pitch, 0); this.updateAxes();
       const fx = Math.sin(yaw), fz = -Math.cos(yaw);
       v[0] = fx * nv; v[2] = fz * nv; v[1] = 0;
-      if (wantUp && pitch > 0.12) { this.onGround = false; v[1] = nv * 0.18; this.av[0] = 0.2; this.gear = 1; this.game.audio.play('veh_liftoff', { x: this.x, y: this.y, z: this.z, vol: 0.6 }); }
+      if (wantUp && pitch > 0.12) { this.onGround = false; this.liftT = this.t; v[1] = nv * 0.18; this.av[0] = 0.2; this.gear = 1; this.game.audio.play('veh_liftoff', { x: this.x, y: this.y, z: this.z, vol: 0.6 }); }
       const nx = this.x + v[0] * dt, nz = this.z + v[2] * dt;
       const gy = this.groundUnder(nx, nz, this.y + 1.2, 3.5);
-      if (gy < -1e8) { this.onGround = false; }
-      else if (gy > this.y + 1.05 || this.pointSolid(nx + fx * 3.2, this.y + 1.2, nz + fz * 3.2)) { if (Math.abs(nv) > 18) this.hurt(Math.abs(nv) * 0.6, { type: 'crash' }); v[0] = v[2] = 0; this.game.shake = 0.3; }
+      if (gy < -1e8) { this.onGround = false; this.liftT = this.t; }
+      // obstacles are looked for in the direction of travel, so a jet parked nose-first against a hill can back out
+      else if (gy > this.y + 1.05 || this.pointSolid(nx + fx * 3.2 * Math.sign(nv || 1), this.y + 1.2, nz + fz * 3.2 * Math.sign(nv || 1))) { if (Math.abs(nv) > 18) this.hurt(Math.abs(nv) * 0.6, { type: 'crash' }); if (Math.abs(nv) > 4 && this.rider === this.game.player) this.game.shake = 0.3; v[0] = v[2] = 0; }
       else { this.x = nx; this.z = nz; this.y = gy; }
       return;
     }
@@ -12216,29 +12217,47 @@ class Jet extends Vehicle {
     const nx = this.x + v[0] * dt, ny = this.y + v[1] * dt, nz = this.z + v[2] * dt;
     const yo = this.def.yoff;
     const pts = FP.pts;
-    let hit = -1;
+    let hit = -1, hx = 0, hy = 0, hz = 0;
     for (let i = 0; i < pts.length; i++) {
       Q.rot(this.q, pts[i][0], pts[i][1], pts[i][2], _v3);
       const px = nx + _v3[0], py = ny + yo + _v3[1], pz = nz + _v3[2];
-      if (this.pointSolid(px, py, pz) || (i === 4 && FLUID[w.getId(Math.floor(px), Math.floor(py), Math.floor(pz))] === 1)) { hit = i; break; }
+      if (this.pointSolid(px, py, pz) || (i === 4 && FLUID[w.getId(Math.floor(px), Math.floor(py), Math.floor(pz))] === 1)) { hit = i; hx = px; hy = py; hz = pz; break; }
     }
     if (hit >= 0) {
-      const vy = v[1], level = u[1] > 0.9 && Math.abs(f[1]) < 0.3;
+      const vy = v[1], level = u[1] > 0.85 && Math.abs(f[1]) < 0.33;
       const gy = this.groundUnder(nx, nz, ny + 2.5, 4.5);
-      if ((hit === 4 || hit === 0 && vy < 0) && level && vy > -9 && sp < FP.landMax && gy > -1e8) {
+      // touchdown: roughly level and settling gently on the belly or nose, or on the tail or a wingtip resting on a
+      // bump (not while climbing away on takeoff). Below 15 b/s any contact near the ground settles the jet onto
+      // its gear, so it never hovers in place grinding against the terrain
+      const low = hit === 4 || (hit === 0 && vy < 0) || ((hit === 1 || hit === 2 || hit === 3) && vy < 1);
+      if (vy > -9 && gy > -1e8 && ny - gy < 1.6 && ((level && low && sp < FP.landMax) || sp < 15)) {
         this.onGround = true; this.y = gy; this.x = nx; this.z = nz; v[1] = 0;
         const yaw = this.heading(); this.pitchA = 0; Q.fromHPR(this.q, yaw, 0, 0); this.av[0] = this.av[1] = this.av[2] = 0;
         this.game.audio.play('veh_land', { x: this.x, y: this.y, z: this.z, vol: 0.8 });
         if (this.rider === this.game.player) this.game.shake = 0.25;
         return;
       }
-      if (sp > 34) { this.hurt(this.hull + 1, { type: 'crash' }); return; }
-      this.hurt(sp * 1.1, { type: 'crash' });
-      v[0] *= -0.25; v[1] = Math.abs(v[1]) * 0.3 + 3; v[2] *= -0.25;
-      this.game.shake = 0.5;
-      return;
-    }
-    this.x = nx; this.y = ny; this.z = nz;
+      // grazing the top of the ground (open air above the contact) at a modest sink rate: the jet rides up over it
+      // and gets scraped instead of blowing up, so bumps under a wingtip or the tail no longer destroy it on
+      // takeoff, landing or a low pass. Walls, tree trunks, the nose dug in and steep dives still crash
+      const by = Math.floor(hy), rise = by + 1 - hy + 0.03;
+      if (vy > -12 && (hit !== 0 || f[1] > -0.35) && rise < 0.83 && !this.pointSolid(hx, by + 1.5, hz)) {
+        this.x = nx; this.y = ny + rise; this.z = nz;
+        v[1] = Math.max(v[1], 0) + Math.min(2.5, rise * 15);
+        this.scrape(hx, by, hz, sp);
+      } else if (hit !== 0 && vy > -12 && this.t - (this.liftT || -9) < 1.2) {
+        // just off the ground: on the takeoff roll the wings pass through rocks, bushes and trunks beside the
+        // runway, so for a moment after lifting off a wing, the tail or the belly still in one only scrapes
+        this.x = nx; this.y = ny; this.z = nz;
+        this.scrape(hx, by, hz, sp);
+      } else {
+        if (sp > 34) { this.hurt(this.hull + 1, { type: 'crash' }); return; }
+        // barely moving: nudge free without damage (it used to grind itself to pieces stuck in the ground)
+        if (sp > 12) { this.hurt(sp * 1.1, { type: 'crash' }); this.game.shake = 0.5; }
+        v[0] *= -0.25; v[1] = Math.abs(v[1]) * 0.3 + (sp > 12 ? 3 : 1.5); v[2] *= -0.25;
+        return;
+      }
+    } else { this.x = nx; this.y = ny; this.z = nz; }
     // auto gear below 45 b/s near the ground
     const agl = this.y - this.groundUnder(this.x, this.z, this.y, 40);
     this.agl = agl;
@@ -12250,11 +12269,35 @@ class Jet extends Vehicle {
       else if (this.stall && agl > 3) this.warn = 'STALL';
     }
   }
+  // top of the ground (or still water) below (x, y0, z) within depth. Plants, flowers, torches and the like do not
+  // hold a jet up: the jet used to bounce along on tall grass and stop dead at stacked sugar cane. Starting inside
+  // a solid block reports y0, so a wall ahead still blocks the roll
   groundUnder(x, z, y0, depth) {
-    const hit = raycast(this.world, x, y0, z, 0, -1, 0, depth, true);
-    if (!hit) return -1e9;
-    if (hit.boxes && hit.boxes.length && FLUID[hit.id]) return hit.y + 0.9;
-    return y0 - hit.t;
+    const w = this.world, bx = Math.floor(x), bz = Math.floor(z), end = y0 - depth;
+    for (let y = Math.floor(y0); y >= Math.floor(end) && y >= 0; y--) {
+      const b = w.getBlock(bx, y, bz), id = b & 4095;
+      if (!id) continue;
+      if (FLUID[id]) { if (!(b >> 12)) return Math.min(y0, y + 0.9); continue; }
+      if (!SOLID[id] || PLANT[id]) continue;
+      let top = 0;
+      for (const box of shapeBoxes(w, bx, y, bz, b, false)) top = Math.max(top, box[4]);
+      if (!top) continue;
+      const gy = Math.min(y0, y + top);
+      return gy >= end ? gy : -1e9;
+    }
+    return -1e9;
+  }
+  // scraping along the ground: a little hull at speed, dust of the block, a thump and a jolt in the cockpit
+  scrape(x, by, z, sp) {
+    const g = this.game, bx = Math.floor(x), bz = Math.floor(z);
+    if (this.t - (this.scrapeAt || -9) < 0.25) return;
+    this.scrapeAt = this.t;
+    const b = this.world.getBlock(bx, by, bz), id = b & 4095;
+    if (sp > 40 && !FLUID[id]) this.hurt((sp - 40) * 0.12, { type: 'scrape' });
+    for (let i = 0; i < 3; i++) g.particles.blockHit(bx, by, bz, 2, b);
+    g.audio.play('dig', { mat: BLOCKS[id] ? BLOCKS[id].snd : 'stone', vol: 0.7, x, y: by + 1, z });
+    if (sp > 20) g.audio.play('hit', { x, y: by + 1, z, vol: Math.min(1, sp / 80) });
+    if (this.rider === g.player) g.shake = Math.max(g.shake || 0, Math.min(0.35, 0.1 + sp * 0.003));
   }
   frame(dt, inp) {
     super.frame(dt, inp);
