@@ -692,6 +692,130 @@ void main() {
   c = applyFog(c, vPos);
   o = vec4(c, uAlphaV);
 }`;
+// -------------------------------------------------------------------- jet cockpits (view model in cockpit space)
+const COCKPIT_VS = GLSL_COMMON + `
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aN;
+layout(location=2) in vec4 aCol;
+layout(location=3) in vec2 aUV;
+uniform mat4 uVP, uPart;
+uniform mat3 uBody;
+uniform vec3 uEye;
+out vec3 vP; out vec3 vN; out vec4 vCol; out vec2 vUV; out vec3 vW;
+void main() {
+  vec4 p = uPart * vec4(aPos, 1.0);
+  vP = p.xyz; vN = mat3(uPart) * aN; vCol = aCol; vUV = aUV;
+  vW = uBody * (p.xyz - uEye);
+  gl_Position = uVP * vec4(vW, 1.0);
+}`;
+// Materials come in the vertex alpha as code + parameter / 16: 0 matte, 1 satin, 2 metal, 3 screen, 4 glow,
+// 5 lamp (parameter = lamp index), 6 mirror, 7 canopy glass (second, blended pass)
+const COCKPIT_FS = GLSL_COMMON + SKY_FN + NOISE_FN + `
+uniform sampler2D uScreens;
+uniform mat3 uBody;
+uniform vec3 uEye, uSunC, uUpC, uSunCol, uSkyC, uGndC, uFlood, uTint, uSpillP, uSpillC;
+uniform float uSunVis, uSkyB, uTime, uScreenB, uGlowB, uPass, uRain, uSpeed;
+uniform vec4 uOcc, uCab;
+uniform float uLamp[12];
+uniform vec4 uDL[8], uDLC[8];
+uniform int uDLN;
+in vec3 vP; in vec3 vN; in vec4 vCol; in vec2 vUV; in vec3 vW;
+out vec4 o;
+vec3 dynLights(vec3 pos, vec3 N) {
+  vec3 acc = vec3(0.0);
+  for (int i = 0; i < 8; i++) {
+    if (i >= uDLN) break;
+    vec3 d = uDL[i].xyz - pos; float r = uDL[i].w, l2 = dot(d, d);
+    if (l2 >= r * r) continue;
+    float l = sqrt(l2), att = 1.0 - l / r; att *= att;
+    acc += uDLC[i].rgb * (uDLC[i].a * att * (max(dot(N, d / max(l, 0.001)), 0.0) * 0.75 + 0.25));
+  }
+  return acc;
+}
+// sunlight reaching a point in the cabin: the ray toward the sun has to leave through the glazing.
+// uOcc: sill height, cabin half-width, glare shield lip z, glare shield top; uCab: roof height (> 50 = bubble
+// canopy), side window head, windscreen z, rear bulkhead z
+float sunReach(vec3 P, vec3 L) {
+  if (uCab.x > 50.0) {
+    if (P.y > uOcc.x) return (P.z < uOcc.z && P.y < uOcc.w && L.z < 0.2) ? 0.0 : 1.0;
+    if (L.y <= 0.0) return 0.0;
+    vec3 Q = P + L * ((uOcc.x - P.y) / L.y);
+    return (1.0 - smoothstep(uOcc.y - 0.03, uOcc.y + 0.01, abs(Q.x))) * smoothstep(uOcc.z - 0.02, uOcc.z + 0.04, Q.z);
+  }
+  float tx = L.x > 0.0 ? (uOcc.y - P.x) / L.x : L.x < 0.0 ? (-uOcc.y - P.x) / L.x : 1e9;
+  float ty = L.y > 0.0 ? (uCab.x - P.y) / L.y : 1e9;
+  float tz = L.z < 0.0 ? (uCab.z - P.z) / L.z : 1e9;
+  float tb = L.z > 0.0 ? (uCab.w - P.z) / L.z : 1e9;
+  float t = min(min(tx, ty), min(tz, tb));
+  if (t > 1e8 || t == ty || t == tb) return 0.0;
+  vec3 Q = P + L * t;
+  if (t == tz) return smoothstep(uOcc.w - 0.01, uOcc.w + 0.02, Q.y) * step(Q.y, uCab.x);
+  return smoothstep(uOcc.x - 0.01, uOcc.x + 0.02, Q.y) * (1.0 - smoothstep(uCab.y - 0.02, uCab.y + 0.01, Q.y));
+}
+void main() {
+  float mat = floor(vCol.a + 0.01), prm = (vCol.a - mat) * 16.0;
+  vec3 alb = vCol.rgb;
+  vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
+  vec3 V = normalize(uEye - vP);
+  vec3 Rw = uBody * reflect(-V, N);
+  float fr = 0.04 + 0.96 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+  if (uPass > 0.5) {
+    // canopy acrylic: faint tint, sky reflections at grazing angles, sunlight scattered by fine scratches and
+    // dust around the sun, rain beads running aft (premultiplied alpha)
+    vec3 Vd = -V;
+    float sd = max(dot(Vd, uSunC), 0.0);
+    float scr = pow(abs(sin(vUV.x * 1400.0 + sin(vUV.y * 57.0) * 4.0 + vnoise(vUV * vec2(30.0, 44.0)) * 7.0)), 70.0);
+    float dust = step(0.9965, hash12(floor(vUV * vec2(1500.0, 1100.0))));
+    vec3 glare = uSunCol * uSunVis * (pow(sd, 12.0) * 0.3 + pow(sd, 110.0) * 1.1) * (0.45 + scr * 0.7 + dust * 2.5);
+    // the displays' glow ghosts in the lower windscreen (visible at night), and the acrylic reads a touch denser
+    // toward the frames
+    float ghost = smoothstep(-0.3, -0.72, vP.z) * smoothstep(0.04, -0.17, vP.y);
+    float edge = smoothstep(0.8, 1.0, abs(vUV.x * 2.0 - 1.0));
+    vec3 col = uTint * (0.05 + edge * 0.05) + skyCol(Rw) * uSkyB * fr * 0.55 + uSpillC * (0.012 + ghost * 0.22) + glare;
+    float a = 0.05 + fr * 0.42 + edge * 0.06;
+    if (uRain > 0.01) {
+      // beads when slow, stretched into streaks running aft as the airspeed builds
+      float fast = clamp(uSpeed / 40.0, 0.0, 1.0);
+      vec2 q = vec2(vUV.x * 70.0, vUV.y * 48.0 * mix(1.0, 0.25, fast) - uTime * (0.3 + uSpeed * 0.08));
+      vec2 id = floor(q), f = fract(q) - 0.5, off = vec2(hash12(id + 3.1), hash12(id + 7.7)) - 0.5;
+      float r = length((f - off * 0.4) * vec2(1.0, mix(1.0, 0.2, fast)));
+      float drop = step(1.0 - uRain * 0.45, hash12(id)) * (1.0 - smoothstep(0.05, 0.12, r));
+      col += (skyCol(Rw) * uSkyB * 0.3 + uSunCol * uSunVis * 0.2) * drop;
+      a += drop * 0.26;
+    }
+    o = vec4(col, clamp(a, 0.0, 0.85));
+    return;
+  }
+  vec3 c;
+  if (mat > 2.5 && mat < 3.5) {
+    // instrument screen behind cover glass: sunlight on it washes the picture out a little
+    float sv = max(dot(N, uSunC), 0.0) * sunReach(vP, uSunC) * uSunVis;
+    c = texture(uScreens, vUV).rgb * uScreenB + uSunCol * sv * 0.1 + skyCol(Rw) * uSkyB * fr * 0.25;
+  } else if (mat > 3.5 && mat < 4.5) {
+    c = alb * uGlowB;
+  } else if (mat > 4.5 && mat < 5.5) {
+    // caution lamp: engraved legend (texture) lit from behind when on
+    float lg = texture(uScreens, vUV).r, on = uLamp[int(prm + 0.5)];
+    c = alb * (0.06 + lg * 0.22) + alb * on * (0.5 + lg * 2.4);
+  } else {
+    float ndl = max(dot(N, uSunC), 0.0);
+    float sv = ndl > 0.0 ? sunReach(vP, uSunC) * uSunVis : 0.0;
+    // deeper in the cockpit tub less sky reaches in
+    float cav = mix(0.3, 1.0, smoothstep(uOcc.x - 0.34, uOcc.x + 0.08, vP.y));
+    vec3 amb = mix(uGndC, uSkyC, dot(N, uUpC) * 0.5 + 0.5) * cav;
+    vec3 sp = uSpillP - vP; float sd = length(sp);
+    vec3 L = uSunCol * ndl * sv + amb + uFlood * (0.55 + 0.45 * max(N.y, 0.0)) + uSpillC * max(dot(N, sp / max(sd, 1e-3)), 0.0) / (1.0 + sd * sd * 16.0);
+    if (uDLN > 0) L += dynLights(vW, uBody * N);
+    float grain = mat < 0.5 ? 0.9 + 0.1 * vnoise(vP.xz * 95.0 + vP.y * 41.0) : 1.0;
+    c = alb * grain * L;
+    float shin = mat < 0.5 ? 10.0 : mat < 1.5 ? 36.0 : 120.0, ks = mat < 0.5 ? 0.05 : mat < 1.5 ? 0.25 : 0.7;
+    c += uSunCol * pow(max(dot(N, normalize(uSunC + V)), 0.0), shin) * ks * sv * (shin + 8.0) / 40.0;
+    float rk = mat < 0.5 ? 0.04 : mat < 1.5 ? 0.22 : 0.5;
+    c += skyCol(Rw) * uSkyB * fr * rk * cav;
+    if (mat > 5.5) c = alb * 0.15 + skyCol(Rw) * uSkyB * 0.85;
+  }
+  o = vec4(c, 1.0);
+}`;
 // -------------------------------------------------------------------- additive FX (plasma, exhaust, beams, flashes)
 const FX_VS = GLSL_COMMON + `
 layout(location=0) in vec3 aPos;
@@ -818,7 +942,7 @@ void main() {
 }`;
 const COMPOSITE_FS = GLSL_COMMON + `
 uniform sampler2D uScene, uBloom, uRays;
-uniform float uBloomAmt, uRaysAmt, uTonemap, uVignette, uUnderwater, uLava, uNausea, uHurtFx, uTime, uExposure, uSat, uUseBloom, uUseRays, uGammaOut, uBoost, uWarm;
+uniform float uBloomAmt, uRaysAmt, uTonemap, uVignette, uUnderwater, uLava, uNausea, uHurtFx, uTime, uExposure, uSat, uUseBloom, uUseRays, uGammaOut, uBoost, uWarm, uGLoad, uRedout;
 uniform vec3 uRayColor;
 in vec2 vUv; out vec4 o;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
@@ -847,6 +971,12 @@ void main() {
   vec2 v = vUv - 0.5;
   c *= mix(1.0, 1.0 - dot(v, v) * 1.1, uVignette);
   c = mix(c, vec3(0.7, 0.0, 0.0), uHurtFx * smoothstep(0.1, 0.8, length(v) * 1.4) * 0.6);
+  if (uGLoad > 0.001) {
+    // pulling hard in the cockpit: the colour drains first, then the view closes in from the edges
+    c = mix(c, vec3(dot(c, vec3(0.299, 0.587, 0.114)) * 0.9), clamp(uGLoad * 1.3, 0.0, 1.0));
+    c *= 1.0 - smoothstep(0.7 - uGLoad * 0.48, 0.95 - uGLoad * 0.42, length(v * vec2(1.3, 1.0))) * clamp(uGLoad * 1.2, 0.0, 1.0);
+  }
+  if (uRedout > 0.001) c = mix(c, vec3(0.6, 0.03, 0.02) * (0.25 + dot(c, vec3(0.5, 0.35, 0.15))), uRedout * 0.75);
   c = pow(max(c, 0.0), vec3(uGammaOut));
   o = vec4(c, dot(c, vec3(0.299, 0.587, 0.114)));
 }`;

@@ -1,6 +1,13 @@
 // ============================================================================
 //  Procedural audio: synthesized SFX, positional panning, generative music
 // ============================================================================
+// how far a direction lies to the listener's right; the camera may be rolled (cockpit views), even upside down
+function camRightDot(cam, dx, dy, dz) {
+  const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw), r = cam.roll || 0, side = dx * cy + dz * sy;
+  if (!r) return side;
+  const sp = Math.sin(cam.pitch), cp = Math.cos(cam.pitch);
+  return Math.cos(r) * side - Math.sin(r) * (-dx * sy * sp + dy * cp + dz * cy * sp);
+}
 class Audio {
   constructor(game) { this.game = game; this.ctx = null; this.ok = false; this.last = {}; this.musicT = 30; this.ambT = 5; }
   init() {
@@ -44,8 +51,7 @@ class Audio {
       if (g <= 0.001) return null;
       if (ctx.createStereoPanner) {
         const pan = ctx.createStereoPanner();
-        const rx = Math.cos(cam.yaw), rz = Math.sin(cam.yaw);
-        pan.pan.value = clamp((dx * rx + dz * rz) / Math.max(d, 1), -0.85, 0.85);
+        pan.pan.value = clamp(camRightDot(cam, dx, dy, dz) / Math.max(d, 1), -0.85, 0.85);
         pan.connect(this.sfx); node = pan;
       }
     }
@@ -233,7 +239,7 @@ class Audio {
     const p = this.game.player, cam = this.game.camera;
     if (!p || x === undefined) return [1, 0];
     const dx = x - cam.x, dy = y - cam.y, dz = z - cam.z, d = Math.hypot(dx, dy, dz);
-    return [Math.max(0, 1 - d / 70), clamp((dx * Math.cos(cam.yaw) + dz * Math.sin(cam.yaw)) / Math.max(d, 1), -0.8, 0.8)];
+    return [Math.max(0, 1 - d / 70), clamp(camRightDot(cam, dx, dy, dz) / Math.max(d, 1), -0.8, 0.8)];
   }
   loopNode(build) {
     const ctx = this.ctx, g = ctx.createGain(); g.gain.value = 0;
@@ -270,10 +276,14 @@ class Audio {
     if (!n) {
       n = this.loopNode((n, g) => {
         if (spec.kind === 'jet') {
-          n.lp = this.filt('lowpass', 400, 0.7, g); this.noiseSrc(n, true, this.gainN(1.4, n.lp));
-          n.whineF = this.filt('bandpass', 2000, 5, g); n.whineG = this.gainN(0.25, n.whineF); this.noiseSrc(n, false, n.whineG);
-          n.hum = this.osc(n, 'sawtooth', 80, this.gainN(0.12, this.filt('lowpass', 500, 1, g)));
-          n.abG = this.gainN(0, this.filt('lowpass', 180, 0.8, g)); this.noiseSrc(n, true, n.abG);
+          const eg = n.engG = this.gainN(1, g);
+          n.lp = this.filt('lowpass', 400, 0.7, eg); this.noiseSrc(n, true, this.gainN(1.4, n.lp));
+          n.whineF = this.filt('bandpass', 2000, 5, eg); n.whineG = this.gainN(0.25, n.whineF); this.noiseSrc(n, false, n.whineG);
+          n.hum = this.osc(n, 'sawtooth', 80, this.gainN(0.12, this.filt('lowpass', 500, 1, eg)));
+          n.abG = this.gainN(0, this.filt('lowpass', 180, 0.8, eg)); this.noiseSrc(n, true, n.abG);
+          // air rushing over the canopy, and the roar of ground or canyon walls flashing past close by
+          n.windF = this.filt('bandpass', 600, 0.55, g); n.windG = this.gainN(0, n.windF); this.noiseSrc(n, false, n.windG);
+          n.rushF = this.filt('lowpass', 700, 0.8, g); n.rushG = this.gainN(0, n.rushF); this.noiseSrc(n, true, n.rushG);
         } else if (spec.kind === 'gunship') {
           n.turb = this.osc(n, 'triangle', 320, this.gainN(0.08, g));
           const lp = this.filt('lowpass', 650, 0.9, g); n.chopG = this.gainN(0.6, lp); this.noiseSrc(n, true, n.chopG);
@@ -298,9 +308,14 @@ class Audio {
     n.x = c[0]; n.y = c[1]; n.z = c[2]; n.seen = performance.now();
     const thr = spec.thr, now = this.ctx.currentTime, set = (prm, val) => prm.setTargetAtTime(val, now, 0.08);
     if (spec.kind === 'jet') {
-      n.target = 0.05 + thr * 0.55 + spec.ab * 0.25;
-      set(n.lp.frequency, 250 + thr * 1400 + spec.ab * 600); set(n.whineF.frequency, 1400 + thr * 3200 + spec.speed * 6); set(n.whineG.gain, 0.08 + thr * 0.3);
+      // from the cockpit the engines are muffled by the airframe and the wind noise takes over
+      const eng = 0.05 + thr * 0.55 + spec.ab * 0.25, wind = (spec.wind || 0) * (spec.wind || 0) * 0.32, rush = (spec.prox || 0) * 0.5, ck = spec.cockpit;
+      n.target = eng + wind + rush;
+      set(n.engG.gain, eng / n.target * (ck ? 0.8 : 1));
+      set(n.lp.frequency, (250 + thr * 1400 + spec.ab * 600) * (ck ? 0.6 : 1)); set(n.whineF.frequency, 1400 + thr * 3200 + spec.speed * 6); set(n.whineG.gain, (0.08 + thr * 0.3) * (ck ? 0.45 : 1));
       set(n.hum.frequency, 60 + thr * 110); set(n.abG.gain, spec.ab * 1.6);
+      set(n.windG.gain, wind / n.target * 2.4); set(n.windF.frequency, (ck ? 900 : 500) + spec.speed * 5);
+      set(n.rushG.gain, rush / n.target * 2.6); set(n.rushF.frequency, 350 + (spec.prox || 0) * 900);
       if (v.removed || (!v.rider && thr < 0.01 && v.engine < 0.03)) n.target = 0;
     } else if (spec.kind === 'gunship') {
       n.target = Math.min(0.7, thr * 0.7 + spec.boost * 0.15);

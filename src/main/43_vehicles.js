@@ -31,10 +31,20 @@ const Q = {
     Q.axis(out, 0, 1, 0, -yaw); Q.axis(a, 1, 0, 0, pitch); Q.mul(out, out, a); Q.axis(b, 0, 0, -1, roll); return Q.mul(out, out, b);
   },
 };
+// camera yaw / pitch / roll reproducing any orientation, upside down included (M4.view applies the roll last)
+const _cf = [0, 0, 0], _cu = [0, 0, 0];
+function camFromQuat(c, q) {
+  const f = Q.rot(q, 0, 0, -1, _cf), u = Q.rot(q, 0, 1, 0, _cu);
+  const yaw = Math.atan2(f[0], -f[2]), pitch = Math.asin(clamp(f[1], -1, 1));
+  const cy = Math.cos(yaw), sy = Math.sin(yaw), sp = Math.sin(pitch), cp = Math.cos(pitch);
+  c.yaw = yaw; c.pitch = pitch;
+  c.roll = Math.atan2(u[0] * cy + u[2] * sy, -u[0] * sy * sp + u[1] * cp + u[2] * cy * sp);
+  return c;
+}
 const VEH_DEFS = {
-  jet: { name: 'Stormcrow Interceptor', item: 'stormcrow_jet', model: 'jet', w: 4.4, h: 1.9, yoff: 0.8125, hull: 140, enclosed: true, cockpit: [0, 0.5625, -1.8125], camDist: 14, camH: 3.4, radius: 3.2 },
+  jet: { name: 'Stormcrow Interceptor', item: 'stormcrow_jet', model: 'jet', w: 4.4, h: 1.9, yoff: 0.8125, hull: 140, enclosed: true, cockpit: [0, 0.6875, -1.8125], camDist: 14, camH: 3.4, radius: 3.2 },
   gunship: { name: 'Mantis VTOL Gunship', item: 'mantis_gunship', model: 'gunship', w: 4.2, h: 1.9, yoff: 0.47, hull: 200, enclosed: true, cockpit: [0, 0.6, -2.0625], camDist: 15, camH: 4.4, radius: 3.8 },
-  bomber: { name: 'Wraith Flying-Wing Bomber', item: 'wraith_bomber', model: 'bomber', w: 5.2, h: 1.6, yoff: 0.75, hull: 230, enclosed: true, cockpit: [0, 0.5, -1.0625], camDist: 17, camH: 4.2, radius: 4.6 },
+  bomber: { name: 'Wraith Flying-Wing Bomber', item: 'wraith_bomber', model: 'bomber', w: 5.2, h: 1.6, yoff: 0.75, hull: 230, enclosed: true, cockpit: [0, 0.6875, -1.0625], camDist: 17, camH: 4.2, radius: 4.6 },
   tank: { name: 'Bastion Hover Tank', item: 'bastion_tank', model: 'tank', w: 4.0, h: 1.7, yoff: 0.05, hull: 320, enclosed: true, cockpit: [0, 2.35, 0.3], camDist: 11, camH: 3.4, radius: 3.8 },
   bike: { name: 'Viper Hover Bike', item: 'viper_bike', model: 'bike', w: 1.4, h: 1.1, yoff: 0.1, hull: 70, enclosed: false, seat: [0, 0.6, 0.12], cockpit: [0, 1.55, 0.12], camDist: 6.8, camH: 2.3, radius: 1.6 },
 };
@@ -185,7 +195,7 @@ class Vehicle extends Entity {
     if (p.vcam === 1) {
       const e = this.local(d.cockpit[0], d.cockpit[1], d.cockpit[2], _v5);
       c.x = e[0]; c.y = e[1]; c.z = e[2];
-      c.yaw = p.yaw; c.pitch = p.pitch; c.roll = this instanceof Jet ? this.bankAngle() * 0.6 : this.rollA * 0.5;
+      c.yaw = p.yaw; c.pitch = p.pitch; c.roll = this.rollA * 0.5;
     } else {
       const dist = d.camDist * (p.vcam === 2 ? 1.7 : 1) * this.zoom * (1 + Math.min(1, sp / 120) * 0.12);
       const hy = d.camH * (p.vcam === 2 ? 1.4 : 1);
@@ -264,14 +274,64 @@ const VEH_HELP = {
   bomber: [['MOUSE', 'steer'], ['W/S', 'throttle'], ['CTRL', 'afterburner'], ['A/D', 'roll'], ['LMB', 'plasma'], ['RMB', 'hold: bay open + bombs'], ['F', 'exit'], ['F5', 'camera']],
   tank: [['MOUSE', 'aim turret'], ['W/S', 'drive'], ['A/D', 'turn hull'], ['CTRL', 'boost'], ['LMB', 'coax blaster'], ['RMB', 'plasma cannon'], ['F', 'exit'], ['F5', 'camera']],
 };
+// the jets flown from the cockpit (direct flight)
+const VEH_HELP_SIM = {
+  jet: [['MOUSE', 'pitch + roll'], ['A/D', 'rudder'], ['W/S', 'throttle'], ['CTRL', 'afterburner'], ['SHIFT', 'airbrake'], ['C / MMB', 'look around'], ['LMB', 'plasma'], ['RMB', 'missile'], ['WHEEL', 'zoom'], ['F5', 'camera']],
+  bomber: [['MOUSE', 'pitch + roll'], ['A/D', 'rudder'], ['W/S', 'throttle'], ['CTRL', 'afterburner'], ['SHIFT', 'airbrake'], ['C / MMB', 'look around'], ['LMB', 'plasma'], ['RMB', 'bay + bombs'], ['F5', 'camera']],
+};
 // ---------------------------------------------------------------- STORMCROW
+// Direct (cockpit) flight: kP / kR set how fast a mouse input is flown out, pendP / pendR cap the queued rotation (rad),
+// gMax / gNeg are the G limiter, nMin / nMax the path-hold lift range, resp the control smoothing (1/s)
 const JET_FP = { thrust: 48, ab: 62, drag: 0.0052, pMax: 1.45, pMin: -1.0, yMax: 0.7, rMax: 4.2, lift0: 16, liftR: 22, stall: 20, takeoff: 52, landMax: 58,
+  kP: 6.5, kR: 7, pendP: 0.75, pendR: 2.4, gMax: 9, gNeg: 3, nMin: -1.2, nMax: 2.2, resp: 7.5,
   pts: [[0, -0.05, -4.1], [-2.8, -0.1, 1.45], [2.8, -0.1, 1.45], [0, -0.2, 3.3], [0, -0.76, 0.4], [0, 1.1, 2.2]] };
 const BOMBER_FP = { thrust: 40, ab: 42, drag: 0.0068, pMax: 0.85, pMin: -0.6, yMax: 0.4, rMax: 1.9, lift0: 12, liftR: 20, stall: 16, takeoff: 44, landMax: 52,
+  kP: 3.6, kR: 3.8, pendP: 0.5, pendR: 1.5, gMax: 5, gNeg: 2, nMin: -1.0, nMax: 1.7, resp: 4.2,
   pts: [[0, -0.05, -2.45], [-4.1, -0.05, 0.9], [4.1, -0.05, 0.9], [0, -0.05, 2.0], [0, -0.7, 0.1], [-1.45, 0.4, 1.3], [1.45, 0.4, 1.3]] };
+const JET_TIP = [2.8, -0.1, 1.45], BOMBER_TIP = [4.05, 0, 0.85];
+const _q1 = [0, 0, 0, 1], _q2 = [0, 0, 0, 1];
 class Jet extends Vehicle {
-  constructor(x, y, z, yaw, kind) { super(kind || 'jet', x, y, z, yaw); this.fp = JET_FP; this.throttle = 0; this.gear = 1; this.missiles = 8; this.mReload = 0; this.side = 1; this.stall = false; }
-  engineSpec() { return { kind: 'jet', thr: this.rider ? this.throttle : 0, ab: this.boosting ? 1 : 0, speed: this.speed }; }
+  constructor(x, y, z, yaw, kind) {
+    super(kind || 'jet', x, y, z, yaw); this.fp = JET_FP; this.throttle = 0; this.gear = 1; this.missiles = 8; this.mReload = 0; this.side = 1; this.stall = false;
+    // direct flight: queued stick rotation, smoothed pilot rates, what the stick / rudder models show
+    this.stick = { p: 0, r: 0 }; this.avc = [0, 0, 0]; this.stickVis = [0, 0, 0];
+    // pilot's head: free look (ty / tp targets), G-force sway spring (x, y, z + velocities)
+    this.head = { yaw: 0, pitch: 0, ty: 0, tp: 0, hold: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 };
+    this.eyeOff = [0, 0, 0]; this.headQ = [0, 0, 0, 1];
+    // felt acceleration (smoothed specific force), load factors, G stress and terrain proximity
+    this.pv = [0, 0, 0]; this.accS = [0, 20, 0]; this.gz = 1; this.gy = 0; this.gx = 0; this.gPeak = 1; this.gLoad = 0; this.redout = 0;
+    this.prox = 0; this.czoom = 1; this.shakeT = Math.random() * 100; this.motes = null;
+  }
+  engineSpec() {
+    const own = this.rider && this.rider === this.game.player;
+    return { kind: 'jet', thr: this.rider ? this.throttle : 0, ab: this.boosting ? 1 : 0, speed: this.speed, wind: own ? Math.min(1, this.speed / 140) : 0, prox: own ? this.prox : 0, cockpit: own && this.rider.vcam === 1 };
+  }
+  // the cockpit camera flies the jet directly (simulator style); the chase cameras keep the assisted mouse aim
+  simMode() { const p = this.rider; return !!(p && p.vcam === 1); }
+  takesMouse(p) { return p === this.rider && p.vcam === 1; }
+  // mouse input in the cockpit, in radians: queues a body-frame pitch / roll, or turns the pilot's head
+  mouseInput(dx, dy, look) {
+    const H = this.head;
+    if (look) { H.ty = clamp(H.ty + dx, -2.6, 2.6); H.tp = clamp(H.tp - dy, -1.05, 1.4); return; }
+    const FP = this.fp, S = this.stick, inv = SETTINGS.flightInvert ? -1 : 1;
+    S.p = clamp(S.p - dy * inv, -FP.pendP, FP.pendP);
+    S.r = clamp(S.r + dx * 1.7, -FP.pendR, FP.pendR);
+  }
+  onCamChange(p) {
+    const S = this.stick, H = this.head;
+    S.p = S.r = 0; H.ty = H.tp = H.yaw = H.pitch = 0;
+    this.avc[0] = this.av[0]; this.avc[1] = this.av[1]; this.avc[2] = this.av[2];
+    if (p.vcam === 1) this.mountT = 7;
+    // back to mouse aim: aim where the nose points so the assist does not yank the jet around
+    else { p.yaw = this.heading(); p.pitch = Math.asin(clamp(this.fwd[1], -1, 1)); }
+  }
+  mount(p) {
+    super.mount(p);
+    const S = this.stick, H = this.head;
+    S.p = S.r = 0; H.ty = H.tp = H.yaw = H.pitch = H.x = H.y = H.z = H.vx = H.vy = H.vz = 0;
+    this.gLoad = this.redout = 0; this.gPeak = 1; this.czoom = 1;
+    this.pv[0] = this.vel[0]; this.pv[1] = this.vel[1]; this.pv[2] = this.vel[2];
+  }
   step(dt, inp) {
     this.impulses();
     const w = this.world, v = this.vel, g = 20;
@@ -279,6 +339,7 @@ class Jet extends Vehicle {
     const f = this.fwd, u = this.upv, r = this.rightv;
     const sp = Math.hypot(v[0], v[1], v[2]);
     const ctl = !!(this.rider && inp);
+    const sim = ctl && this.simMode(), S = this.stick;
     if (ctl) this.throttle = clamp(this.throttle + inp.f * dt * 0.7, 0, 1);
     else this.throttle = Math.max(0, this.throttle - dt * 0.5);
     this.boosting = ctl && inp.boost && this.boost > 0.02 && this.throttle > 0.2;
@@ -293,11 +354,20 @@ class Jet extends Vehicle {
       nv -= Math.sign(nv) * Math.min(Math.abs(nv), (ctl && inp.down ? 30 : 3 + Math.abs(nv) * 0.05) * dt) + nv * Math.abs(nv) * FP.drag * dt;
       if (ctl && this.throttle < 0.02 && inp.f < 0) nv = Math.max(-4, nv - 12 * dt);
       let yaw = this.heading();
-      const aimYaw = ctl ? this.rider.yaw : yaw;
-      const turn = clamp(angleDiff(yaw, aimYaw), -1, 1) * clamp(1.4 - Math.abs(nv) / 60, 0.25, 1.4) * dt * 1.8;
-      yaw += turn;
+      const grip = clamp(1.4 - Math.abs(nv) / 60, 0.25, 1.4);
+      let pull;
+      if (sim) {
+        // nosewheel steering from rudder and stick; pulling the stick back rotates for takeoff
+        yaw += clamp(inp.s + S.r * 2.5, -1, 1) * grip * dt * 1.4;
+        S.r *= Math.exp(-dt * 5);
+        pull = S.p > 0.04; S.p *= Math.exp(-dt * 1.5);
+      } else {
+        const aimYaw = ctl ? this.rider.yaw : yaw;
+        yaw += clamp(angleDiff(yaw, aimYaw), -1, 1) * grip * dt * 1.8;
+        pull = ctl && this.rider.pitch > 0.06;
+      }
       let pitch = this.pitchA;
-      const wantUp = ctl && ((this.rider.pitch > 0.06 && nv > FP.takeoff * 0.5) || nv > FP.takeoff);
+      const wantUp = ctl && ((pull && nv > FP.takeoff * 0.5) || nv > FP.takeoff);
       pitch += ((wantUp ? 0.2 : 0) - pitch) * Math.min(1, dt * 3);
       this.pitchA = pitch;
       Q.fromHPR(this.q, yaw, pitch, 0); this.updateAxes();
@@ -319,26 +389,54 @@ class Jet extends Vehicle {
     vf += thrust * dt - (vf * Math.abs(vf) * FP.drag + turnRate * Math.abs(vf) * 0.05) * dt;
     if (ctl && inp.down) vf -= vf * 0.9 * dt;
     v[0] = f[0] * vf + u[0] * vu + r[0] * vr; v[1] = f[1] * vf + u[1] * vu + r[1] * vr; v[2] = f[2] * vf + u[2] * vu + r[2] * vr;
-    const lift = g * clamp((sp - FP.lift0) / FP.liftR, 0, 1.05);
+    // direct flight: the flight computer scales the wing lift to hold the flight path in any bank, and pushes when
+    // inverted, so a rolled jet keeps flying straight and a banked one turns level; near knife-edge the wings cannot help
+    let nT = 1;
+    if (sim) {
+      const hy = Math.hypot(u[1], r[1]), cphi = hy > 1e-4 ? u[1] / hy : 1;
+      const cg = sp > 1 ? Math.sqrt(Math.max(0, 1 - (v[1] / sp) * (v[1] / sp))) : 1;
+      nT = clamp(cg * cphi / Math.max(cphi * cphi, 0.25), FP.nMin, FP.nMax);
+    }
+    const lift = g * clamp((sp - FP.lift0) / FP.liftR, 0, sim ? 1 : 1.05) * nT;
     v[0] += u[0] * lift * dt; v[1] += (u[1] * lift - g) * dt; v[2] += u[2] * lift * dt;
     this.stall = sp < FP.stall;
-    // ------------------------------------------------ mouse-aim flight controller
     const auth = clamp(sp / 34, 0.3, 1.0);
-    let pc = 0, yc = 0, rc = 0;
-    if (ctl) {
-      const aim = this.aimDir(_v4), a = Q.inv(this.q, aim[0], aim[1], aim[2], _v5);
-      const ang = Math.acos(clamp(-a[2], -1, 1));
-      pc = clamp(Math.atan2(a[1], -a[2]) * 2.8, FP.pMin, FP.pMax);
-      yc = clamp(Math.atan2(a[0], -a[2]) * 1.6, -FP.yMax, FP.yMax);
-      const bank = this.bankAngle();
-      const rollErr = Math.atan2(a[0], a[1]);
-      const want = smoothstep(0.04, 0.35, ang);
-      const levelCmd = -bank * 2.2 + clamp(Math.atan2(a[0], -a[2]) * 5, -0.9, 0.9);
-      rc = clamp(rollErr * 4.5, -FP.rMax, FP.rMax) * want + levelCmd * (1 - want);
-      if (Math.abs(inp.s) > 0.1) rc = inp.s * FP.rMax;
-    } else { pc = -0.2; rc = -this.bankAngle() * 1.5; }
-    const k = 1 - Math.exp(-dt * 7);
-    this.av[0] += (pc * auth - this.av[0]) * k; this.av[1] += (yc * auth - this.av[1]) * k; this.av[2] += (rc * Math.min(1, auth + 0.3) - this.av[2]) * k;
+    if (sim) {
+      // ------------------------------------------------ direct flight controller
+      // the mouse queues a body-frame rotation that is flown out within the rate and G limits. Nothing levels the
+      // wings or the nose, so any attitude (inverted included) holds once the mouse stops
+      const k = 1 - Math.exp(-dt * FP.resp), vv = Math.max(sp, 12);
+      const pHi = Math.min(FP.pMax, FP.gMax * g / vv), pLo = Math.max(FP.pMin, -FP.gNeg * g / vv);
+      const pc = clamp(S.p * FP.kP, pLo, pHi) * auth, rc = clamp(S.r * FP.kR, -FP.rMax, FP.rMax) * Math.min(1, auth + 0.3);
+      S.p -= pc * dt; S.r -= rc * dt;
+      const yc = clamp(inp.s, -1, 1) * FP.yMax * auth, A = this.avc;
+      A[0] += (pc - A[0]) * k; A[1] += (yc - A[1]) * k; A[2] += (rc + yc * 0.4 - A[2]) * k;
+      // weathervane: the nose follows the flight path wherever gravity and the trim lift bend it
+      let fp = 0, fy = 0;
+      if (sp > 4) {
+        const ax = u[0] * lift, ay = u[1] * lift - g, az = u[2] * lift, d = Math.max(sp * sp, 400);
+        const wb = Q.inv(this.q, (v[1] * az - v[2] * ay) / d, (v[2] * ax - v[0] * az) / d, (v[0] * ay - v[1] * ax) / d, _v5);
+        fp = clamp(wb[0], -1.2, 1.2); fy = clamp(-wb[1], -1.2, 1.2);
+      }
+      this.av[0] = A[0] + fp; this.av[1] = A[1] + fy; this.av[2] = A[2];
+    } else {
+      // ------------------------------------------------ mouse-aim flight controller
+      let pc = 0, yc = 0, rc = 0;
+      if (ctl) {
+        const aim = this.aimDir(_v4), a = Q.inv(this.q, aim[0], aim[1], aim[2], _v5);
+        const ang = Math.acos(clamp(-a[2], -1, 1));
+        pc = clamp(Math.atan2(a[1], -a[2]) * 2.8, FP.pMin, FP.pMax);
+        yc = clamp(Math.atan2(a[0], -a[2]) * 1.6, -FP.yMax, FP.yMax);
+        const bank = this.bankAngle();
+        const rollErr = Math.atan2(a[0], a[1]);
+        const want = smoothstep(0.04, 0.35, ang);
+        const levelCmd = -bank * 2.2 + clamp(Math.atan2(a[0], -a[2]) * 5, -0.9, 0.9);
+        rc = clamp(rollErr * 4.5, -FP.rMax, FP.rMax) * want + levelCmd * (1 - want);
+        if (Math.abs(inp.s) > 0.1) rc = inp.s * FP.rMax;
+      } else { pc = -0.2; rc = -this.bankAngle() * 1.5; }
+      const k = 1 - Math.exp(-dt * 7);
+      this.av[0] += (pc * auth - this.av[0]) * k; this.av[1] += (yc * auth - this.av[1]) * k; this.av[2] += (rc * Math.min(1, auth + 0.3) - this.av[2]) * k;
+    }
     const dq = Q._d || (Q._d = [0, 0, 0, 1]), t1 = Q._t1 || (Q._t1 = [0, 0, 0, 1]);
     Q.axis(dq, 1, 0, 0, this.av[0] * dt); Q.mul(this.q, this.q, dq);
     Q.axis(t1, 0, -1, 0, this.av[1] * dt); Q.mul(this.q, this.q, t1);
@@ -388,6 +486,115 @@ class Jet extends Vehicle {
     if (hit.boxes && hit.boxes.length && FLUID[hit.id]) return hit.y + 0.9;
     return y0 - hit.t;
   }
+  frame(dt, inp) {
+    super.frame(dt, inp);
+    if (!this.removed) this.flightState(dt, inp);
+  }
+  // felt acceleration (load factors), the pilot's G stress, terrain proximity and what the stick and rudder show
+  flightState(dt, inp) {
+    const v = this.vel, a = this.accS, pv = this.pv, iv = 1 / Math.max(dt, 1e-3);
+    let ax = (v[0] - pv[0]) * iv, ay = (v[1] - pv[1]) * iv + 20, az = (v[2] - pv[2]) * iv;
+    const am = Math.hypot(ax, ay, az); if (am > 240) { ax *= 240 / am; ay *= 240 / am; az *= 240 / am; }
+    pv[0] = v[0]; pv[1] = v[1]; pv[2] = v[2];
+    const k = Math.min(1, dt * 10);
+    a[0] += (ax - a[0]) * k; a[1] += (ay - a[1]) * k; a[2] += (az - a[2]) * k;
+    const u = this.upv, r = this.rightv, f = this.fwd;
+    this.gz = (a[0] * u[0] + a[1] * u[1] + a[2] * u[2]) / 20;
+    this.gy = (a[0] * r[0] + a[1] * r[1] + a[2] * r[2]) / 20;
+    this.gx = (a[0] * f[0] + a[1] * f[1] + a[2] * f[2]) / 20;
+    const FP = this.fp, sv = this.stickVis, sk = Math.min(1, dt * 14), sim = this.simMode();
+    sv[0] += (clamp((sim ? this.avc[2] : this.av[2]) / FP.rMax * 2.2, -1, 1) - sv[0]) * sk;
+    sv[1] += (clamp((sim ? this.avc[0] : this.av[0]) / FP.pMax * 1.6, -1, 1) - sv[1]) * sk;
+    sv[2] += ((sim && inp ? clamp(inp.s, -1, 1) : 0) - sv[2]) * sk;
+    if (!this.rider || this.rider !== this.game.player) return;
+    const gz = this.gz;
+    this.gPeak = Math.max(this.gPeak, gz);
+    // sustained high G drains the colour and closes in the view; hard negative G reds it out
+    this.gLoad = gz > 5.2 ? Math.min(1.25, this.gLoad + (gz - 5.2) * dt * 0.24) : Math.max(0, this.gLoad - dt * (gz < 3 ? 0.45 : 0.18));
+    this.redout = gz < -2.2 ? Math.min(1, this.redout + (-gz - 2.2) * dt * 0.5) : Math.max(0, this.redout - dt * 0.6);
+    // terrain rushing past: the nearest surface below the belly and off either wing
+    const c = this.center(_v3), w = this.world, cx = c[0], cy = c[1], cz = c[2];
+    let pr = 0;
+    for (let i = 0; i < 3; i++) {
+      const d = i === 0 ? u : r, s = i === 1 ? 1 : -1;
+      const hit = raycast(w, cx, cy, cz, d[0] * s, d[1] * s, d[2] * s, 18, true);
+      if (hit) pr = Math.max(pr, 1 - hit.t / 18);
+    }
+    this.prox += (pr * pr * smoothstep(35, 110, this.speed) - this.prox) * Math.min(1, dt * 8);
+  }
+  // pilot's-eye camera, fixed to the airframe: it rolls, loops and hangs upside down with the jet
+  cameraUpdate(c, dt, p) {
+    if (p.vcam !== 1) { super.cameraUpdate(c, dt, p); return; }
+    const H = this.head, S = SETTINGS, sp = this.speed, motion = S.cockpitFx !== false;
+    // free look: while held the mouse turns the head; let go and it eases back to the gunsight
+    if (!H.hold) { const kr = 1 - Math.exp(-dt * 5); H.ty -= H.ty * kr; H.tp -= H.tp * kr; }
+    const kl = 1 - Math.exp(-dt * 18);
+    H.yaw += (H.ty - H.yaw) * kl; H.pitch += (H.tp - H.pitch) * kl;
+    // G forces shove the head around the cockpit (a stiff, slightly underdamped spring)
+    const tx = motion ? clamp(-this.gy * 0.028, -0.06, 0.06) : 0, ty = motion ? clamp(-(this.gz - 1) * 0.0105, -0.085, 0.045) : 0, tz = motion ? clamp(this.gx * 0.026, -0.035, 0.06) : 0;
+    const h = Math.min(dt, 0.05), ks = 110, kd = 13;
+    H.vx += ((tx - H.x) * ks - H.vx * kd) * h; H.x += H.vx * h;
+    H.vy += ((ty - H.y) * ks - H.vy * kd) * h; H.y += H.vy * h;
+    H.vz += ((tz - H.z) * ks - H.vz * kd) * h; H.z += H.vz * h;
+    // buffet: pulling hard, stalling, low and fast over the ground, afterburner, runway rumble
+    let A = 0;
+    if (motion) {
+      A = clamp((this.gz - 4.5) * 0.0022, 0, 0.011) + Math.min(1, sp / 150) ** 2 * 0.0012 + (this.boosting ? 0.0014 : 0);
+      if (this.onGround) A += Math.min(1, sp / 45) * 0.0045;
+      else { if (this.stall) A += 0.007; if (sp > 40) A += Math.max(0, 1 - (this.agl === undefined ? 99 : this.agl) / 14) * Math.min(1, sp / 110) * 0.005; }
+    }
+    this.shakeT += dt; const T = this.shakeT;
+    const bx = (Math.sin(T * 37.1) * 0.5 + Math.sin(T * 61.7 + 1.3) * 0.3 + Math.sin(T * 97.3 + 2.1) * 0.2) * A;
+    const by = (Math.sin(T * 41.3 + 0.7) * 0.5 + Math.sin(T * 67.9 + 2.9) * 0.3 + Math.sin(T * 89.1 + 0.4) * 0.2) * A;
+    const br = (Math.sin(T * 29.3 + 1.9) * 0.6 + Math.sin(T * 53.1 + 0.2) * 0.4) * A * 0.6;
+    // head orientation in the airframe: free look (glancing down over the rail when turned to the side), then the
+    // G sag and the buffet on top
+    const hq = this.headQ, over = -0.14 * smoothstep(0.35, 1.4, Math.abs(H.yaw));
+    Q.axis(hq, 0, -1, 0, H.yaw + bx); Q.mul(hq, hq, Q.axis(_q1, 1, 0, 0, H.pitch + over + H.y * 0.45 + by)); Q.mul(hq, hq, Q.axis(_q1, 0, 0, -1, br));
+    // the eye swings about the neck as the head turns, so looking back shifts it to the side
+    const e = this.eyeOff, nk = Q.rot(hq, 0, 0.07, -0.08, _v4);
+    e[0] = H.x + nk[0]; e[1] = H.y + nk[1] - 0.07; e[2] = H.z + nk[2] + 0.08;
+    const cp = this.def.cockpit, w = this.local(cp[0] + e[0], cp[1] + e[1], cp[2] + e[2], _v5);
+    c.x = w[0]; c.y = w[1]; c.z = w[2];
+    camFromQuat(c, Q.mul(_q2, this.q, hq));
+    p.yaw = c.yaw; p.pitch = c.pitch;
+    const tf = S.fov + Math.min(6, sp * 0.045) + (this.boosting ? 3 : 0);
+    this.fovS = this.fovS === undefined ? tf : this.fovS + (tf - this.fovS) * Math.min(1, dt * 3);
+    c.fov = clamp(this.fovS * this.czoom, 20, 120);
+  }
+  // wingtip vapour when pulling hard, and motes in the air streaming past the pilot's own jet
+  airFX(R, tip) {
+    const sp = this.speed; if (sp < 20) return;
+    const g = this.game, vis = 1 - (R.env && R.env.night || 0) * 0.8;
+    const vx = this.vel[0] / sp, vy = this.vel[1] / sp, vz = this.vel[2] / sp;
+    const vap = smoothstep(4.2, 7.5, this.gz) * smoothstep(45, 80, sp) * vis;
+    if (vap > 0.01) for (const s of [-1, 1]) {
+      const p = this.local(tip[0] * s, tip[1], tip[2], _v3), len = sp * 0.09;
+      R.fxBeam(p[0], p[1], p[2], p[0] - vx * len, p[1] - vy * len, p[2] - vz * len, 0.07, 0.85, 0.88, 0.9, 0.3 * vap);
+    }
+    if (this.rider !== g.player) return;
+    // rain (drops falling at 8 b/s) streaks along the wind the jet makes; the world's rain columns fade out at speed
+    const env = R.env || {}, rain = env.rain && !env.nether && !env.end && g.world.canSeeSky(Math.floor(g.camera.x), Math.floor(g.camera.y), Math.floor(g.camera.z)) ? env.rain : 0;
+    const k = smoothstep(28, 90, sp) * vis, kr = rain * smoothstep(8, 30, sp) * (0.4 + vis * 0.6); if (k < 0.01 && kr < 0.01) return;
+    const cam = g.camera, M = this.motes || (this.motes = []), r = this.rightv, u = this.upv;
+    const n = 70 + Math.round(kr * 130);
+    while (M.length < n) M.push([1e9, 0, 0]);
+    const rx = -this.vel[0], ry = -this.vel[1] - 8 * (kr > 0 ? 1 : 0), rz = -this.vel[2], rl = Math.hypot(rx, ry, rz) || 1;
+    const len = Math.min(3.4, rl * 0.03), wx = rx / rl * len, wy = ry / rl * len, wz = rz / rl * len;
+    const a = 0.1 * k + 0.2 * kr, cw = kr > 0.05 ? 0.82 : 1;
+    for (let i = 0; i < n; i++) {
+      const m = M[i], dx = m[0] - cam.x, dy = m[1] - cam.y, dz = m[2] - cam.z;
+      if (dx * vx + dy * vy + dz * vz < -4 || dx * dx + dy * dy + dz * dz > 48 * 48) {
+        // respawn ahead, spread across a wide cone around the flight path
+        const d = 5 + Math.random() * 40, sx = (Math.random() * 2 - 1) * 16, sy = (Math.random() * 2 - 1) * 10;
+        m[0] = cam.x + vx * d + r[0] * sx + u[0] * sy; m[1] = cam.y + vy * d + r[1] * sx + u[1] * sy; m[2] = cam.z + vz * d + r[2] * sx + u[2] * sy;
+        continue;
+      }
+      // at least about a pixel wide at any distance, or distant streaks break up into dots
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      R.fxBeam(m[0], m[1], m[2], m[0] + wx, m[1] + wy, m[2] + wz, 0.012 + d * 0.0014, cw, cw * 1.02, 1, a * (1 - d / 60));
+    }
+  }
   weapons(dt, inp) {
     const M = this.game.munitions; if (!M || !inp) return;
     // plasma cannons from alternating wing-root muzzles
@@ -423,6 +630,7 @@ class Jet extends Vehicle {
     return { gear: this.gear > 0.5 ? {} : null, missiles: this.missiles > 0 ? {} : null };
   }
   drawFX(R) {
+    this.airFX(R, JET_TIP);
     const e = this.engine; if (e < 0.02 && !this.boosting) return;
     const f = this.fwd, len = 1.2 + e * 2.5 + (this.boosting ? 3.5 : 0);
     for (const sx of [-0.35, 0.35]) {
@@ -639,7 +847,7 @@ class HoverBike extends Vehicle {
 // ---------------------------------------------------------------- WRAITH
 class Bomber extends Jet {
   constructor(x, y, z, yaw) { super(x, y, z, yaw, 'bomber'); this.fp = BOMBER_FP; this.missiles = 0; this.bombs = 12; this.bReload = 0; this.bay = 0; }
-  engineSpec() { return { kind: 'jet', thr: this.rider ? this.throttle * 0.8 : 0, ab: this.boosting ? 0.7 : 0, speed: this.speed * 0.8 }; }
+  engineSpec() { const s = super.engineSpec(); s.thr *= 0.8; s.ab *= 0.7; s.speed *= 0.8; return s; }
   weapons(dt, inp) {
     const M = this.game.munitions; if (!M || !inp) return;
     if (inp.fire1 && this.cd1 <= 0 && this.overheat <= 0) {
@@ -673,6 +881,7 @@ class Bomber extends Jet {
   }
   parts() { return { gear: this.gear > 0.5 ? {} : null, bay: this.bay > 0.5 ? null : {} }; }
   drawFX(R) {
+    this.airFX(R, BOMBER_TIP);
     const e = this.engine, f = this.fwd;
     if (e > 0.02 || this.boosting) for (const sx of [-1.45, -0.75, 0.75, 1.45]) {
       const p = this.local(sx, 0.42, 1.55, _v3), len = 0.8 + e * 1.8 + (this.boosting ? 2.4 : 0);

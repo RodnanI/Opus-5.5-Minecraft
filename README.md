@@ -2,6 +2,33 @@
 
 Open `minecraft.html` in Chrome, Edge or Firefox. It is a single standalone file with no external requests.
 
+## Update 4: flying the jets from the cockpit
+
+Press F5 in the Stormcrow or the Wraith until you are in the pilot's seat.
+
+**Real cockpits instead of a camera on the hull**
+- The Stormcrow has a frameless bubble canopy on sill rails with light strips, an anti-glare hood, one panoramic display, a side-stick, a throttle, an ejection seat and the pilot's legs when you look down.
+- The Wraith has a glazed flight deck: a wide windscreen with side panes and side windows, an overhead panel, four displays, a row of caution lights, a bomb-bay switch whose guard flips open with the bay, and four throttle levers.
+- The displays are live. There is an attitude indicator with speed and altitude tapes, and a moving map that colours the ground by block and paints terrain at or above your altitude amber and red. The Stormcrow adds a stores and systems page and a standby attitude indicator. The Wraith adds a ground-mapping bomb sight centred on the impact point, an engine page and a bomb counter.
+- Caution lights follow the jet (gear, afterburner, gun heat, lock, stall, pull up, hull damage, bay open), and the stick and throttle move with your inputs.
+- Sunlight comes in through the glazing and slides across the cockpit as you roll. Fly into a canyon's shadow and the cockpit goes dark; muzzle flashes and explosions light it up; at night the displays and edge lights glow.
+- The canopy has a faint tint, sky reflections, scratches that catch the sun, and rain beads that stretch into streaks as you speed up.
+
+**Simulator flight**
+- The camera is fixed to the airframe. It rolls, loops and hangs upside down with the jet.
+- In the cockpit the mouse is the control stick: it pitches and rolls the jet in its own frame, so loops, barrel rolls and inverted flight all work, and nothing levels the wings for you. A/D is the rudder.
+- Let go and the flight computer holds your flight path in any bank. A banked jet turns level and an inverted one keeps flying straight. Past about 60 degrees of bank you have to pull to hold altitude, and on its side the jet falls.
+- A G limiter (9 G Stormcrow, 5 G Wraith). Pull hard for too long and your vision greys out and tunnels; strong negative G reds it out.
+- Hold C or the middle mouse button to look around. The head turns about the neck, so looking back moves your eye to the side. The mouse wheel zooms.
+- The chase cameras keep the assisted mouse-aim controls. Switching back to them aims wherever the nose points.
+
+**Feeling the speed**
+- G forces shove your head around the cockpit. The airframe buffets when you pull hard, stall or skim the ground, and the runway rumbles on the takeoff roll.
+- In the cockpit a helmet display replaces the old overlay: gun cross, flight path marker, pitch ladder, bank scale, speed, altitude, G, radar altitude and the weapon cue. Everything else is on the panel displays.
+- Wind noise grows with airspeed, ground and canyon walls roar as they flash past close by, and the engines sound muffled from inside.
+- Faint motes in the air streak past, the wingtips pull vapour trails at high G, and rain streaks along the airflow instead of falling in sheets.
+- Two new options under Settings, Controls: "Jet Cockpit: Pull Back For Nose Up" (stick-style pitch) and "Jet Cockpit: G-Forces & Buffeting".
+
 ## Update 3: the End, three new vehicles, fixes
 
 **The End**

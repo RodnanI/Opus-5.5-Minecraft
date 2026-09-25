@@ -31,6 +31,8 @@ class VehicleHUD {
     const show = !!(v && (g.state === 'playing' || g.state === 'paused') && !SETTINGS.hudHidden);
     if (!show) { if (this.visible) { this.ctx.setTransform(1, 0, 0, 1, 0, 0); this.ctx.clearRect(0, 0, this.cv.width, this.cv.height); this.cv.style.display = 'none'; this.visible = false; g.audio.loop('locked', this, 0); } return; }
     if (!this.visible) { this.visible = true; this.cv.style.display = 'block'; }
+    const gfade = v.gLoad && p.vcam === 1 && SETTINGS.cockpitFx !== false ? 1 - Math.min(1, v.gLoad) * 0.85 : 1;
+    if (gfade !== this.fade) { this.fade = gfade; this.cv.style.opacity = gfade; }
     this.resize();
     const c = this.ctx;
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -204,7 +206,7 @@ class VehicleHUD {
   }
   // key hints shown for a few seconds after boarding
   controls(v) {
-    const c = this.ctx, list = VEH_HELP[v.kind];
+    const c = this.ctx, list = (v.simMode && v.simMode() && VEH_HELP_SIM[v.kind]) || VEH_HELP[v.kind];
     let fs = Math.max(11, this.fs - 2);
     const a = Math.min(1, v.mountT / 1.5);
     const measure = () => { c.font = `600 ${fs}px ui-monospace, Menlo, Consolas, monospace`; let t = 0; const ws = list.map(([k, d]) => { const w = c.measureText(k).width + c.measureText(d).width + fs * 1.6; t += w; return w; }); return [t, ws]; };
@@ -222,21 +224,29 @@ class VehicleHUD {
     c.globalAlpha = 1;
   }
   // ------------------------------------------------------------ STORMCROW
+  // flight path marker: where the jet is actually going
+  fpm(v) {
+    const sp = v.speed; if (sp <= 3) return;
+    const fp = this.projDir(v.vel[0] / sp, v.vel[1] / sp, v.vel[2] / sp);
+    if (fp) { this.circle(fp[0], fp[1], 7); this.line(fp[0] - 18, fp[1], fp[0] - 7, fp[1]); this.line(fp[0] + 7, fp[1], fp[0] + 18, fp[1]); this.line(fp[0], fp[1] - 7, fp[0], fp[1] - 13); }
+  }
   jet(c, v, dt) {
-    const W = this.w, H = this.h, cx = W / 2, cy = H / 2, fs = this.fs;
+    if (v.simMode && v.simMode()) { this.hmd(c, v, dt); return; }
+    const cx = this.w / 2, cy = this.h / 2;
     this.col = '#A8FF52';
-    const cen = v.center([0, 0, 0]), f = v.fwd, sp = v.speed;
+    const cen = v.center([0, 0, 0]), f = v.fwd;
     // aim ring (where the mouse points)
     this.circle(cx, cy, 9); this.line(cx - 16, cy, cx - 11, cy); this.line(cx + 11, cy, cx + 16, cy); this.line(cx, cy - 16, cx, cy - 11);
     // boresight (where the cannons point)
     const b = this.proj(cen[0] + f[0] * 600, cen[1] + f[1] * 600, cen[2] + f[2] * 600);
     if (b) { this.poly([b[0] - 18, b[1] - 3, b[0] - 9, b[1] + 6, b[0], b[1], b[0] + 9, b[1] + 6, b[0] + 18, b[1] - 3]); this.line(b[0], b[1] - 5, b[0], b[1] - 11); }
-    // flight path marker
-    if (sp > 3) {
-      const fp = this.projDir(v.vel[0] / sp, v.vel[1] / sp, v.vel[2] / sp);
-      if (fp) { this.circle(fp[0], fp[1], 7); this.line(fp[0] - 18, fp[1], fp[0] - 7, fp[1]); this.line(fp[0] + 7, fp[1], fp[0] + 18, fp[1]); this.line(fp[0], fp[1] - 7, fp[0], fp[1] - 13); }
-    }
-    // world-referenced pitch ladder around the nose heading
+    this.fpm(v);
+    this.ladder(v);
+    this.jetInfo(c, v);
+  }
+  // world-referenced pitch ladder around the nose heading
+  ladder(v) {
+    const f = v.fwd, fs = this.fs;
     const hd = v.heading(), sh = Math.sin(hd), ch = Math.cos(hd);
     const pitchNow = Math.asin(clamp(f[1], -1, 1)) / DEG;
     for (let a = -80; a <= 80; a += 10) {
@@ -259,6 +269,9 @@ class VehicleHUD {
         this.text(String(Math.abs(a)), pts[0][0] - 14, pts[0][1], 'right', fs * 0.8); this.text(String(Math.abs(a)), pts[3][0] + 14, pts[3][1], 'left', fs * 0.8);
       }
     }
+  }
+  jetInfo(c, v) {
+    const W = this.w, H = this.h, cx = W / 2, cy = H / 2, fs = this.fs, sp = v.speed, hd = v.heading();
     // tapes
     const tapeH = Math.min(H * 0.42, 320);
     this.tape(cx - Math.min(W * 0.3, 330), cy, tapeH, sp * 3.6, 10, 5, false, (s) => String(Math.round(s)), 'KPH');
@@ -309,6 +322,51 @@ class VehicleHUD {
     if (fp) { const dx = s[0] - fp[0], dy = s[1] - fp[1], l = Math.hypot(dx, dy); if (l > 26) this.line(fp[0] + dx / l * 12, fp[1] + dy / l * 12, s[0] - dx / l * 12, s[1] - dy / l * 12); }
     this.text('CCIP ' + imp[3].toFixed(1) + 's', s[0] + 17, s[1] + 14, 'left', this.fs * 0.8, '#FFD23F');
     this.col = old;
+  }
+  // helmet display for the cockpit view: flight symbology only, drawn above the instrument panel (the panel
+  // displays carry the radar, stores and systems). Head-fixed, so it turns with free look like a real HMD.
+  hmd(c, v, dt) {
+    const W = this.w, H = this.h, cx = W / 2, cy = H * 0.4, fs = this.fs, sp = v.speed, f = v.fwd;
+    this.col = '#A8FF52';
+    const cen = v.center([0, 0, 0]);
+    // gun cross on the cannon line, flight path marker, world-referenced ladder
+    const b = this.proj(cen[0] + f[0] * 600, cen[1] + f[1] * 600, cen[2] + f[2] * 600);
+    if (b) { this.line(b[0] - 15, b[1], b[0] - 5, b[1]); this.line(b[0] + 5, b[1], b[0] + 15, b[1]); this.line(b[0], b[1] - 15, b[0], b[1] - 5); this.line(b[0], b[1] + 5, b[0], b[1] + 9); }
+    this.fpm(v);
+    this.ladder(v);
+    // bank scale arc over the ladder; the caret points at the sky like an attitude indicator's, right way up or not
+    const bank = v.bankAngle(), rr = Math.min(H * 0.27, W * 0.2);
+    for (const a of [-60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60]) {
+      const t = (a - 90) * DEG, l = a % 30 === 0 ? fs * 0.9 : fs * 0.5;
+      this.line(cx + Math.cos(t) * rr, cy + Math.sin(t) * rr, cx + Math.cos(t) * (rr + l), cy + Math.sin(t) * (rr + l));
+    }
+    const bt = -Math.max(-1.25, Math.min(1.25, bank)) - Math.PI / 2, br = rr - 4;
+    this.poly([cx + Math.cos(bt) * br, cy + Math.sin(bt) * br, cx + Math.cos(bt - 0.035) * (br - fs), cy + Math.sin(bt - 0.035) * (br - fs), cx + Math.cos(bt + 0.035) * (br - fs), cy + Math.sin(bt + 0.035) * (br - fs)], true);
+    if (Math.abs(bank) > 1.25) this.text(Math.abs(bank) > 2.2 ? 'INVERTED' : Math.round(Math.abs(bank) / DEG) + '\u00b0', cx, cy - rr - fs * 1.1, 'center', fs * 0.85, '#FFB23D');
+    // speed and altitude, compact tapes either side
+    const tx = Math.min(W * 0.21, 330), tapeH = Math.min(H * 0.3, 250);
+    this.tape(cx - tx, cy, tapeH, sp * 3.6, 10, 5, false, (s) => String(Math.round(s)), 'KPH');
+    this.tape(cx + tx, cy, tapeH, v.y, 5, 4, true, (s) => String(Math.round(s)), 'ALT');
+    const gz = v.gz === undefined ? 1 : v.gz, agl = v.agl !== undefined && v.agl < 200 ? Math.round(v.agl) : '---';
+    this.text('G ' + (Math.abs(gz) < 0.05 ? 0 : gz).toFixed(1), cx - tx - fs * 5, cy + tapeH / 2 + fs, 'left', fs * 0.9, gz > 7 ? '#FFB23D' : this.col);
+    this.text('THR ' + Math.round(v.throttle * 100) + (v.boosting ? ' A/B' : ''), cx - tx - fs * 5, cy + tapeH / 2 + fs * 2.2, 'left', fs * 0.85, v.boosting ? '#FFB23D' : this.col);
+    this.text('R ' + agl, cx + tx + 6, cy + tapeH / 2 + fs, 'left', fs * 0.9, typeof agl === 'number' && agl < 15 && !v.onGround ? '#FFB23D' : this.col);
+    this.text((v.vel[1] >= 0 ? '+' : '') + v.vel[1].toFixed(0) + ' VS', cx + tx + 6, cy + tapeH / 2 + fs * 2.2, 'left', fs * 0.85);
+    this.headingTape(cx, fs * 3.2, Math.min(W * 0.34, 380), v.heading());
+    // weapon cue under the ladder
+    const wy = cy + tapeH / 2 + fs * 1.6;
+    if (v.kind === 'bomber') {
+      this.text((v.bay > 0.5 ? 'BAY OPEN' : 'BAY SAFE') + '   BOMBS ' + v.bombs, cx, wy, 'center', fs * 0.9, v.bay > 0.5 ? '#FFD23F' : this.col);
+      this.ccipMark(v);
+    } else {
+      const ls = v.lock ? (v.lockT >= 1 ? 'LOCK' : 'LOCKING') : 'SEEK';
+      this.text('HYDRA ' + v.missiles + '  ' + ls, cx, wy, 'center', fs * 0.9, v.lock && v.lockT >= 1 ? '#FFD23F' : this.col);
+    }
+    if (v.overheat > 0 && this.flash(5)) this.text('GUN OVERHEAT', cx, wy + fs * 1.3, 'center', fs * 0.9, '#FF5A2E');
+    if (v.onGround) this.text('TAXI', cx, wy - fs * 1.3, 'center', fs * 0.9);
+    this.targets(v, 320, v.lock, v.lockT, true);
+    this.lockAudio(v);
+    this.warnings(v);
   }
   // ------------------------------------------------------------ BASTION
   tank(c, v, dt) {

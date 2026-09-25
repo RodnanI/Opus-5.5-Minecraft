@@ -699,7 +699,9 @@ class Renderer {
     this.drawWeather(game, env);
     gl.depthMask(true); gl.disable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     // first-person hand in a sliver of depth range: always on top, and the scene depth stays intact for
-    // god rays and edge anti-aliasing (clearing the depth buffer made every pixel look like open sky)
+    // god rays and edge anti-aliasing (clearing the depth buffer made every pixel look like open sky).
+    // A jet's cockpit interior is drawn the same way.
+    if (game.drawCockpit) game.drawCockpit(this);
     if (game.drawHand) { gl.depthRange(0, 0.001); game.drawHand(this); gl.depthRange(0, 1); }
     if (post) this.postProcess(game, env);
     gl.bindVertexArray(null);
@@ -1013,6 +1015,9 @@ class Renderer {
     const gl = this.gl, rain = env.rain;
     if (rain < 0.05 || env.nether) return;
     const w = game.world, p = game.player; if (!p) return;
+    // from a fast vehicle the rain columns would flash past as giant sheets; the jets draw rain streaks instead
+    const fast = p.vehicle && p.vehicle.airFX ? smoothstep(12, 30, p.vehicle.speed) : 0;
+    if (fast > 0.99) return;
     const R = IS_MOBILE ? 6 : 10;
     const px = Math.floor(this.camX), pz = Math.floor(this.camZ), py = this.camY;
     const verts = this.weatherBuf || (this.weatherBuf = new Float32Array((2 * R + 1) * (2 * R + 1) * 6 * 7));
@@ -1034,7 +1039,7 @@ class Renderer {
       const cxw = x + 0.5 - this.camX, czw = z + 0.5 - this.camZ;
       const dl = Math.hypot(cxw, czw) || 1;
       const rx = -czw / dl * 0.5, rz = cxw / dl * 0.5;
-      const a = rain * (1 - Math.min(1, dl / R) * 0.6);
+      const a = rain * (1 - Math.min(1, dl / R) * 0.6) * (1 - fast);
       const Y0 = y0 - this.camY, Y1 = y1 - this.camY;
       const v0 = y0 / 4 + vo, v1 = y1 / 4 + vo;
       const sx = snow ? Math.sin(t * 0.7 + h * 10) * 0.2 : 0;
@@ -1119,6 +1124,8 @@ class Renderer {
     gl.uniform1f(u.uSat, 1.1);
     gl.uniform1f(u.uGammaOut, 1.0);
     gl.uniform1f(u.uBoost, game.boostFx || 0);
+    const pv = game.player && game.player.vehicle, gfx = pv && game.player.vcam === 1 && pv.gLoad !== undefined && SETTINGS.cockpitFx !== false;
+    gl.uniform1f(u.uGLoad, gfx ? Math.min(1, pv.gLoad) : 0); gl.uniform1f(u.uRedout, gfx ? pv.redout : 0);
     gl.uniform1f(u.uWarm, env.nether || env.end ? 0 : env.day);
     if (p.ldrF) {
       this.fsq(pr, p.ldrF, this.width, this.height);

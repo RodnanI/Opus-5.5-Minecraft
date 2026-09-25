@@ -109,6 +109,7 @@ const DEFAULT_SETTINGS = Object.assign({
   masterVol: 0.8, musicVol: 0.5, sfxVol: 0.8, ambientVol: 0.6,
   autoJump: IS_TOUCH, touchAim: IS_TOUCH ? 'touch' : 'crosshair', buttonSize: 1, buttonOpacity: 0.55, guiScale: 0,
   autoQuality: true, sharpen: 0.25, fpsCap: 0, fog: true, tonemap: true, vignette: true, cloudHeight: 150, hudHidden: false, gamma: 1,
+  cockpitFx: true, flightInvert: false,
 }, PRESETS[IS_MOBILE ? 'medium' : 'high']);
 const SETTINGS = (() => {
   let s = {};

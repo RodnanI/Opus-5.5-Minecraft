@@ -1,11 +1,11 @@
 // ============================================================================
 //  Input: keyboard/mouse (pointer lock), touch controls, gamepad
 // ============================================================================
-const KEYS = { vehicle: 'KeyF', forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', sneak: 'ShiftLeft', sprint: 'ControlLeft', inventory: 'KeyE', drop: 'KeyQ', chat: 'KeyT', command: 'Slash', debug: 'F3', perspective: 'F5', hud: 'F1', screenshot: 'F2', pause: 'Escape' };
+const KEYS = { vehicle: 'KeyF', forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', sneak: 'ShiftLeft', sprint: 'ControlLeft', inventory: 'KeyE', drop: 'KeyQ', chat: 'KeyT', command: 'Slash', debug: 'F3', perspective: 'F5', hud: 'F1', screenshot: 'F2', pause: 'Escape', freeLook: 'KeyC' };
 class Input {
   constructor(game) {
     this.game = game;
-    this.keys = new Set(); this.mouse = { l: false, r: false };
+    this.keys = new Set(); this.mouse = { l: false, r: false, m: false };
     this.locked = false; this.lookDX = 0; this.lookDY = 0;
     this.latch = { attack: false, use: false, pick: false };
     this.lastJumpTap = 0; this.lastFwdTap = 0; this.sprintToggle = false;
@@ -14,11 +14,11 @@ class Input {
     const cv = game.canvas;
     window.addEventListener('keydown', (e) => this.onKey(e, true));
     window.addEventListener('keyup', (e) => this.onKey(e, false));
-    window.addEventListener('blur', () => { this.keys.clear(); this.mouse.l = this.mouse.r = false; });
+    window.addEventListener('blur', () => { this.keys.clear(); this.mouse.l = this.mouse.r = this.mouse.m = false; });
     cv.addEventListener('mousedown', (e) => this.onMouse(e, true));
     window.addEventListener('mouseup', (e) => this.onMouse(e, false));
     window.addEventListener('mousemove', (e) => { if (this.locked) { this.lookDX += e.movementX; this.lookDY += e.movementY; } });
-    cv.addEventListener('wheel', (e) => { if (this.game.state !== 'playing' || this.game.ui.open) return; e.preventDefault(); const p = this.game.player; if (!p) return; if (p.vehicle) { p.vehicle.zoom = clamp(p.vehicle.zoom * (e.deltaY > 0 ? 1.1 : 0.9), 0.55, 2.2); return; } p.sel = (p.sel + (e.deltaY > 0 ? 1 : -1) + 9) % 9; this.game.ui.onSlotChange(); }, { passive: false });
+    cv.addEventListener('wheel', (e) => { if (this.game.state !== 'playing' || this.game.ui.open) return; e.preventDefault(); const p = this.game.player; if (!p) return; if (p.vehicle) { const v = p.vehicle, k = e.deltaY > 0 ? 1.1 : 0.9; if (p.vcam === 1 && v.czoom !== undefined) v.czoom = clamp(v.czoom * k, 0.45, 1.3); else v.zoom = clamp(v.zoom * k, 0.55, 2.2); return; } p.sel = (p.sel + (e.deltaY > 0 ? 1 : -1) + 9) % 9; this.game.ui.onSlotChange(); }, { passive: false });
     cv.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === cv;
@@ -51,7 +51,7 @@ class Input {
     if (e.code === KEYS.drop) g.dropHeld(e.ctrlKey);
     if (e.code === KEYS.debug) { ui.debug = !ui.debug; }
     if (e.code === KEYS.hud) { SETTINGS.hudHidden = !SETTINGS.hudHidden; ui.applyHudVisibility(); }
-    if (e.code === KEYS.perspective) { if (p.vehicle) p.vcam = (p.vcam + 1) % 3; else p.camMode = (p.camMode + 1) % 3; }
+    if (e.code === KEYS.perspective) this.cycleCamera(p);
     if (e.code === KEYS.vehicle && !e.repeat) g.toggleVehicle();
     if (e.code === KEYS.screenshot) g.screenshot();
     if (e.code === KEYS.chat) { e.preventDefault(); ui.openChat(''); }
@@ -67,10 +67,10 @@ class Input {
     const g = this.game;
     g.audio.init();
     if (down && g.state === 'playing' && !g.ui.open && !this.locked && !IS_TOUCH) { this.requestLock(); return; }
-    if (!this.locked) { if (!down) { this.mouse.l = this.mouse.r = false; } return; }
+    if (!this.locked) { if (!down) { this.mouse.l = this.mouse.r = this.mouse.m = false; } return; }
     if (e.button === 0) { this.mouse.l = down; if (down) this.latch.attack = true; }
     if (e.button === 2) { this.mouse.r = down; if (down) this.latch.use = true; }
-    if (e.button === 1 && down) { this.latch.pick = true; e.preventDefault(); }
+    if (e.button === 1) { this.mouse.m = down; if (down) { this.latch.pick = true; e.preventDefault(); } }
   }
   // ---------------------------------------------------------------- touch
   buildTouch() {
@@ -92,7 +92,7 @@ class Input {
     hold(dn, () => { this.t.flyDown = true; }, () => { this.t.flyDown = false; });
     hold(inv, () => { if (g.ui.open) g.ui.closeScreen(); else g.ui.openInventory(); });
     hold(pause, () => g.pause());
-    hold(cam, () => { const p = g.player; if (p) p.camMode = (p.camMode + 1) % 3; });
+    hold(cam, () => { const p = g.player; if (p) this.cycleCamera(p); });
     hold(chat, () => g.ui.openChat(''));
     hold(tp, () => g.ui.chatWith('/tp '));
     hold(drop, () => g.dropHeld(false));
@@ -166,11 +166,24 @@ class Input {
     if (p) { const fly = p.flying; $('#t-up').style.display = fly ? 'flex' : 'none'; $('#t-down').style.display = fly ? 'flex' : 'none'; $('#t-sneak').style.display = fly ? 'none' : 'flex'; }
     const tp = $('#t-tp'); if (tp) tp.style.display = g.meta && g.meta.cheats ? 'flex' : 'none';
   }
+  // F5: chase / cockpit / far chase in a vehicle, first / third / front person on foot
+  cycleCamera(p) {
+    if (!p.vehicle) { p.camMode = (p.camMode + 1) % 3; return; }
+    p.vcam = (p.vcam + 1) % 3;
+    if (p.vehicle.onCamChange) p.vehicle.onCamChange(p);
+  }
   // ---------------------------------------------------------------- per-frame look + per-tick state
   applyLook(p, dt) {
     // slower turning while zoomed in (spyglass, drawn bow)
     const sens = (0.0015 + SETTINGS.sensitivity * 0.005) * Math.min(1, Math.max(0.12, p.fovMul || 1));
     this.pollGamepad(p, dt);
+    // flying from the cockpit the mouse is the control stick, or the pilot's head while free look is held
+    const v = p.vehicle;
+    if (v && v.takesMouse && v.takesMouse(p)) {
+      const look = v.head.hold = this.keys.has(KEYS.freeLook) || this.mouse.m;
+      if (this.lookDX || this.lookDY) { v.mouseInput(this.lookDX * sens, this.lookDY * sens * (SETTINGS.invertY ? -1 : 1), look); this.lookDX = this.lookDY = 0; }
+      return;
+    }
     if (this.lookDX || this.lookDY) {
       p.yaw += this.lookDX * sens;
       p.pitch -= this.lookDY * sens * (SETTINGS.invertY ? -1 : 1);
@@ -195,7 +208,7 @@ class Input {
       if (pressed(6)) this.latch.use = true;
       if (pressed(3)) g.ui.openInventory();
       if (pressed(9)) g.pause();
-      if (pressed(11)) p.camMode = (p.camMode + 1) % 3;
+      if (pressed(11)) this.cycleCamera(p);
       if (pressed(13)) g.dropHeld(false);
       if (pressed(0)) { const t = now(); if (t - this.lastJumpTap < 300 && (p.creative || p.spectator)) { p.flying = !p.flying; p.vy = 0; } this.lastJumpTap = t; }
     } else if (g.ui.open && (pressed(1) || pressed(3))) g.ui.closeScreen();

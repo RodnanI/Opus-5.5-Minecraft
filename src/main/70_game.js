@@ -996,6 +996,12 @@ class Game {
     }
     this.particles.draw(R, extra);
   }
+  // the jets' cockpit interiors, drawn from the pilot's seat
+  drawCockpit(R) {
+    const p = this.player, v = p && p.vehicle;
+    if (!v || p.vcam !== 1 || p.dead || !COCKPITS[v.kind] || this.state === 'menu') return;
+    (this.cockpit || (this.cockpit = new CockpitRenderer(R.gl))).draw(R, this, v);
+  }
   drawHand(R) {
     const p = this.player; if (!p || p.vehicle || p.camMode !== 0 || p.spectator || SETTINGS.hudHidden || p.dead || p.sleeping) return;
     const gl = R.gl, a = this.alpha, w = this.world;

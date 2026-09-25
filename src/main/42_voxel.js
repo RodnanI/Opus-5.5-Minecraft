@@ -108,9 +108,8 @@ function voxModel(gl, name, parts) {
 // Cockpit-view version of a hull. From a camera inside the canopy the exterior hull is broken: the glass voxels
 // resting on the fuselage take away its top faces, so the pilot looked straight through the floor at the ground
 // with loose slabs of wing floating around. This copy has no canopy: glass (and frame) inside the hull's own
-// cross-section becomes hull, the bubble above it is dropped, and the cockpit camera sits just above the hull top,
-// looking out over the nose (the HUD overlay supplies the instruments). At 1/8 block per voxel anything built
-// around the eye (panel, frame bars) would fill half the screen.
+// cross-section becomes hull and the bubble above it is dropped. The jet and bomber draw their pilot-scale cockpit
+// interiors over it (48_cockpit.js); at 1/8 block per voxel a panel or frame built here would fill half the screen.
 //   o.glass: palette indices of the canopy (+ o.frame: [index, (x, y, z) -> part of the canopy])
 //   o.hull(x, y, z): palette index if the voxel lies inside the hull cross-section, else 0
 function cockpitGrid(g, o) {
@@ -229,7 +228,8 @@ function buildJetModel(gl) {
   // landing gear
   const gg = new VoxGrid(W, H, L, S), GS = gg.c(0x55595F, MAT_METAL), GT = gg.c(0x121314, MAT_MATTE);
   for (const [gx, gz] of [[cxv, 11], [cxv - 5, 36], [cxv + 5, 36]]) { for (let y = 0; y <= 3; y++) gg.set(gx, y, gz, y <= 1 ? GT : GS); gg.set(gx, 0, gz + 1, GT); gg.set(gx, 1, gz + 1, GT); }
-  // cockpit view: camera at voxel (24, 11, 19.5) = VEH_DEFS.jet.cockpit, one voxel above the fuselage top
+  // cockpit view: the pilot's eye sits at voxel (24, 12, 19.5) = VEH_DEFS.jet.cockpit, above the fuselage top and
+  // inside the cockpit interior (48_cockpit.js), which hides this hull wherever the two overlap
   const hull = (x, y, z) => { const [bw, yc, ht, hb] = body(z), dy = y - yc; return Math.pow(Math.abs(x - cxv) / bw, 2.4) + Math.pow(Math.abs(dy) / (dy > 0 ? ht : hb), 2.4) <= 1 ? PANEL : 0; };
   const cabin = cockpitGrid(g, { glass: [GLASS], frame: [FRAME, (x, y, z) => z === 17], hull });
   return voxModel(gl, 'jet', { body: { grid: g, origin, view: 'ext' }, cabin: { grid: cabin, origin, view: 'int' }, missiles: { grid: mg, origin }, gear: { grid: gg, origin } });
@@ -434,7 +434,8 @@ function buildBomberModel(gl) {
   g.each((x, y, z) => (Math.abs(x - cxv) <= 3 && z >= 17 && z <= 27 && y === 3) ? DARK : 0);
   const gear = new VoxGrid(W, H, L, S), GS = gear.c(0x55595F, MAT_METAL), GT = gear.c(0x121314, MAT_MATTE);
   for (const [gx, gz] of [[cxv, 10], [cxv - 7, 26], [cxv + 7, 26]]) { for (let y = 0; y <= 3; y++) gear.set(gx, y, gz, y <= 1 ? GT : GS); gear.set(gx, 0, gz + 1, GT); gear.set(gx, 1, gz + 1, GT); }
-  // cockpit view: camera at voxel (36, 10, 13.5) = VEH_DEFS.bomber.cockpit, one voxel above the wing
+  // cockpit view: the pilot's eye sits at voxel (36, 11.5, 13.5) = VEH_DEFS.bomber.cockpit, above the wing and inside
+  // the flight deck interior (48_cockpit.js)
   const hull = (x, y, z) => {
     const ax = Math.abs(x - cxv), a = le(ax), b = te(ax);
     if (z < a || z > b) return 0;
