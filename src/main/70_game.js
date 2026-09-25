@@ -368,6 +368,7 @@ class Game {
     if (st.tap && p.target) { if (p.target.entity) st.attackPressed = true; else { st.usePressed = true; st.use = true; } }
     else if (st.tap) { st.use = true; }
     if (IS_TOUCH && st.attack && !st.attackPressed) { const hd = ITEMS[p.heldId()]; if (hd && (hd.food || hd.use === 'bow' || hd.use === 'drink')) { st.attack = false; st.use = true; } }
+    if (this.tpSurface) this.settleTeleport();
     if (this.state === 'playing') p.tick(st); else p.savePrev();
     // entities
     const ents = w.entities;
@@ -400,8 +401,11 @@ class Game {
         else { W.rain = true; W.thunder = Math.random() < 0.3; W.timer = randInt(6000, 14000); }
       }
     }
-    this.rainLevel += ((W.rain ? 1 : 0) - this.rainLevel) * 0.004;
-    this.thunderLevel += ((W.thunder ? 1 : 0) - this.thunderLevel) * 0.004;
+    // natural changes drift in over ~40s; /weather snaps over ~2s so the command visibly takes effect
+    const rt = W.rain ? 1 : 0, tt = W.thunder ? 1 : 0, k = this.weatherSnap ? 0.08 : 0.004;
+    this.rainLevel += (rt - this.rainLevel) * k;
+    this.thunderLevel += (tt - this.thunderLevel) * k;
+    if (this.weatherSnap && Math.abs(rt - this.rainLevel) < 0.01 && Math.abs(tt - this.thunderLevel) < 0.01) { this.rainLevel = rt; this.thunderLevel = tt; this.weatherSnap = false; }
     if (this.thunderLevel > 0.5 && this.world.dim === 'overworld' && Math.random() < 1 / 1500) {
       const p = this.player, x = Math.floor(p.x + randInt(-60, 60)), z = Math.floor(p.z + randInt(-60, 60));
       this.lightning = 1;
@@ -729,6 +733,20 @@ class Game {
       this.putPlayer(bx + 0.5, gy, bz + 0.5);
       p.portalCd = 60;
     };
+  }
+  // finish a surface /tp: hold the player still until the target column exists, then drop them onto a safe floor
+  settleTeleport() {
+    const T = this.tpSurface, w = this.world, p = this.player;
+    if (w.dim !== T.dim || p.vehicle) { this.tpSurface = null; return; }
+    const bx = Math.floor(T.x), bz = Math.floor(T.z);
+    if (!w.isLoaded(bx, bz)) { p.vx = p.vy = p.vz = 0; p.fallDist = 0; if (--T.t <= 0) { this.tpSurface = null; this.ui.message('Teleport target never loaded', '#f88'); } return; }
+    this.tpSurface = null;
+    const nether = w.dim === 'nether', open = (id) => !SOLID[id] && id !== B.lava;
+    for (let y = nether ? NETHER_TOP - 6 : Math.min(CH - 2, w.heightAt(bx, bz) + 1); y > 1; y--) {
+      const b = w.getId(bx, y - 1, bz);
+      if ((SOLID[b] || (!nether && b === B.water)) && open(w.getId(bx, y, bz)) && open(w.getId(bx, y + 1, bz))) { this.putPlayer(T.x, y, T.z); this.ui.message(`Teleported to ${Math.round(T.x)}, ${y}, ${Math.round(T.z)}`); return; }
+    }
+    this.ui.message('No safe ground there, stayed at height ' + Math.round(p.y), '#fd8');
   }
   putPlayer(x, y, z) { const p = this.player; p.x = x; p.y = y; p.z = z; p.vx = p.vy = p.vz = 0; p.fallDist = 0; p.portalCd = 100; p.portalTime = 0; p.savePrev(); }
   screenshot() { this.wantShot = true; }
@@ -1060,19 +1078,22 @@ class Game {
     const num = (s, base) => s && s.startsWith('~') ? base + (s.length > 1 ? +s.slice(1) : 0) : +s;
     try {
       switch (c) {
-        case 'help': ui.message('Commands: gamemode, time, weather, tp, give, summon, vehicle, locate, dimension, seed, kill, difficulty, spawnpoint, gamerule, clear, xp, heal, feed'); break;
+        case 'help': ui.message('Commands: gamemode, time, weather, tp (x y z, or x z for surface), give, summon, vehicle, locate, dimension, seed, kill, difficulty, spawnpoint, gamerule, clear, xp, heal, feed'); break;
         case 'vehicle': case 'v': { const k = { jet: 'jet', stormcrow: 'jet', gunship: 'gunship', vtol: 'gunship', mantis: 'gunship', bike: 'bike', viper: 'bike', hoverbike: 'bike', bomber: 'bomber', wraith: 'bomber', tank: 'tank', bastion: 'tank', mech: 'mech', titan: 'mech', walker: 'mech', sub: 'sub', submarine: 'sub', nautilus: 'sub', drill: 'drill', mole: 'drill', borer: 'drill' }[a[1]]; if (!k) throw 'Usage: /vehicle jet | bomber | gunship | bike | tank | mech | sub | drill'; const d = p.lookVec(), hl = Math.hypot(d[0], d[2]) || 1; const dist = k === 'bike' ? 4 : k === 'drill' ? 7 : 10, x = p.x + d[0] / hl * dist, z = p.z + d[2] / hl * dist; const y = Math.max(w.heightAt(Math.floor(x), Math.floor(z)), Math.floor(p.y)); spawnVehicle(w, k, x, y + 0.05, z, p.yaw); ui.message('Deployed ' + VEH_DEFS[k].name + '. Walk up and press F to board.', '#afa'); break; }
         case 'gamemode': case 'gm': { const m = { survival: 'survival', s: 'survival', 0: 'survival', creative: 'creative', c: 'creative', 1: 'creative', spectator: 'spectator', sp: 'spectator', 3: 'spectator' }[a[1]]; if (!m) throw 'Unknown mode'; p.mode = m; p.flying = m === 'spectator' ? true : (m === 'creative' ? p.flying : false); ui.message('Game mode set to ' + titleCase(m)); break; }
         case 'time': { if (a[1] === 'set') { const v = { day: 1000, noon: 6000, night: 13000, midnight: 18000, sunrise: 23000, sunset: 12000 }[a[2]]; const t = v !== undefined ? v : +a[2]; this.time = Math.floor(this.time / 24000) * 24000 + t; ui.message('Set the time to ' + t); } else if (a[1] === 'add') { this.time += +a[2]; } else ui.message('Day ' + Math.floor(this.time / 24000) + ', time ' + Math.floor(this.time % 24000)); break; }
-        case 'weather': { const W = this.weather; W.rain = a[1] !== 'clear'; W.thunder = a[1] === 'thunder'; W.timer = 6000 + randInt(0, 6000); ui.message('Weather set to ' + a[1]); break; }
-        case 'tp': { const x = num(a[1], p.x), y = num(a[2], p.y), z = num(a[3], p.z); if ([x, y, z].some(isNaN)) throw 'Usage: /tp x y z'; this.putPlayer(x, y, z); ui.message(`Teleported to ${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}`); break; }
+        case 'weather': { const t = a[1]; if (t !== 'clear' && t !== 'rain' && t !== 'thunder') throw 'Usage: /weather clear | rain | thunder'; const W = this.weather; W.rain = t !== 'clear'; W.thunder = t === 'thunder'; W.timer = t === 'clear' ? randInt(12000, 30000) : randInt(6000, 12000); this.weatherSnap = true; ui.message('Weather set to ' + t); break; }
+        case 'tp': {
+          // /tp x z: land on the first safe floor once the destination chunk has loaded
+          if (a.length === 3) { const x = num(a[1], p.x), z = num(a[2], p.z); if (isNaN(x) || isNaN(z)) throw 'Usage: /tp x y z  or  /tp x z'; this.putPlayer(x, p.y, z); this.tpSurface = { x, z, dim: w.dim, t: 1200 }; ui.message(`Teleporting to ${Math.round(x)}, ${Math.round(z)}...`); break; }
+          const x = num(a[1], p.x), y = num(a[2], p.y), z = num(a[3], p.z); if ([x, y, z].some(isNaN)) throw 'Usage: /tp x y z  or  /tp x z'; this.tpSurface = null; this.putPlayer(x, y, z); ui.message(`Teleported to ${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}`); break; }
         case 'give': { let n = a[1]; if (n && n.startsWith('minecraft:')) n = n.slice(10); const id = I[n] !== undefined ? I[n] : I[n + '_item']; if (id === undefined) throw 'Unknown item ' + n; const cnt = +(a[2] || 1); let left = cnt; while (left > 0) { const k = Math.min(left, maxStack(id)); const l = p.inv.add({ id, n: k, d: 0 }); if (l) this.dropItem(w, p.x, p.y + 1, p.z, { id, n: l, d: 0 }); left -= k; } ui.message(`Gave ${cnt} × ${itemName(id)}`); break; }
         case 'summon': {
           const t = a[1];
           if (t === 'ender_dragon') { if (w.dim !== 'end') throw 'The Ender Dragon only lives in the End'; this.endFight.summon(); ui.message('The dragon rises', '#d98aff'); break; }
           if (t === 'end_crystal') { const d = p.lookVec(); w.addEntity(new EndCrystal(num(a[2], p.x + d[0] * 3), num(a[3], p.y), num(a[4], p.z + d[2] * 3))); ui.message('Summoned end_crystal'); break; }
           if (!MOB_DEFS[t]) throw 'Unknown mob. Try: ' + Object.keys(MOB_DEFS).concat(['ender_dragon', 'end_crystal']).join(', '); const d = p.lookVec(); this.spawnMob(t, num(a[2], p.x + d[0] * 3), num(a[3], p.y), num(a[4], p.z + d[2] * 3), null); ui.message('Summoned ' + t); break; }
-        case 'locate': { const t = a[1]; if (!SDEF[t]) throw 'Structures: ' + Object.keys(SDEF).join(', '); ui.message('Searching…'); this.jobs.post({ t: 'locate', dim: w.dim, type: t, x: p.x, z: p.z }, null, (m) => { if (m.res) ui.message(`Nearest ${t} is at ${m.res.x}, ~, ${m.res.z} (${Math.round(Math.hypot(m.res.x - p.x, m.res.z - p.z))} blocks away)`, '#afa'); else ui.message('No ' + t + ' found nearby', '#f88'); }); break; }
+        case 'locate': { const t = a[1]; if (!SDEF[t]) throw 'Structures: ' + Object.keys(SDEF).join(', '); ui.message('Searching…'); this.jobs.post({ t: 'locate', dim: w.dim, type: t, x: p.x, z: p.z }, null, (m) => { if (m.res) ui.message([`Nearest ${t} is at `, ui.tpLink(m.res.x, m.res.z), ` (${Math.round(Math.hypot(m.res.x - p.x, m.res.z - p.z))} blocks away)`], '#afa'); else ui.message('No ' + t + ' found nearby', '#f88'); }); break; }
         case 'dimension': case 'dim': {
           const d = { overworld: 'overworld', nether: 'nether', end: 'end', the_end: 'end' }[a[1]];
           if (!d) throw 'Usage: /dimension overworld | nether | end';
@@ -1090,7 +1111,7 @@ class Game {
         case 'xp': p.addXP(+a[1] || 0); break;
         case 'heal': p.health = 20; break;
         case 'feed': p.food = 20; p.sat = 10; break;
-        case 'biome': { const t = a[1] && a[1].toUpperCase(); if (BIO[t] === undefined) throw 'Biomes: ' + Object.keys(BIO).join(', ').toLowerCase(); this.jobs.post({ t: 'biome', biome: BIO[t], x: p.x, z: p.z }, null, (m) => ui.message(m.res ? `Nearest ${a[1]} at ${m.res.x}, ${m.res.z}` : 'Not found', m.res ? '#afa' : '#f88')); break; }
+        case 'biome': { const t = a[1] && a[1].toUpperCase(); if (BIO[t] === undefined) throw 'Biomes: ' + Object.keys(BIO).join(', ').toLowerCase(); this.jobs.post({ t: 'biome', biome: BIO[t], x: p.x, z: p.z }, null, (m) => ui.message(m.res ? [`Nearest ${a[1]} at `, ui.tpLink(m.res.x, m.res.z)] : 'Not found', m.res ? '#afa' : '#f88')); break; }
         default: throw 'Unknown command. Type /help';
       }
     } catch (e) { ui.message(String(e), '#f88'); }

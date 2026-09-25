@@ -80,7 +80,7 @@ class Input {
     const btn = (id, label, cls) => { const b = h('div', { class: 'tbtn ' + (cls || ''), id }, label); root.appendChild(b); return b; };
     this.joyBase = h('div', { class: 'joy' }, this.joyKnob = h('div', { class: 'knob' }));
     root.appendChild(this.joyBase);
-    const jump = btn('t-jump', '⬆', 'big'), sneak = btn('t-sneak', '⇩'), inv = btn('t-inv', '⋯'), pause = btn('t-pause', '❚❚'), cam = btn('t-cam', '👁'), up = btn('t-up', '▲'), dn = btn('t-down', '▼'), chat = btn('t-chat', '💬'), drop = btn('t-drop', '⇲'), sprint = btn('t-sprint', '»');
+    const jump = btn('t-jump', '⬆', 'big'), sneak = btn('t-sneak', '⇩'), inv = btn('t-inv', '⋯'), pause = btn('t-pause', '❚❚'), cam = btn('t-cam', '👁'), up = btn('t-up', '▲'), dn = btn('t-down', '▼'), chat = btn('t-chat', '💬'), tp = btn('t-tp', 'TP'), drop = btn('t-drop', '⇲'), sprint = btn('t-sprint', '»');
     const hold = (el, on, off) => {
       el.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); g.audio.init(); el.classList.add('on'); on(); }, { passive: false });
       el.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); el.classList.remove('on'); if (off) off(); }, { passive: false });
@@ -94,6 +94,7 @@ class Input {
     hold(pause, () => g.pause());
     hold(cam, () => { const p = g.player; if (p) p.camMode = (p.camMode + 1) % 3; });
     hold(chat, () => g.ui.openChat(''));
+    hold(tp, () => g.ui.chatWith('/tp '));
     hold(drop, () => g.dropHeld(false));
     hold(sprint, () => { this.sprintToggle = !this.sprintToggle; sprint.classList.toggle('lock', this.sprintToggle); });
     const onStart = (e) => {
@@ -163,6 +164,7 @@ class Input {
     const show = g.state === 'playing' && !g.ui.open;
     this.touchRoot.style.display = show ? 'block' : 'none';
     if (p) { const fly = p.flying; $('#t-up').style.display = fly ? 'flex' : 'none'; $('#t-down').style.display = fly ? 'flex' : 'none'; $('#t-sneak').style.display = fly ? 'none' : 'flex'; }
+    const tp = $('#t-tp'); if (tp) tp.style.display = g.meta && g.meta.cheats ? 'flex' : 'none';
   }
   // ---------------------------------------------------------------- per-frame look + per-tick state
   applyLook(p, dt) {

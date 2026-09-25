@@ -351,6 +351,7 @@ class UI {
       this.btn('Back to Game', () => g.resume(), 'primary'),
       this.btn('Settings', () => this.showSettings(() => this.showPause())),
       this.btn('Controls & Help', () => this.showControls(() => this.showPause())),
+      g.meta && g.meta.cheats ? this.btn('Teleport', () => { this.clearScreen(); g.state = 'playing'; g.input.updateTouchVisibility(); this.chatWith('/tp '); }) : null,
       g.meta && g.meta.cheats ? this.btn('Commands: ' + (g.player.creative ? 'Survival' : 'Creative') + ' Mode', () => { g.runCommand('/gamemode ' + (g.player.creative ? 'survival' : 'creative')); this.showPause(); }) : null,
       this.btn('Save & Quit to Title', () => g.quitToTitle(), 'danger')));
   }
@@ -509,6 +510,19 @@ class UI {
       if (e.key === 'Enter') { const v = inp.value.trim(); this.closeChat(); if (v) { if (v.startsWith('/')) g.runCommand(v); else this.message('<Player> ' + v); } }
       else if (e.key === 'Escape') this.closeChat();
     });
+  }
+  // clickable coordinates: fills the chat with a surface /tp so Enter takes you there
+  tpLink(x, z) {
+    const cmd = `/tp ${x} ${z}`;
+    const go = (e) => { e.preventDefault(); e.stopPropagation(); this.chatWith(cmd); };
+    const el = h('span', { class: 'tplink', title: cmd }, `${x}, ~, ${z}`);
+    el.addEventListener('mousedown', go); el.addEventListener('touchstart', go, { passive: false });
+    return el;
+  }
+  chatWith(text) {
+    if (!this.chatOpen) { this.openChat(text); return; }
+    const inp = this.chatEl && this.chatEl.querySelector('input'); if (!inp) return;
+    inp.value = text; setTimeout(() => { inp.focus(); inp.setSelectionRange(text.length, text.length); }, 0);
   }
   closeChat() { if (!this.chatOpen) return; this.chatOpen = false; if (this.chatEl) this.chatEl.remove(); this.chatEl = null; if (this.game.state === 'playing' && !this.open) this.game.input.requestLock(); }
   // ------------------------------------------------------------------ container screens
