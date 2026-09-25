@@ -74,6 +74,14 @@ function shapeBoxes(w, x, y, z, v, selection) {
     case R_PLATE: return selection ? [[1 / 16, 0, 1 / 16, 15 / 16, 1 / 16, 15 / 16]] : [];
     case R_CAMPFIRE: return [[0, 0, 0, 1, 7 / 16, 1]];
     case R_FLAT: return selection ? [[0, 0, 0, 1, 1 / 16, 1]] : [];
+    case R_EPFRAME: return (meta & 4) ? [[0, 0, 0, 1, 13 / 16, 1], [4 / 16, 13 / 16, 4 / 16, 12 / 16, 1, 12 / 16]] : [[0, 0, 0, 1, 13 / 16, 1]];
+    case R_ROD: { const ax = (meta % 6) >> 1, a = 6 / 16, c = 10 / 16; return [ax === 0 ? [0, a, a, 1, c, c] : ax === 1 ? [a, 0, a, c, 1, c] : [a, a, 0, c, c, 1]]; }
+    case R_CHORUS: {
+      const out = [[0.25, 0.25, 0.25, 0.75, 0.75, 0.75]];
+      if (w) for (let f = 0; f < 6; f++) if (chorusLinks(w.getId(x + FACE_DX[f], y + FACE_DY[f], z + FACE_DZ[f]), f)) { const a = CHORUS_ARMS[f]; out.push([a[0] / 16, a[1] / 16, a[2] / 16, a[3] / 16, a[4] / 16, a[5] / 16]); }
+      return out;
+    }
+    case R_EGG: return [[1 / 16, 0, 1 / 16, 15 / 16, 1, 15 / 16]];
   }
   if (!selection) return [];
   switch (s) {
@@ -100,7 +108,8 @@ function collisionBoxes(w, x0, y0, z0, x1, y1, z1, out) {
   for (let x = Math.floor(x0); x <= Math.floor(x1); x++) for (let z = Math.floor(z0); z <= Math.floor(z1); z++) {
     if (!w.isLoaded(x, z)) { out.push([x, Math.floor(y0) - 1, z, x + 1, Math.floor(y1) + 2, z + 1]); continue; }
     for (let y = Math.floor(y0) - 1; y <= Math.floor(y1); y++) {
-      if (y < 0) { out.push([x, y, z, x + 1, y + 1, z + 1]); continue; }
+      // below the world is solid, except in the End, where the void swallows whatever falls off an island
+      if (y < 0) { if (w.dim !== 'end') out.push([x, y, z, x + 1, y + 1, z + 1]); continue; }
       const v = w.getBlock(x, y, z), id = v & 4095;
       if (!SOLID[id]) continue;
       for (const b of shapeBoxes(w, x, y, z, v, false)) out.push([x + b[0], y + b[1], z + b[2], x + b[3], y + b[4], z + b[5]]);
@@ -135,10 +144,18 @@ function moveEntity(w, e, dx, dy, dz) {
     return [mdx, mdy, mdz];
   };
   let [mx, my, mz] = sweep(e.x, e.y, e.z, dx, dy, dz);
-  // step up
+  // step up: lift only as far as the room above both the current spot and the spot being stepped onto allows,
+  // so a door lintel or low ceiling over the target caps the lift instead of blocking the step outright
+  // (a dirt path is 15/16 tall: stepping from it onto a door threshold under a 2-high doorway needs this)
   const stepH = e.stepH || 0;
   if (stepH > 0 && (e.onGround || (ody < 0 && my !== ody)) && (mx !== odx || mz !== odz)) {
-    const up = sweep(e.x, e.y, e.z, 0, stepH, 0)[1];
+    let up = sweep(e.x, e.y, e.z, 0, stepH, 0)[1];
+    const sx0 = e.x - hw + Math.min(odx, 0), sx1 = e.x + hw + Math.max(odx, 0), sz0 = e.z - hw + Math.min(odz, 0), sz1 = e.z + hw + Math.max(odz, 0), head = e.y + e.h;
+    for (const b of boxes) {
+      if (b[0] >= sx1 || b[3] <= sx0 || b[2] >= sz1 || b[5] <= sz0) continue;
+      if (b[1] >= head - 1e-7) up = Math.min(up, b[1] - head);
+    }
+    up = Math.max(0, up);
     const [sx, , sz] = sweep(e.x, e.y + up, e.z, odx, 0, odz);
     const down = sweep(e.x + sx, e.y + up, e.z + sz, 0, -up + Math.min(0, ody), 0)[1];
     if (sx * sx + sz * sz > mx * mx + mz * mz + 1e-6) { mx = sx; mz = sz; my = up + down; e.stepped = up + down; }
@@ -173,6 +190,14 @@ function rayAABB(ox, oy, oz, dx, dy, dz, b) {
   // face index mapping: axis*2+1 = negative side hit (normal -a) ... convert to mesher faces
   const map = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 };
   return { t: Math.max(0, tmin), face: map[face] };
+}
+// ray vs an entity: its box grown by pad, or for big multi-part entities (the dragon) the nearest of its part
+// boxes; returns { t, part } (part -1 for plain boxes) or null
+function entityRayHit(e, ox, oy, oz, dx, dy, dz, pad, padY) {
+  if (e.hitParts) return rayHitParts(e, ox, oy, oz, dx, dy, dz, pad);
+  const hw = e.w / 2 + pad, py = padY === undefined ? pad : padY;
+  const h = rayAABB(ox, oy, oz, dx, dy, dz, [e.x - hw, e.y - py, e.z - hw, e.x + hw, e.y + e.h + py, e.z + hw]);
+  return h ? { t: h.t, part: -1 } : null;
 }
 function raycast(w, ox, oy, oz, dx, dy, dz, maxD, fluids) {
   let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);

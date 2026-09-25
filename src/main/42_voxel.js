@@ -97,12 +97,31 @@ function uploadVox(gl, data) {
   return { vao, count: data.length / 10 };
 }
 const VOX_MODELS = {};
-// each part: { grid, origin (voxel coords), pivot (block units in model space) }
+// each part: { grid, origin (voxel coords), pivot (block units in model space), view }
+// view 'ext' parts are only drawn from outside, 'int' parts only from the pilot's own cockpit camera
 function voxModel(gl, name, parts) {
   const m = { name, parts: {} };
-  for (const k in parts) { const p = parts[k]; const mesh = uploadVox(gl, meshVoxGrid(p.grid, p.origin)); m.parts[k] = Object.assign(mesh, { pivot: p.pivot || [0, 0, 0] }); }
+  for (const k in parts) { const p = parts[k]; const mesh = uploadVox(gl, meshVoxGrid(p.grid, p.origin)); m.parts[k] = Object.assign(mesh, { pivot: p.pivot || [0, 0, 0], view: p.view || '' }); }
   VOX_MODELS[name] = m;
   return m;
+}
+// Cockpit-view version of a hull. From a camera inside the canopy the exterior hull is broken: the glass voxels
+// resting on the fuselage take away its top faces, so the pilot looked straight through the floor at the ground
+// with loose slabs of wing floating around. This copy has no canopy: glass (and frame) inside the hull's own
+// cross-section becomes hull, the bubble above it is dropped, and the cockpit camera sits just above the hull top,
+// looking out over the nose (the HUD overlay supplies the instruments). At 1/8 block per voxel anything built
+// around the eye (panel, frame bars) would fill half the screen.
+//   o.glass: palette indices of the canopy (+ o.frame: [index, (x, y, z) -> part of the canopy])
+//   o.hull(x, y, z): palette index if the voxel lies inside the hull cross-section, else 0
+function cockpitGrid(g, o) {
+  const c = new VoxGrid(g.w, g.h, g.d, g.scale);
+  c.pal = g.pal; c.palIdx = g.palIdx; c.v.set(g.v);
+  const glass = new Set(o.glass);
+  for (let z = 0; z < g.d; z++) for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+    const p = g.get(x, y, z);
+    if (glass.has(p) || (o.frame && p === o.frame[0] && o.frame[1](x, y, z))) c.set(x, y, z, o.hull(x, y, z));
+  }
+  return c;
 }
 // ---------------------------------------------------------------- STORMCROW interceptor
 function buildJetModel(gl) {
@@ -210,7 +229,10 @@ function buildJetModel(gl) {
   // landing gear
   const gg = new VoxGrid(W, H, L, S), GS = gg.c(0x55595F, MAT_METAL), GT = gg.c(0x121314, MAT_MATTE);
   for (const [gx, gz] of [[cxv, 11], [cxv - 5, 36], [cxv + 5, 36]]) { for (let y = 0; y <= 3; y++) gg.set(gx, y, gz, y <= 1 ? GT : GS); gg.set(gx, 0, gz + 1, GT); gg.set(gx, 1, gz + 1, GT); }
-  return voxModel(gl, 'jet', { body: { grid: g, origin }, missiles: { grid: mg, origin }, gear: { grid: gg, origin } });
+  // cockpit view: camera at voxel (24, 11, 19.5) = VEH_DEFS.jet.cockpit, one voxel above the fuselage top
+  const hull = (x, y, z) => { const [bw, yc, ht, hb] = body(z), dy = y - yc; return Math.pow(Math.abs(x - cxv) / bw, 2.4) + Math.pow(Math.abs(dy) / (dy > 0 ? ht : hb), 2.4) <= 1 ? PANEL : 0; };
+  const cabin = cockpitGrid(g, { glass: [GLASS], frame: [FRAME, (x, y, z) => z === 17], hull });
+  return voxModel(gl, 'jet', { body: { grid: g, origin, view: 'ext' }, cabin: { grid: cabin, origin, view: 'int' }, missiles: { grid: mg, origin }, gear: { grid: gg, origin } });
 }
 // ---------------------------------------------------------------- MANTIS VTOL gunship
 function buildGunshipModel(gl) {
@@ -288,7 +310,11 @@ function buildGunshipModel(gl) {
   const tg = new VoxGrid(W, H, L, S), TD = tg.c(0x24272B, MAT_PAINT), TM = tg.c(0x6E737A, MAT_METAL), TG = tg.c(0xFF3A1E, MAT_GLOW);
   tg.each((x, y, z) => (Math.hypot(x - cxv, (y - 3.5) * 1.2, z - 8) < 2.4 ? TD : 0));
   for (let z = 1; z <= 7; z++) { tg.set(cxv - 0.5, 3, z, z === 1 ? TG : TM); tg.set(cxv + 0.5, 3, z, z === 1 ? TG : TM); }
-  const pieces = { body: { grid: g, origin }, turret: { grid: tg, origin, pivot: [0, -4 * S, -19.5 * S] } };
+  // cockpit view: the wraparound canopy is a glass shell around a solid cabin; filled in, the camera sits on top
+  // of it at voxel (32, 12.8, 11.5) = VEH_DEFS.gunship.cockpit
+  const hull = (x, y, z) => { const [bw, yc, ht, hb] = body(z), dy = y - yc; return Math.pow(Math.abs(x - cxv) / bw, 4) + Math.pow(Math.abs(dy) / (dy > 0 ? ht : hb), 4) <= 1 ? GREY : 0; };
+  const cabin = cockpitGrid(g, { glass: [GLASS], frame: [DARK, (x, y, z) => z === 9 && y >= 7], hull });
+  const pieces = { body: { grid: g, origin, view: 'ext' }, cabin: { grid: cabin, origin, view: 'int' }, turret: { grid: tg, origin, pivot: [0, -4 * S, -19.5 * S] } };
   pieces.nacL = mk(-1); pieces.nacR = mk(1); pieces.fanL = blades(-1); pieces.fanR = blades(1);
   return voxModel(gl, 'gunship', pieces);
 }
@@ -408,7 +434,15 @@ function buildBomberModel(gl) {
   g.each((x, y, z) => (Math.abs(x - cxv) <= 3 && z >= 17 && z <= 27 && y === 3) ? DARK : 0);
   const gear = new VoxGrid(W, H, L, S), GS = gear.c(0x55595F, MAT_METAL), GT = gear.c(0x121314, MAT_MATTE);
   for (const [gx, gz] of [[cxv, 10], [cxv - 7, 26], [cxv + 7, 26]]) { for (let y = 0; y <= 3; y++) gear.set(gx, y, gz, y <= 1 ? GT : GS); gear.set(gx, 0, gz + 1, GT); gear.set(gx, 1, gz + 1, GT); }
-  return voxModel(gl, 'bomber', { body: { grid: g, origin }, bay: { grid: bay, origin }, gear: { grid: gear, origin } });
+  // cockpit view: camera at voxel (36, 10, 13.5) = VEH_DEFS.bomber.cockpit, one voxel above the wing
+  const hull = (x, y, z) => {
+    const ax = Math.abs(x - cxv), a = le(ax), b = te(ax);
+    if (z < a || z > b) return 0;
+    const th = Math.max(1.2, 5.6 - ax * 0.16) * Math.pow(Math.sin(Math.PI * Math.min(1, (z - a) / Math.max(1, b - a) * 1.15 + 0.02)), 0.55);
+    return y >= 6 - th * 0.45 && y <= 6 + th * 0.55 ? CHAR : 0;
+  };
+  const cabin = cockpitGrid(g, { glass: [GLASS], frame: [DARK, (x, y, z) => z === 11 && y >= 8], hull });
+  return voxModel(gl, 'bomber', { body: { grid: g, origin, view: 'ext' }, cabin: { grid: cabin, origin, view: 'int' }, bay: { grid: bay, origin }, gear: { grid: gear, origin } });
 }
 // ---------------------------------------------------------------- BASTION hover tank
 function buildTankModel(gl) {
@@ -466,4 +500,4 @@ function buildTankModel(gl) {
   b.box(Math.round(cxv) - 1, 13, 4, Math.round(cxv), 15, 5, BM);
   return voxModel(gl, 'tank', { body: { grid: g, origin }, turret: { grid: t, origin, pivot: [0, 1.5, 0] }, barrel: { grid: b, origin, pivot: [0, 1.5625, -1.0] } });
 }
-function buildVehicleModels(gl) { buildJetModel(gl); buildGunshipModel(gl); buildBikeModel(gl); buildBomberModel(gl); buildTankModel(gl); }
+function buildVehicleModels(gl) { buildJetModel(gl); buildGunshipModel(gl); buildBikeModel(gl); buildBomberModel(gl); buildTankModel(gl); buildMoreVehicleModels(gl); }

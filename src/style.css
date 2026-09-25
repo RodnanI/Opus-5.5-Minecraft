@@ -199,3 +199,19 @@ table.ctl td:first-child { color: #ffd24a; width: 42%; }
 #vhud { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 3; display: none; }
 #hud.riding #hotbar, #hud.riding #hbsel, #hud.riding #stats, #hud.riding #xpbar, #hud.riding #crosshair, #hud.riding #itemname { display: none !important; }
 #hud.riding.bike #stats { display: flex !important; }
+/* boss bar (the Ender Dragon) */
+#bossbar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: min(62vw, 420px); display: none; text-align: center; }
+#bossbar .bossn { font-size: 14px; color: #fff; text-shadow: 1px 1px 0 #000; margin-bottom: 3px; letter-spacing: 0.5px; }
+#bossbar .bossb { height: 8px; background: rgba(40,10,50,0.8); border: 1px solid #000; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); }
+#bossbar .bossf { height: 100%; width: 100%; background: linear-gradient(#f07aff, #b12ad0 60%, #7a1596); transition: width 0.15s; }
+/* looking out through a carved pumpkin */
+#pumpkinov { position: absolute; inset: 0; display: none; background: radial-gradient(ellipse 55% 42% at 50% 52%, rgba(0,0,0,0) 0, rgba(0,0,0,0) 62%, rgba(40,22,0,0.72) 78%, rgba(22,12,0,0.93) 100%); }
+/* credits after the dragon */
+#screen.menu.credits { background: #000; justify-content: flex-end; padding-bottom: 18px; }
+#screen.menu.credits .cview { position: absolute; inset: 0 0 64px 0; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); }
+#screen.menu.credits .croll { position: absolute; left: 0; right: 0; top: 100%; text-align: center; color: #ddd; animation: croll linear forwards; padding: 0 16px; }
+#screen.menu.credits .croll h2 { color: #f3d9ff; font-size: 30px; letter-spacing: 4px; margin: 26px 0 10px; text-shadow: 0 0 18px rgba(200,120,255,0.6); }
+#screen.menu.credits .croll h4 { color: #c9a8e0; margin: 18px 0 2px; font-size: 15px; text-transform: uppercase; letter-spacing: 2px; }
+#screen.menu.credits .croll p { margin: 4px 0; font-size: 17px; line-height: 1.5; }
+#screen.menu.credits button { position: relative; z-index: 1; width: auto; min-width: 180px; max-width: 240px; }
+@keyframes croll { from { transform: translateY(0); } to { transform: translateY(calc(-100% - 100vh)); } }

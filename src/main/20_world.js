@@ -45,7 +45,7 @@ class World {
   // effective light level for mob spawning / crops (sky reduced by time of day)
   lightLevel(x, y, z) { const l = this.getLight(x, y, z); const sd = this.dim === 'nether' ? 0 : Math.round((l >> 4) * this.game.skyFactor()); return Math.max(sd, l & 15); }
   heightAt(x, z) { const c = this.chunks.get(ckey(x >> 4, z >> 4)); return c ? c.hm[((z & 15) << 4) | (x & 15)] : 0; }
-  biomeAt(x, z) { const c = this.chunks.get(ckey(x >> 4, z >> 4)); return c ? c.biomes[((z & 15) << 4) | (x & 15)] : (this.dim === 'nether' ? BIO.NETHER_WASTES : BIO.PLAINS); }
+  biomeAt(x, z) { const c = this.chunks.get(ckey(x >> 4, z >> 4)); return c ? c.biomes[((z & 15) << 4) | (x & 15)] : (this.dim === 'nether' ? BIO.NETHER_WASTES : this.dim === 'end' ? BIO.THE_END : BIO.PLAINS); }
   waterColorAt(x, z) { const c = this.chunks.get(ckey(x >> 4, z >> 4)); return c ? c.tints.water[((z & 15) << 4) | (x & 15)] : 0x3F76E4; }
   isSnowyAt(x, z, y) { const b = BIOMES[this.biomeAt(x, z)]; return !!(b && (b.snowy || (b.id === BIO.MOUNTAINS && y > 128))); }
   canSeeSky(x, y, z) { return y >= this.heightAt(x, z); }
@@ -409,9 +409,10 @@ class World {
   }
   // ---------------------------------------------------------------- entities
   addEntity(e) { e.world = this; this.entities.push(e); this.entityById.set(e.id, e); return e; }
+  // e.reach: extra radius of big multi-part entities (the dragon's head, wings and tail are far from its centre)
   entitiesNear(x, y, z, r, filter) {
     const out = [];
-    for (const e of this.entities) { if (e.removed) continue; const dx = e.x - x, dy = e.y - y, dz = e.z - z; if (dx * dx + dy * dy + dz * dz <= r * r && (!filter || filter(e))) out.push(e); }
+    for (const e of this.entities) { if (e.removed) continue; const dx = e.x - x, dy = e.y - y, dz = e.z - z, rr = e.reach ? r + e.reach : r; if (dx * dx + dy * dy + dz * dz <= rr * rr && (!filter || filter(e))) out.push(e); }
     return out;
   }
   entitiesInBox(x0, y0, z0, x1, y1, z1, except) {

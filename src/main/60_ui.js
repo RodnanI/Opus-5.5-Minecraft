@@ -113,7 +113,9 @@ class UI {
     this.sleepOv = h('div', { id: 'sleepov' });
     this.pickups = h('div', { id: 'pickups' });
     this.scope = h('div', { id: 'scope' });
-    hud.append(this.scope, this.cross, this.stats, this.xpBar, this.hotbar, this.itemName, this.msgBox, this.dbg, this.fps, this.fireOv, this.sleepOv, this.pickups);
+    this.pumpkinOv = h('div', { id: 'pumpkinov' });
+    this.bossBar = h('div', { id: 'bossbar' }, this.bossName = h('div', { class: 'bossn' }), h('div', { class: 'bossb' }, this.bossFill = h('div', { class: 'bossf' })));
+    hud.append(this.pumpkinOv, this.bossBar, this.scope, this.cross, this.stats, this.xpBar, this.hotbar, this.itemName, this.msgBox, this.dbg, this.fps, this.fireOv, this.sleepOv, this.pickups);
     this.root.appendChild(hud);
     this.screen = h('div', { id: 'screen' });
     this.root.appendChild(this.screen);
@@ -178,11 +180,11 @@ class UI {
     if (info && (g.frame & 7) === 0) {
       let txt;
       if (info === 'clock') {
-        if (g.world.dim === 'nether') txt = 'Clock: the hands spin aimlessly';
+        if (g.world.dim !== 'overworld') txt = 'Clock: the hands spin aimlessly';
         else { const t = ((g.time % 24000) + 24000) % 24000, hrs = (Math.floor(t / 1000) + 6) % 24, mins = Math.floor((t % 1000) * 0.06); txt = `Day ${Math.floor(g.time / 24000) + 1} · ${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')} ${t > 12500 && t < 23500 ? '(night)' : ''}`; }
       } else {
         const sp = p.spawnPoint && p.spawnPoint.dim === 'overworld' ? [p.spawnPoint.x, p.spawnPoint.z] : g.meta && g.meta.spawn ? [g.meta.spawn[0], g.meta.spawn[2]] : null;
-        if (g.world.dim === 'nether' || !sp) txt = 'Compass: the needle spins wildly';
+        if (g.world.dim !== 'overworld' || !sp) txt = 'Compass: the needle spins wildly';
         else {
           const dx = sp[0] - p.x, dz = sp[1] - p.z, d = Math.hypot(dx, dz);
           const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'], a = (Math.atan2(dx, -dz) / (Math.PI / 4) + 8.5) & 7;
@@ -192,6 +194,12 @@ class UI {
       this.itemName.textContent = txt; this.itemName.style.opacity = 1; this.itemNameT = 1;
     }
     this.scope.style.display = p.using === 'spyglass' && p.camMode === 0 ? 'block' : 'none';
+    const helm = p.inv.get(36);
+    this.pumpkinOv.style.display = helm && helm.id === B.carved_pumpkin && p.camMode === 0 && !p.vehicle ? 'block' : 'none';
+    // boss bar while the dragon is near
+    const bb = g.endFight && g.endFight.bar();
+    this.bossBar.style.display = bb ? 'block' : 'none';
+    if (bb) { if (this.bossName.textContent !== bb.name) this.bossName.textContent = bb.name; this.bossFill.style.width = (bb.f * 100).toFixed(1) + '%'; }
     if (this.itemNameT > 0) { this.itemNameT -= dt; if (this.itemNameT < 0.5) this.itemName.style.opacity = Math.max(0, this.itemNameT * 2); }
     for (const m of this.msgs) { m.t -= dt; if (m.t < 1) m.el.style.opacity = Math.max(0, m.t); }
     this.msgs = this.msgs.filter(m => m.t > 0 || this.chatOpen);
@@ -328,7 +336,7 @@ class UI {
   showLoading(text, frac) {
     if (!this.loadingEl) {
       this.clearScreen(); this.screen.className = 'menu loading';
-      this.loadingEl = h('div', { class: 'loadbox' }, this.loadText = h('div', { class: 'ltext' }), h('div', { class: 'lbar' }, this.loadFill = h('div', { class: 'lfill' })), this.loadTip = h('div', { class: 'ltip' }, ['Tip: Hold on a block to mine it (touch).', 'Tip: Press E to open your inventory.', 'Tip: Craft a crafting table from 4 planks.', 'Tip: Obsidian frames + fire open the nether.', 'Tip: Boomcaps hiss before they pop!', 'Tip: Torches keep monsters away.', 'Tip: Villagers trade emeralds.', 'Tip: Graphics presets are in Settings.'][randInt(0, 7)]));
+      this.loadingEl = h('div', { class: 'loadbox' }, this.loadText = h('div', { class: 'ltext' }), h('div', { class: 'lbar' }, this.loadFill = h('div', { class: 'lfill' })), this.loadTip = h('div', { class: 'ltip' }, ['Tip: Hold on a block to mine it (touch).', 'Tip: Press E to open your inventory.', 'Tip: Craft a crafting table from 4 planks.', 'Tip: Obsidian frames + fire open the nether.', 'Tip: Boomcaps hiss before they pop!', 'Tip: Torches keep monsters away.', 'Tip: Villagers trade emeralds.', 'Tip: Graphics presets are in Settings.', 'Tip: Throw an eye of ender and follow it to a stronghold.', 'Tip: Destroy the end crystals first — they heal the dragon.', 'Tip: Never look an enderman in the eye (unless you wear a pumpkin).', 'Tip: An elytra and a few fireworks turn a jump into a flight.'][randInt(0, 11)]));
       this.screen.appendChild(this.loadingEl);
     }
     this.loadText.textContent = text;
@@ -353,14 +361,44 @@ class UI {
     this.screen.append(h('div', { class: 'deathbox' }, h('h1', null, 'You Died!'), h('div', { class: 'dmsg' }, msg || ''), h('div', { class: 'dmsg' }, 'Score: ' + (g.player.xpLevel * 7 + g.player.stats.kills)),
       this.btn('Respawn', () => g.respawn(), 'primary'), this.btn('Title Screen', () => g.quitToTitle())));
   }
+  // shown once, the first time you step through the exit portal after the dragon falls
+  showCredits(done) {
+    const g = this.game;
+    let fin = false;
+    const finish = () => { if (fin) return; fin = true; clearTimeout(this.credT); this.clearScreen(); g.state = 'playing'; g.input.requestLock(); g.input.updateTouchVisibility(); if (done) done(); };
+    g.state = 'paused'; g.input.releaseLock(); this.clearScreen(); this.screen.className = 'menu credits';
+    this.backFn = finish;
+    const lines = [
+      ['h', 'THE END'], ['', ''],
+      ['', 'You crossed the void, and the void let you go.'],
+      ['', 'Somewhere below, a world of small square things is waiting for you.'],
+      ['', 'Every block you placed there was a choice, and every choice was yours.'], ['', ''],
+      ['', 'The dragon is gone. The islands are quiet.'],
+      ['', 'The eyes that watched you from the frames have closed.'], ['', ''],
+      ['', 'Past the gateway lie a thousand more islands,'],
+      ['', 'cities of purpur, and ships that sail on nothing at all.'],
+      ['', 'Go and see them, or go home. Both are good answers.'], ['', ''],
+      ['', 'The world will still be there when you wake.'], ['', ''], ['', ''],
+      ['h', 'VOXELCRAFT'], ['', ''],
+      ['s', 'Worlds'], ['', 'Procedural terrain, caves, villages, strongholds and islands in the sky'],
+      ['s', 'Art & Sound'], ['', 'Every texture painted and every sound synthesized when the game loads'],
+      ['s', 'Engine'], ['', 'WebGL 2 · Web Workers · Web Audio'], ['', ''], ['', ''],
+      ['h', 'Thank you for playing'],
+    ];
+    const roll = h('div', { class: 'croll' }, ...lines.map(([k, t]) => h(k === 'h' ? 'h2' : k === 's' ? 'h4' : 'p', null, t || '\u00a0')));
+    this.screen.append(h('div', { class: 'cview' }, roll), this.btn('Skip', finish));
+    const dur = 60;
+    roll.style.animationDuration = dur + 's';
+    this.credT = setTimeout(finish, dur * 1000 + 1500);
+  }
   showControls(back) {
     this.clearScreen(); this.screen.className = 'menu';
     this.backFn = back;
     const rows = [['Move', 'W A S D'], ['Jump / Swim up / Fly up', 'Space (double-tap to fly in Creative)'], ['Sneak / Fly down', 'Shift'], ['Sprint', 'Ctrl or double-tap W'], ['Mine / Attack', 'Left mouse (hold)'], ['Place / Use / Eat', 'Right mouse'], ['Pick block', 'Middle mouse'], ['Hotbar', '1–9 or mouse wheel'], ['Inventory', 'E'], ['Drop item', 'Q (Ctrl+Q whole stack)'], ['Chat / Commands', 'T or /'], ['Perspective', 'F5'], ['Debug info', 'F3'], ['Hide HUD', 'F1'], ['Screenshot', 'F2'], ['Pause', 'Esc']];
     const touch = [['Move', 'Left joystick (push fully forward to sprint)'], ['Look', 'Drag on the right side'], ['Place / Use / Attack', 'Tap on a block or mob'], ['Mine', 'Hold your finger on a block'], ['Jump', '⬆ button (double-tap to fly in Creative)'], ['Sneak', '⇩ toggle'], ['Inventory', '⋯ button'], ['Drop', 'Long-press the selected hotbar slot']];
     const tbl = (r) => h('table', { class: 'ctl' }, ...r.map(([a, b]) => h('tr', null, h('td', null, a), h('td', null, b))));
-    const cmds = h('div', { class: 'cmds' }, 'Commands: /help, /vehicle <jet|bomber|gunship|bike|tank>, /gamemode <survival|creative|spectator>, /time set <day|night|noon|midnight|n>, /weather <clear|rain|thunder>, /tp x y z, /give <item> [n], /summon <mob>, /locate <village|pyramid|jungle_temple|igloo|witch_hut|ruined_portal|mineshaft|fortress>, /seed, /kill, /difficulty <0-3>, /spawnpoint, /gamerule <keepInventory|mobGriefing|doDaylightCycle|fireSpread> <true|false>, /clear, /xp <n>, /heal, /feed');
-    this.screen.append(this.panel('Controls & Help', h('div', { class: 'scroll' }, h('h3', null, 'Keyboard & Mouse'), tbl(rows), h('h3', null, 'Vehicles'), tbl([['Board / exit', 'F next to a vehicle (or right-click it)'], ['Camera', 'F5 cycles chase, cockpit and far chase; mouse wheel zooms'], ['Stormcrow jet', 'Mouse steers, W/S throttle, Ctrl afterburner, A/D roll, Shift airbrake, LMB plasma cannons, RMB Hydra missile (hold the nose on a target to lock)'], ['Mantis VTOL', 'Mouse aims, WASD move, Space/Shift climb and descend, Ctrl boost, LMB cutting laser (burns through blocks), RMB rocket salvo'], ['Viper hover bike', 'Mouse steers, W/S throttle, A/D strafe, Space hop, Ctrl boost, LMB twin blasters, RMB hold to charge a fusion shot'], ['Wraith bomber', 'Flies like the jet; hold RMB to open the bay and drop plasma bombs on the yellow CCIP ring'], ['Bastion hover tank', 'Mouse aims the turret, W/S drive, A/D turn the hull, Ctrl boost, LMB coax blaster, RMB arcing plasma cannon (the ring shows where the shell lands)'], ['Get one', 'Creative inventory Vehicles tab, /vehicle jet|bomber|gunship|bike|tank, or craft with iron, diamonds, redstone, glass and gunpowder']]), h('h3', null, 'Touch'), tbl(touch), h('h3', null, 'Gamepad'), h('p', null, 'Left stick move · Right stick look · A jump · B sneak · RT mine/attack · LT use/place · LB/RB hotbar · Y inventory · Start pause · L3 sprint'), cmds), this.btn('Done', back, 'primary')));
+    const cmds = h('div', { class: 'cmds' }, 'Commands: /help, /vehicle <jet|bomber|gunship|bike|tank|mech|sub|drill>, /gamemode <survival|creative|spectator>, /time set <day|night|noon|midnight|n>, /weather <clear|rain|thunder>, /tp x y z, /give <item> [n], /summon <mob>, /locate <village|pyramid|jungle_temple|igloo|witch_hut|ruined_portal|mineshaft|fortress|stronghold|end_city>, /dimension <overworld|nether|end>, /seed, /kill, /difficulty <0-3>, /spawnpoint, /gamerule <keepInventory|mobGriefing|doDaylightCycle|fireSpread> <true|false>, /clear, /xp <n>, /heal, /feed');
+    this.screen.append(this.panel('Controls & Help', h('div', { class: 'scroll' }, h('h3', null, 'Keyboard & Mouse'), tbl(rows), h('h3', null, 'Vehicles'), tbl([['Board / exit', 'F next to a vehicle (or right-click it)'], ['Camera', 'F5 cycles chase, cockpit and far chase; mouse wheel zooms'], ['Stormcrow jet', 'Mouse steers, W/S throttle, Ctrl afterburner, A/D roll, Shift airbrake, LMB plasma cannons, RMB Hydra missile (hold the nose on a target to lock)'], ['Mantis VTOL', 'Mouse aims, WASD move, Space/Shift climb and descend, Ctrl boost, LMB cutting laser (burns through blocks), RMB rocket salvo'], ['Viper hover bike', 'Mouse steers, W/S throttle, A/D strafe, Space hop, Ctrl boost, LMB twin blasters, RMB hold to charge a fusion shot'], ['Wraith bomber', 'Flies like the jet; hold RMB to open the bay and drop plasma bombs on the yellow CCIP ring'], ['Bastion hover tank', 'Mouse aims the turret, W/S drive, A/D turn the hull, Ctrl boost, LMB coax blaster, RMB arcing plasma cannon (the ring shows where the shell lands)'], ['Titan mech', 'WASD walks toward where you aim (the legs turn by themselves), mouse twists the torso, Ctrl runs, Space fires the jump jets (landing hard pounds the ground), LMB twin autocannons, RMB eight-rocket salvo'], ['Nautilus submarine', 'Underwater the mouse steers and dives, W/S propeller, Space/Shift ballast, Ctrl boost, LMB pulse laser, RMB torpedo. Headlights light up the deep; on the surface it floats'], ['Mole tunnel borer', 'W/S drive, A/D turn, hold LMB to spin the drill and bore a 3x3 tunnel; look up or down to bore at an angle. Ores go straight into your inventory. Ctrl overdrive, RMB seismic charge'], ['Get one', 'Creative inventory Vehicles tab, /vehicle jet|bomber|gunship|bike|tank|mech|sub|drill, or craft with iron, diamonds, redstone, glass and gunpowder']]), h('h3', null, 'The End'), tbl([['Find it', 'Craft eyes of ender (ember powder + ender pearl) and throw them; they fly toward the nearest stronghold'], ['Open the portal', 'Put an eye in each of the 12 frames in the stronghold\'s portal room'], ['The fight', 'Destroy the end crystals on the obsidian pillars (they heal the dragon), then hit its head — it takes the most damage there. Arrows and vehicle weapons work too'], ['Going home', 'When the dragon falls the exit portal lights up; an end gateway opens to the outer islands'], ['Endermen', 'They attack if you look them in the eye; a carved pumpkin worn as a helmet keeps you safe. They hate water'], ['Elytra', 'Found on end ships. Wear it in the chest slot, jump, then press jump again in mid-air to glide; use fireworks to boost']]), h('h3', null, 'Touch'), tbl(touch), h('h3', null, 'Gamepad'), h('p', null, 'Left stick move · Right stick look · A jump · B sneak · RT mine/attack · LT use/place · LB/RB hotbar · Y inventory · Start pause · L3 sprint'), cmds), this.btn('Done', back, 'primary')));
   }
   // ------------------------------------------------------------------ settings
   showSettings(back) {

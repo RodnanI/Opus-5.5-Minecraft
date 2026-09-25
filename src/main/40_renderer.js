@@ -563,10 +563,30 @@ class Renderer {
       env.fog = [8, Math.min(fogFar * 0.8, 110)]; env.fogDensity = 0.004; env.stars = 0; env.day = 0; env.night = 0;
       env.lightDir = [0.3, 0.9, 0.3]; env.fogSky = 0;
     }
+    env.end = w.dim === 'end';
+    if (env.end) {
+      // no sun and no day: a dim violet light from overhead (fixed, so the spike shadows are cached) under a void sky
+      const fc = [0.05, 0.035, 0.075];
+      env.zenith = [0.03, 0.02, 0.05]; env.horizon = fc; env.fogColor = fc; env.sunGlow = [0, 0, 0];
+      const L = [0.32, 0.9, 0.29], ll = Math.hypot(L[0], L[1], L[2]);
+      env.sunDir = env.lightDir = L.map(v => v / ll);
+      env.sunColor = [0.3, 0.26, 0.4].map(v => v * (S.shadows > 0 ? 1.2 : 0.6));
+      env.skyLight = [0.36, 0.3, 0.46]; env.ambient = 0.06 + S.brightness * 0.06;
+      env.fog = S.fog ? [fogFar * 0.45, fogFar * 0.95] : [fogFar * 2, fogFar * 3]; env.fogDensity = 0.002; env.fogSky = 0;
+      env.stars = 1; env.day = 0.45; env.night = 0; env.rain = 0; env.sunset = 0;
+      env.cloudLit = env.cloudDark = fc;
+    }
     const p = game.player;
     env.underwater = false; env.inLava = false;
     if (p) {
-      const eyeB = p.eyeBlock || 0;
+      // riding a vehicle the camera is not at the player's eyes: test the water at the camera itself
+      const cam = game.camera;
+      let eyeB = p.eyeBlock || 0;
+      if (p.vehicle) {
+        const cx = Math.floor(cam.x), cyy = Math.floor(cam.y), cz = Math.floor(cam.z), v = w.getBlock(cx, cyy, cz), id = v & 4095;
+        eyeB = v;
+        if (FLUID[id] === 1 && !((v >> 12) & 8) && cam.y - cyy > (8 - ((v >> 12) & 7)) / 9) eyeB = 0;
+      }
       if (FLUID[eyeB & 4095] === 1 || WLOG[eyeB & 4095]) {
         env.underwater = true; env.fogSky = 0;
         const wc = col(game.world.waterColorAt(Math.floor(p.x), Math.floor(p.z)));
@@ -662,7 +682,7 @@ class Renderer {
     this.drawSelection(game);
     // sky only where nothing was drawn, then clouds
     this.drawSky(env);
-    if (!env.nether) { if (S.clouds === 3) this.drawShaderClouds(game, env); else if (S.clouds) this.drawClouds(game, env); }
+    if (!env.nether && !env.end) { if (S.clouds === 3) this.drawShaderClouds(game, env); else if (S.clouds) this.drawClouds(game, env); }
     // translucent (the refraction copy is skipped when no water or glass is on screen)
     const translucent = this.hasTranslucent();
     if (post && post.copyF && translucent) {
@@ -690,6 +710,7 @@ class Renderer {
     gl.useProgram(pr.p); this.setEnvUniforms(pr);
     gl.uniformMatrix4fv(u.uProj, false, this.vp);
     if (u.uLodBias) gl.uniform1f(u.uLodBias, -0.35);
+    if (u.uPortalLayer) gl.uniform1f(u.uPortalLayer, TEXI.end_portal);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.blockTex); gl.uniform1i(u.uTex, 0);
     if (this.shadow && u.uShadowMap) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.shadow.tex); gl.uniform1i(u.uShadowMap, 1); }
     if (layer === 2) {
@@ -782,6 +803,7 @@ class Renderer {
     gl.uniformMatrix4fv(sp.u.uInvVP, false, this.invVP);
     gl.uniform3fv(sp.u.uMoonDir, env.moonDir); gl.uniform1f(sp.u.uSunSize, 0.05); gl.uniform1f(sp.u.uMoonPhase, env.moonPhase);
     gl.uniform1f(sp.u.uNether, env.nether || env.underwater || env.inLava ? 1 : 0); gl.uniform1f(sp.u.uStars, env.stars); gl.uniform1f(sp.u.uRain, env.rain);
+    gl.uniform1f(sp.u.uEnd, env.end && !env.underwater && !env.inLava ? 1 : 0);
     gl.uniform3fv(sp.u.uNetherFog, env.fogColor);
     gl.uniform3fv(sp.u.uSunDir, env.sunDir);
     gl.bindVertexArray(this.emptyVAO); gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -1065,7 +1087,7 @@ class Renderer {
       gl.disable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     }
     let raysOn = false;
-    if (p.raysF && !env.nether && !env.underwater) {
+    if (p.raysF && !env.nether && !env.end && !env.underwater) {
       const L = env.sunDir;
       const sp = transformPoint(this.vp, L[0] * 500, L[1] * 500, L[2] * 500, this._sp || (this._sp = [0, 0, 0, 0]));
       if (sp[3] > 0 && env.day > 0.05) {
@@ -1097,7 +1119,7 @@ class Renderer {
     gl.uniform1f(u.uSat, 1.1);
     gl.uniform1f(u.uGammaOut, 1.0);
     gl.uniform1f(u.uBoost, game.boostFx || 0);
-    gl.uniform1f(u.uWarm, env.nether ? 0 : env.day);
+    gl.uniform1f(u.uWarm, env.nether || env.end ? 0 : env.day);
     if (p.ldrF) {
       this.fsq(pr, p.ldrF, this.width, this.height);
       const fp = this.progs.final, fu = fp.u; gl.useProgram(fp.p);

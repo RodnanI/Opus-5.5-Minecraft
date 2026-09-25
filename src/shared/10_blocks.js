@@ -4,7 +4,8 @@
 const R_NONE = 0, R_CUBE = 1, R_CROSS = 2, R_CROP = 3, R_LIQUID = 4, R_SLAB = 5, R_STAIRS = 6, R_TORCH = 7,
   R_FENCE = 8, R_PANE = 9, R_DOOR = 10, R_TRAPDOOR = 11, R_LADDER = 12, R_VINE = 13, R_SNOW = 14, R_CARPET = 15,
   R_BED = 16, R_CACTUS = 17, R_CHEST = 18, R_FIRE = 19, R_PORTAL = 20, R_SHORT = 21, R_RAIL = 22, R_LILY = 23,
-  R_GATE = 24, R_PLATE = 25, R_LANTERN = 26, R_CAMPFIRE = 27, R_FLAT = 28;
+  R_GATE = 24, R_PLATE = 25, R_LANTERN = 26, R_CAMPFIRE = 27, R_FLAT = 28,
+  R_EPFRAME = 29, R_EPORTAL = 30, R_ROD = 31, R_CHORUS = 32, R_EGG = 33;
 const L_SOLID = 0, L_CUTOUT = 1, L_TRANS = 2;
 const T_NONE = 0, T_GRASS = 1, T_FOLIAGE = 2, T_WATER = 3, T_COLOR = 4;
 
@@ -41,7 +42,7 @@ function def(name, o) {
   OPAQUE[id] = opaque ? 1 : 0;
   OPACITY[id] = o.opacity !== undefined ? o.opacity : (opaque ? 15 : 0);
   EMIT[id] = o.light || 0;
-  SOLID[id] = (o.solid !== undefined ? o.solid : !(shape === R_NONE || shape === R_CROSS || shape === R_CROP || shape === R_LIQUID || shape === R_TORCH || shape === R_VINE || shape === R_FIRE || shape === R_PORTAL || shape === R_RAIL || shape === R_LADDER || shape === R_PLATE || shape === R_FLAT)) ? 1 : 0;
+  SOLID[id] = (o.solid !== undefined ? o.solid : !(shape === R_NONE || shape === R_CROSS || shape === R_CROP || shape === R_LIQUID || shape === R_TORCH || shape === R_VINE || shape === R_FIRE || shape === R_PORTAL || shape === R_RAIL || shape === R_LADDER || shape === R_PLATE || shape === R_FLAT || shape === R_EPORTAL)) ? 1 : 0;
   TINT[id] = o.tint || 0; COLOR[id] = o.color || 0xFFFFFF;
   WAVE[id] = o.wave || 0; FLUID[id] = o.fluid || 0; REPL[id] = o.repl ? 1 : 0;
   CULLSELF[id] = o.cullself ? 1 : 0; WLOG[id] = o.wlog ? 1 : 0; CLIMB[id] = o.climb ? 1 : 0;

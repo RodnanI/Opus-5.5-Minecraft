@@ -248,6 +248,15 @@ function defineModels() {
   sn.box('rarm', [0, -18, -3], [5, 20, 6], { base: MT, noise: 0.08, all: (fp, f) => { if (f !== 2) fp.rect(0, 0, fp.w, 1, BR); } }).box('larm', [-5, -18, -3], [5, 20, 6], { base: MT, noise: 0.08, all: (fp, f) => { if (f !== 2) fp.rect(0, 0, fp.w, 1, BR); } });
   sn.box('rleg', [-3, -16, -3], [6, 16, 6], { base: 0x8A9096, noise: 0.08 }).box('lleg', [-3, -16, -3], [6, 16, 6], { base: 0x8A9096, noise: 0.08 });
   MODELS.sentinel = sn;
+  // ---------------- enderman: a tall, thin shadow with violet eyes
+  const EN = 0x151417, ENL = 0x1D1B21;
+  const em = new BoxModel('enderman', 1).part('body', null, [0, 0, 0]).part('head', 'body', [0, 38, 0]).part('rarm', 'body', [5, 37, 0]).part('larm', 'body', [-5, 37, 0]).part('rleg', 'body', [2, 26, 0]).part('lleg', 'body', [-2, 26, 0]);
+  em.box('head', [-4, 0, -4], [8, 8, 8], { base: EN, noise: 0.08, front: (fp) => { fp.rect(0, 4, 3, 1, 0xE58CFF); fp.rect(5, 4, 3, 1, 0xE58CFF); fp.px(1, 4, 0xCB3DF5); fp.px(6, 4, 0xCB3DF5); fp.rect(0, 5, 3, 1, 0x6A2A86); fp.rect(5, 5, 3, 1, 0x6A2A86); } });
+  em.box('body', [-4, 26, -2], [8, 12, 4], { base: EN, noise: 0.07, all: (fp, f, r) => { for (let i = 0; i < 5; i++) fp.px(r.int(fp.w), r.int(fp.h), ENL); } });
+  for (const a of ['rarm', 'larm']) em.box(a, [-1, -30, -1], [2, 30, 2], { base: EN, noise: 0.06 });
+  for (const l of ['rleg', 'lleg']) em.box(l, [-1, -26, -1], [2, 26, 2], { base: EN, noise: 0.06 });
+  em.humanoid = true;
+  MODELS.enderman = em;
   for (const k in MODELS) buildModel(MODELS[k]);
 }
 
@@ -306,6 +315,9 @@ function itemMesh(gl, R, id) {
     else if (sh === R_TRAPDOOR) box([0, 0, 0, 1, 3 / 16, 1], texFn, tintFn);
     else if (sh === R_CACTUS) box([1 / 16, 0, 1 / 16, 15 / 16, 1, 15 / 16], texFn, tintFn);
     else if (sh === R_SHORT) box([0, 0, 0, 1, 15 / 16, 1], texFn, tintFn);
+    else if (sh === R_EPFRAME) box([0, 0, 0, 1, 13 / 16, 1], texFn, tintFn);
+    else if (sh === R_EGG) { for (const e of EGG_LAYERS) box([e[1] / 16, e[0] / 16, e[1] / 16, 1 - e[1] / 16, e[2] / 16, 1 - e[1] / 16], texFn, tintFn); }
+    else if (sh === R_CHORUS) { box([0.25, 0, 0.25, 0.75, 1, 0.75], texFn, tintFn); box([0, 0.25, 0.25, 1, 0.75, 0.75], texFn, tintFn); }
     else box([0, 0, 0, 1, 1, 1], texFn, tintFn);
     m = { cube: true };
   } else {

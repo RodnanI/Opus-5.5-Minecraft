@@ -130,6 +130,38 @@ const WALLS2 = [['granite_wall', 'granite'], ['diorite_wall', 'diorite'], ['ande
   ['blackstone_wall', 'blackstone'], ['polished_blackstone_wall', 'polished_blackstone'], ['polished_blackstone_brick_wall', 'polished_blackstone_bricks'], ['cobbled_deepslate_wall', 'cobbled_deepslate'],
   ['polished_deepslate_wall', 'polished_deepslate'], ['deepslate_brick_wall', 'deepslate_bricks'], ['deepslate_tile_wall', 'deepslate_tiles'], ['prismarine_wall', 'prismarine'], ['mud_brick_wall', 'mud_bricks'], ['tuff_wall', 'tuff']];
 for (const [n, base] of WALLS2) { const bd = BLOCKS[B[base]]; def(n, { shape: R_FENCE, tex: TEXN[TEX[B[base] * 6]], hard: bd.hard, tool: bd.tool, req: bd.req, snd: bd.snd, fence: 3 }); }
+// ---- the End
+def('end_stone', stoneDef(3));
+def('end_stone_bricks', stoneDef(3));
+def('purpur_block', stoneDef(1.5));
+def('purpur_pillar', stoneDef(1.5, { tex: { side: 'purpur_pillar', end: 'purpur_pillar_top' }, axis: true }));
+// frame: meta bits 0-1 facing, bit 2 = holds an eye of ender
+def('end_portal_frame', { shape: R_EPFRAME, layer: L_SOLID, opaque: false, opacity: 15, tex: { top: 'end_portal_frame_top', bottom: 'end_stone', side: 'end_portal_frame_side' }, texx: ['end_portal_frame_eye'], hard: -1, light: 1, drop: null });
+// portal surfaces: the chunk shader paints a parallax starfield over the 'end_portal' texture layer
+def('end_portal', { shape: R_EPORTAL, layer: L_SOLID, opaque: false, tex: 'end_portal', light: 15, hard: -1, nosel: true, noItem: true, drop: null, emissive: true });
+def('end_gateway', { shape: R_EPORTAL, layer: L_SOLID, opaque: false, tex: 'end_portal', light: 15, hard: -1, nosel: true, noItem: true, drop: null, emissive: true, gateway: true });
+// end rod: meta = the face (0 +x, 1 -x, 2 +y, 3 -y, 4 +z, 5 -z) the rod points to
+def('end_rod', { shape: R_ROD, layer: L_SOLID, opaque: false, tex: 'end_rod', light: 14, hard: 0, snd: 'glass', emissive: true });
+def('chorus_plant', { shape: R_CHORUS, layer: L_SOLID, opaque: false, hard: 0.4, tool: 'axe', snd: 'wood', drop: 'custom', plant: true });
+// flower: meta = age (5 = done growing)
+def('chorus_flower', { hard: 0.4, tool: 'axe', snd: 'wood', plant: true, drop: 'custom' });
+def('dragon_egg', { shape: R_EGG, layer: L_SOLID, opaque: false, light: 1, hard: 3, snd: 'stone', grav: true, use: 'egg' });
+const SLABS3 = [['end_stone_brick_slab', 'end_stone_bricks'], ['purpur_slab', 'purpur_block']];
+for (const [n, base] of SLABS3) { const bd = BLOCKS[B[base]]; def(n, { shape: R_SLAB, opaque: false, opacity: 15, texFrom: base, full: base, hard: bd.hard, tool: bd.tool, req: bd.req, snd: bd.snd, slab: true }); }
+const STAIRS3 = [['end_stone_brick_stairs', 'end_stone_bricks'], ['purpur_stairs', 'purpur_block']];
+for (const [n, base] of STAIRS3) { const bd = BLOCKS[B[base]]; def(n, { shape: R_STAIRS, opaque: false, opacity: 15, texFrom: base, hard: bd.hard, tool: bd.tool, req: bd.req, snd: bd.snd, stairs: true }); }
+def('end_stone_brick_wall', { shape: R_FENCE, tex: 'end_stone_bricks', hard: 3, tool: 'pick', req: true, fence: 3 });
+// shape tables shared by the mesher and the collision code (1/16 units)
+// end rod per facing: [base plate box, rod box]
+const ROD_BOXES = [
+  [0, 6, 6, 1, 10, 10, 1, 7, 7, 16, 9, 9], [15, 6, 6, 16, 10, 10, 0, 7, 7, 15, 9, 9],
+  [6, 0, 6, 10, 1, 10, 7, 1, 7, 9, 16, 9], [6, 15, 6, 10, 16, 10, 7, 0, 7, 9, 15, 9],
+  [6, 6, 0, 10, 10, 1, 7, 7, 1, 9, 9, 16], [6, 6, 15, 10, 10, 16, 7, 7, 0, 9, 9, 15]];
+// chorus plant: a core with an arm toward every linked neighbour
+const CHORUS_ARMS = [[12, 4, 4, 16, 12, 12], [0, 4, 4, 4, 12, 12], [4, 12, 4, 12, 16, 12], [4, 0, 4, 12, 4, 12], [4, 4, 12, 12, 12, 16], [4, 4, 0, 12, 12, 4]];
+function chorusLinks(nid, f) { return nid === B.chorus_plant || nid === B.chorus_flower || (f === 3 && nid === B.end_stone); }
+// dragon egg: stacked layers [y0, inset, y1] tapering to a rounded top
+const EGG_LAYERS = [[0, 3, 1], [1, 2, 3], [3, 1, 7], [7, 2, 10], [10, 3, 12], [12, 4, 14], [14, 5, 15], [15, 6, 16]];
 
 // destroy-stage overlay textures (not blocks)
 for (let i = 0; i < 10; i++) tx('destroy_' + i);

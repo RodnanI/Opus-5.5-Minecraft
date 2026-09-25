@@ -32,11 +32,11 @@ const Q = {
   },
 };
 const VEH_DEFS = {
-  jet: { name: 'Stormcrow Interceptor', item: 'stormcrow_jet', model: 'jet', w: 4.4, h: 1.9, yoff: 0.8125, hull: 140, enclosed: true, cockpit: [0, 0.5, -2.0], camDist: 14, camH: 3.4, radius: 3.2 },
-  gunship: { name: 'Mantis VTOL Gunship', item: 'mantis_gunship', model: 'gunship', w: 4.2, h: 1.9, yoff: 0.47, hull: 200, enclosed: true, cockpit: [0, 0.32, -2.3], camDist: 15, camH: 4.4, radius: 3.8 },
-  bomber: { name: 'Wraith Flying-Wing Bomber', item: 'wraith_bomber', model: 'bomber', w: 5.2, h: 1.6, yoff: 0.75, hull: 230, enclosed: true, cockpit: [0, 0.55, -1.6], camDist: 17, camH: 4.2, radius: 4.6 },
-  tank: { name: 'Bastion Hover Tank', item: 'bastion_tank', model: 'tank', w: 4.0, h: 1.7, yoff: 0.05, hull: 320, enclosed: true, cockpit: [0, 1.9, 0.2], camDist: 11, camH: 3.4, radius: 3.8 },
-  bike: { name: 'Viper Hover Bike', item: 'viper_bike', model: 'bike', w: 1.4, h: 1.1, yoff: 0.1, hull: 70, enclosed: false, seat: [0, 0.6, 0.12], cockpit: [0, 1.9, 0.35], camDist: 6.8, camH: 2.3, radius: 1.6 },
+  jet: { name: 'Stormcrow Interceptor', item: 'stormcrow_jet', model: 'jet', w: 4.4, h: 1.9, yoff: 0.8125, hull: 140, enclosed: true, cockpit: [0, 0.5625, -1.8125], camDist: 14, camH: 3.4, radius: 3.2 },
+  gunship: { name: 'Mantis VTOL Gunship', item: 'mantis_gunship', model: 'gunship', w: 4.2, h: 1.9, yoff: 0.47, hull: 200, enclosed: true, cockpit: [0, 0.6, -2.0625], camDist: 15, camH: 4.4, radius: 3.8 },
+  bomber: { name: 'Wraith Flying-Wing Bomber', item: 'wraith_bomber', model: 'bomber', w: 5.2, h: 1.6, yoff: 0.75, hull: 230, enclosed: true, cockpit: [0, 0.5, -1.0625], camDist: 17, camH: 4.2, radius: 4.6 },
+  tank: { name: 'Bastion Hover Tank', item: 'bastion_tank', model: 'tank', w: 4.0, h: 1.7, yoff: 0.05, hull: 320, enclosed: true, cockpit: [0, 2.35, 0.3], camDist: 11, camH: 3.4, radius: 3.8 },
+  bike: { name: 'Viper Hover Bike', item: 'viper_bike', model: 'bike', w: 1.4, h: 1.1, yoff: 0.1, hull: 70, enclosed: false, seat: [0, 0.6, 0.12], cockpit: [0, 1.55, 0.12], camDist: 6.8, camH: 2.3, radius: 1.6 },
 };
 const _v3 = [0, 0, 0], _v4 = [0, 0, 0], _v5 = [0, 0, 0];
 class Vehicle extends Entity {
@@ -185,7 +185,7 @@ class Vehicle extends Entity {
     if (p.vcam === 1) {
       const e = this.local(d.cockpit[0], d.cockpit[1], d.cockpit[2], _v5);
       c.x = e[0]; c.y = e[1]; c.z = e[2];
-      c.yaw = p.yaw; c.pitch = p.pitch; c.roll = this.kind === 'jet' ? this.bankAngle() * 0.6 : this.rollA * 0.5;
+      c.yaw = p.yaw; c.pitch = p.pitch; c.roll = this instanceof Jet ? this.bankAngle() * 0.6 : this.rollA * 0.5;
     } else {
       const dist = d.camDist * (p.vcam === 2 ? 1.7 : 1) * this.zoom * (1 + Math.min(1, sp / 120) * 0.12);
       const hy = d.camH * (p.vcam === 2 ? 1.4 : 1);
@@ -622,8 +622,8 @@ class HoverBike extends Vehicle {
   drawFX(R) {
     const f = this.fwd, e = this.engine;
     const p = this.local(0, 0.53, 1.62, _v3), len = 0.4 + e * 1.2 + (this.boosting ? 2.0 : 0);
-    R.fxBeam(p[0], p[1], p[2], p[0] - f[0] * len, p[1] - f[1] * len, p[2] - f[2] * len, 0.17 + e * 0.04, 0.7, 1.0, 0.25, 0.35 + e * 0.35);
-    R.fxSprite(p[0], p[1], p[2], 0.3, 0.75, 1.0, 0.3, 0.8);
+    R.fxBeam(p[0], p[1], p[2], p[0] - f[0] * len, p[1] - f[1] * len, p[2] - f[2] * len, 0.15 + e * 0.04, 0.7, 1.0, 0.25, 0.22 + e * 0.28);
+    R.fxSprite(p[0], p[1], p[2], 0.26, 0.75, 1.0, 0.3, 0.5);
     if (this.hover) for (const z of [-1.05, 0.85]) { const q = this.local(0, -0.08, z, _v4); R.fxSprite(q[0], q[1] - 0.1, q[2], 0.55, 0.6, 1.0, 0.2, 0.22 + e * 0.1); }
     if (this.charge > 0) { const m = this.local(0, 0.2, -1.8, _v3); R.fxSprite(m[0], m[1], m[2], 0.2 + this.charge * 0.5, 0.8, 1.0, 0.35, 1 + this.charge * 2); }
     if (this.muzzle > 0) { const m = this.local(this.side * 0.35, 0.22, -1.75, _v3); R.fxSprite(m[0], m[1], m[2], 0.35, 0.7, 1.0, 0.25, 1.3); this.muzzle -= 0.02; }

@@ -7,7 +7,7 @@ self.onmessage = (e) => {
   try {
     switch (m.t) {
       case 'init':
-        GENS = { overworld: new OverworldGen(m.seed, m.opts), nether: new NetherGen(m.seed) };
+        GENS = { overworld: new OverworldGen(m.seed, m.opts), nether: new NetherGen(m.seed), end: new EndGen(m.seed) };
         MESHER = new Mesher();
         break;
       case 'gen': {
@@ -24,13 +24,17 @@ self.onmessage = (e) => {
         let biomes = m.biomes, tints = m.tints;
         if (!biomes || !tints) {
           const g = GENS[m.dim];
-          if (m.dim === 'overworld') {
+          if (m.dim === 'overworld' && g.type === 'flat') {
+            // superflat: every column is plains (the climate noise would paint forests and cherry groves on it)
+            const r = g.generateFlat(new ChunkCtx(new Uint16Array(CVOL), m.cx, m.cz));
+            biomes = r.biomes; tints = r.tints;
+          } else if (m.dim === 'overworld') {
             const r2 = { biomes: new Uint8Array(256) };
             for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) r2.biomes[z * 16 + x] = g.climateCached(m.cx * 16 + x, m.cz * 16 + z).biome;
             biomes = r2.biomes; tints = g.tints(m.cx * 16, m.cz * 16);
           } else {
             biomes = new Uint8Array(256); for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) biomes[z * 16 + x] = g.biomeAt(m.cx * 16 + x, m.cz * 16 + z);
-            const c = new Uint32Array(256).fill(0xBFB755); tints = { grass: c, foliage: c, water: new Uint32Array(256).fill(0x3F76E4) };
+            const c = new Uint32Array(256).fill(m.dim === 'end' ? END_TINT : 0xBFB755); tints = { grass: c, foliage: c, water: new Uint32Array(256).fill(0x3F76E4) };
           }
         }
         self.postMessage({ t: 'light', id: m.id, dim: m.dim, cx: m.cx, cz: m.cz, blocks: m.blocks, light, hm, biomes, tints }, [m.blocks.buffer, light.buffer, hm.buffer]);

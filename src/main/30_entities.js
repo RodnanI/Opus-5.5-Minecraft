@@ -111,14 +111,16 @@ class Projectile extends Entity {
     // block hit
     const hit = sp > 0 ? raycast(w, this.x, this.y, this.z, this.vx / sp, this.vy / sp, this.vz / sp, sp, false) : null;
     // entity hit
-    let ent = null, et = hit ? hit.t : sp;
+    let ent = null, et = hit ? hit.t : sp, part = -1;
     for (const e of w.entitiesNear(this.x, this.y, this.z, sp + 3)) {
-      if (e === this || !e.hurt || e.removed || (e === this.owner && this.age < 5) || e.type === 'item' || e.type === 'xp' || e.dead || e.isProjectile) continue;
-      const hw = e.w / 2 + 0.15;
-      const h = rayAABB(this.x, this.y, this.z, this.vx / sp, this.vy / sp, this.vz / sp, [e.x - hw, e.y - 0.1, e.z - hw, e.x + hw, e.y + e.h + 0.1, e.z + hw]);
-      if (h && h.t <= et) { et = h.t; ent = e; }
+      if (e === this || !e.hurt || e.removed || (e === this.owner && (this.age < 5 || e.isBoss)) || e.type === 'item' || e.type === 'xp' || e.dead || e.isProjectile) continue;
+      const h = entityRayHit(e, this.x, this.y, this.z, this.vx / sp, this.vy / sp, this.vz / sp, 0.15, 0.1);
+      if (!h || h.t > et) continue;
+      // endermen see it coming and blink away
+      if (e.def && e.def.enderman && e.teleportRandom()) continue;
+      et = h.t; ent = e; part = h.part;
     }
-    if (ent) { this.onHitEntity(ent); return; }
+    if (ent) { ent.lastHitPart = part; this.onHitEntity(ent); ent.lastHitPart = -1; return; }
     if (hit) { this.x = hit.hx - this.vx / sp * 0.05; this.y = hit.hy - this.vy / sp * 0.05; this.z = hit.hz - this.vz / sp * 0.05; this.onHitBlock(hit); return; }
     this.x += this.vx; this.y += this.vy; this.z += this.vz;
     this.updateFluids();
@@ -157,6 +159,17 @@ class Arrow extends Projectile {
 }
 class Thrown extends Projectile {
   constructor(kind, x, y, z, vx, vy, vz, owner) { super(kind, x, y, z, vx, vy, vz, owner); this.gravity = 0.03; }
+  tick() {
+    // an ender pearl thrown into an end gateway carries you through it
+    if (this.type === 'ender_pearl' && !this.stuck) {
+      const w = this.world, n = Math.ceil(Math.hypot(this.vx, this.vy, this.vz) / 0.25);
+      for (let i = 1; i <= n; i++) {
+        const k = i / n, x = this.x + this.vx * k, y = this.y + this.vy * k, z = this.z + this.vz * k;
+        if (w.getId(Math.floor(x), Math.floor(y), Math.floor(z)) === B.end_gateway) { this.savePrev(); this.x = x; this.y = y - 0.3; this.z = z; this.burst(); return; }
+      }
+    }
+    super.tick();
+  }
   onHitEntity(e) { e.hurt(this.type === 'hex' ? 4 : 0, { type: 'thrown', source: this.owner }); if (this.type === 'hex') e.slowTicks = 100; this.burst(); }
   onHitBlock() { this.burst(); }
   burst() {

@@ -28,6 +28,7 @@ class Game {
     defineModels();
     for (const k in MODELS) uploadModel(gl, MODELS[k]);
     buildVehicleModels(gl);
+    buildEndModels(gl);
     this.renderer.setSkins(SKIN_CANVASES);
     await buildIcons(this.renderer);
     this.jobs = new Jobs(() => { });
@@ -36,6 +37,7 @@ class Game {
     this.save = new Save(this);
     this.particles = new Particles(this);
     this.munitions = new Munitions(this);
+    this.endFight = new EndFight(this);
     this.ui = new UI(this);
     await this.ui.prepareIcons();
     this.input = new Input(this);
@@ -280,6 +282,7 @@ class Game {
   }
   skyFactor() {
     if (!this.world || this.world.dim === 'nether') return 0;
+    if (this.world.dim === 'end') return 0.5;   // no day in the End: a constant dusk
     const sy = Math.sin(((this.time % 24000) / 24000) * TAU);
     return (0.27 + 0.73 * smoothstep(-0.18, 0.22, sy)) * (1 - this.rainLevel * 0.25 - this.thunderLevel * 0.25);
   }
@@ -291,6 +294,7 @@ class Game {
     for (let i = 0; i < w.entities.length; i++) {
       const e = w.entities[i];
       if (!e.isVehicle || e.removed) continue;
+      if (e.y < -80) { e.hurt(1e6, { type: 'void' }); continue; }
       if (e !== p.vehicle && e.dist2(p.x, p.y, p.z) > 180 * 180) continue;
       e.frame(dt, e.rider === p ? inp : null);
       if (e.rider === p && e.boosting) boost = 1;
@@ -384,6 +388,7 @@ class Game {
     this.randomTicks();
     this.tickBlockEntities();
     if (this.tickCount % 20 === 0) mobSpawnTick(this);
+    this.endFight.tick();
     this.particles.tick();
     if (this.lightning > 0) this.lightning = Math.max(0, this.lightning - 0.15);
   }
@@ -514,12 +519,29 @@ class Game {
       case 'gate': { const open = meta & 4; const nm = open ? (meta & 3) : (((p.facing()) & 3) | 4); w.setBlock(x, y, z, id | (nm << 12), 1); this.audio.play(open ? 'door_close' : 'door_open', { x, y, z }); return true; }
       case 'bed': return this.useBed(x, y, z, v, p);
       case 'tnt': return false;
+      case 'egg': this.teleportEgg(x, y, z); return true;
+    }
+    return false;
+  }
+  // the dragon egg will not be taken by hand: touch it and it blinks somewhere nearby
+  teleportEgg(x, y, z) {
+    const w = this.world, P = this.particles;
+    for (let i = 0; i < 64; i++) {
+      const nx = x + randInt(-15, 15), nz = z + randInt(-15, 15);
+      let ny = clamp(y + randInt(-7, 7), 2, CH - 2);
+      if (!w.isLoaded(nx, nz) || w.getId(nx, ny, nz) !== 0) continue;
+      while (ny > 1 && w.getId(nx, ny - 1, nz) === 0) ny--;
+      if (ny <= 1 || !SOLID[w.getId(nx, ny - 1, nz)]) continue;
+      w.setBlock(x, y, z, 0, 1); w.setBlock(nx, ny, nz, B.dragon_egg, 1);
+      for (let k = 0; k < 48; k++) { const t = k / 48; P.spawn('p_portal', x + 0.5 + (nx - x) * t + (Math.random() - 0.5) * 0.4, y + 0.5 + (ny - y) * t + (Math.random() - 0.5) * 0.4, z + 0.5 + (nz - z) * t + (Math.random() - 0.5) * 0.4, { vx: (Math.random() - 0.5) * 0.02, vy: (Math.random() - 0.5) * 0.02, vz: (Math.random() - 0.5) * 0.02, life: 30 + k, size: 0.1, emissive: true, color: [0.75, 0.4, 1] }); }
+      this.audio.play('teleport', { x, y, z });
+      return true;
     }
     return false;
   }
   useBed(x, y, z, v, p) {
     const w = this.world, meta = v >> 12;
-    if (w.dim === 'nether') { w.setBlock(x, y, z, 0, 1); explode(w, x + 0.5, y + 0.5, z + 0.5, 5, true, null); return true; }
+    if (w.dim !== 'overworld') { w.setBlock(x, y, z, 0, 1); explode(w, x + 0.5, y + 0.5, z + 0.5, 5, true, null); return true; }
     const f = meta & 3, head = meta & 4;
     const hx = head ? x : x + FACING_DX[f], hz = head ? z : z + FACING_DZ[f];
     p.spawnPoint = { dim: 'overworld', x: hx + 0.5, y: y + 0.6, z: hz + 0.5, bx: hx, by: y, bz: hz };
@@ -558,6 +580,7 @@ class Game {
     s.n -= n; if (s.n <= 0) p.inv.set(p.sel, null); p.inv.version++; p.swingAnim = 1;
   }
   spawnMob(type, x, y, z, data, natural) {
+    if (type === 'end_crystal') return this.world.addEntity(new EndCrystal(x, y, z));
     if (!MOB_DEFS[type]) return null;
     const m = new Mob(type, x, y, z, data ? Object.assign({}, data) : null);
     if (MOB_DEFS[type].villager || (natural && data && data.prof)) m.home = [x, y, z];
@@ -632,6 +655,80 @@ class Game {
     for (let j = 0; j < 3; j++) for (let i = 0; i < 2; i++) w.setBlock(x + i, y + j, z, B.nether_portal, 0);
     this.registerPortal(dim, x, y, z, 0);
     this.putPlayer(x + 0.5, y, z + 0.5);
+  }
+  // ---------------------------------------------------------------- the End
+  // stepping into an end portal: overworld -> the End (onto the obsidian platform), the End -> home
+  async travelEnd() {
+    const p = this.player, from = this.world.dim;
+    if (p.vehicle) p.vehicle.dismount(true);
+    p.gliding = false;
+    this.audio.play('end_travel', {});
+    this.ui.closeScreen(true);
+    await this.saveAll();
+    if (from !== 'end') {
+      await this.enterDimension('end', 100.5, 0.5, 'Entering the End');
+      p.x = 100.5; p.y = 60; p.z = 0.5; p.vx = p.vy = p.vz = 0; p.yaw = -Math.PI / 2; p.pitch = 0; p.savePrev();
+      this.loadingDone = () => this.arriveInEnd();
+      return;
+    }
+    const S = this.endFight.state, credits = S.killed && !S.credits;
+    const sp = p.spawnPoint && p.spawnPoint.dim === 'overworld' ? [p.spawnPoint.x, p.spawnPoint.y, p.spawnPoint.z] : this.meta.spawn;
+    await this.enterDimension('overworld', sp[0], sp[2], 'Returning to the Overworld');
+    p.x = sp[0]; p.y = sp[1] + 0.5; p.z = sp[2]; p.vx = p.vy = p.vz = 0; p.savePrev();
+    this.loadingDone = () => {
+      const w = this.world;
+      p.y = Math.max(p.y, w.heightAt(Math.floor(p.x), Math.floor(p.z)));
+      while (p.y < CH - 2 && (SOLID[w.getId(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))] || SOLID[w.getId(Math.floor(p.x), Math.floor(p.y) + 1, Math.floor(p.z))])) p.y++;
+      this.putPlayer(p.x, p.y, p.z);
+      if (credits) { S.credits = true; this.ui.showCredits(() => this.saveAll()); }
+    };
+  }
+  // a 5x5 obsidian platform off the main island with room to stand (rebuilt on every arrival)
+  arriveInEnd() {
+    const w = this.world, c = this.endFight.endGen().column(100, 0);
+    const y = c ? Math.floor(c.top) : 48;
+    for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) { w.setBlock(100 + dx, y, dz, B.obsidian, 1); for (let k = 1; k <= 3; k++) w.setBlock(100 + dx, y + k, dz, 0, 1); }
+    this.putPlayer(100.5, y + 1, 0.5);
+    this.ui.message('The End. Destroy the crystals, then slay the dragon.', '#d98aff');
+  }
+  // end gateways: the ones ringing the main island send you ~1000 blocks out to the outer islands (building a
+  // return gateway there); the outer ones bring you back to their partner
+  useGateway(x, y, z) {
+    const p = this.player, S = this.endFight.state, F = this.endFight;
+    if (p.vehicle) p.vehicle.dismount(true);
+    p.gliding = false;
+    const list = S.gw || (S.gw = []);
+    let dest, build = null;
+    if (Math.hypot(x, z) < 500) {
+      let q = list.find(q => q[0] === x && q[1] === y && q[2] === z);
+      if (!q) { q = [x, y, z]; list.push(q); }
+      if (q[3] === undefined) { const o = F.outerLanding(x, z); q[3] = o[0]; q[4] = o[1]; q[5] = o[2]; }
+      dest = [q[3] + 0.5, q[4], q[5] + 0.5]; build = q;
+    } else {
+      const q = list.find(q => q[3] !== undefined && Math.abs(q[3] + 3 - x) <= 1 && Math.abs(q[5] - z) <= 1);
+      // arrive on the ground just inside the main island's gateway
+      const gx = q ? q[0] : 0, gz = q ? q[2] : 0, l = Math.hypot(gx, gz) || 1, ax = Math.round(gx - gx / l * 6), az = Math.round(gz - gz / l * 6);
+      dest = [ax + 0.5, 80, az + 0.5];
+    }
+    this.audio.play('gateway', {});
+    this.state = 'loading'; this.loadTarget = [dest[0], dest[2]]; this.loadText = 'Travelling through the gateway'; this.loadStart = performance.now();
+    this.ui.closeScreen(true); this.ui.showLoading(this.loadText + '…', 0);
+    p.x = dest[0]; p.y = dest[1] + 1; p.z = dest[2]; p.vx = p.vy = p.vz = 0; p.savePrev(); p.portalCd = 100;
+    this.loadingDone = () => {
+      const w = this.world, bx = Math.floor(p.x), bz = Math.floor(p.z);
+      // land on the island itself, not on top of a chorus tree, with a little room cleared around you
+      const col = F.endGen().column(bx, bz);
+      let gy = col ? Math.floor(col.top) + 1 : w.heightAt(bx, bz);
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 4; dx++) for (let k = 0; k <= 3; k++) { const id = w.getId(bx + dx, gy + k, bz + dz); if (id === B.chorus_plant || id === B.chorus_flower) w.setBlock(bx + dx, gy + k, bz + dz, 0, 1); }
+      if (gy <= 2) {
+        // no island here: raise a small one
+        gy = build ? build[4] : 64;
+        for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) if (dx * dx + dz * dz <= 10) for (let k = 1; k <= 3 - Math.floor(Math.hypot(dx, dz) / 1.4); k++) w.setBlock(bx + dx, gy - k, bz + dz, B.end_stone, 1);
+      }
+      if (build) { F.buildGateway(w, bx + 3, gy + 1, bz); build[4] = gy; }
+      this.putPlayer(bx + 0.5, gy, bz + 0.5);
+      p.portalCd = 60;
+    };
   }
   putPlayer(x, y, z) { const p = this.player; p.x = x; p.y = y; p.z = z; p.vx = p.vy = p.vz = 0; p.fallDist = 0; p.portalCd = 100; p.portalTime = 0; p.savePrev(); }
   screenshot() { this.wantShot = true; }
@@ -748,10 +845,10 @@ class Game {
       } else if (e.type === 'arrow') {
         M4.rotY(M, -e.yaw); M4.rotX(M, e.pitch); M4.rotY(M, -Math.PI / 2); M4.rotZ(M, -Math.PI / 4); M4.scale(M, 0.6, 0.6, 0.6);
         drawItem(I.arrow, M, x, y, z, 0);
-      } else if (e.type === 'snowball' || e.type === 'egg' || e.type === 'hex' || e.type === 'fireball' || e.type === 'ender_pearl') {
+      } else if (e.type === 'snowball' || e.type === 'egg' || e.type === 'hex' || e.type === 'fireball' || e.type === 'ender_pearl' || e.type === 'eye_of_ender' || (e.type === 'firework' && !e.rider)) {
         const v = R.view; const Rm = M4.create(); Rm[0] = v[0]; Rm[1] = v[4]; Rm[2] = v[8]; Rm[4] = v[1]; Rm[5] = v[5]; Rm[6] = v[9]; Rm[8] = v[2]; Rm[9] = v[6]; Rm[10] = v[10];
         M4.mul(M, M, Rm); const s = e.type === 'fireball' ? 0.7 : 0.35; M4.scale(M, s, s, s);
-        drawItem(e.type === 'hex' ? I.purple_dye : e.type === 'fireball' ? I.fire_charge : I[e.type], M, x, y, z, e.type === 'fireball' ? 0.8 : 0);
+        drawItem(e.type === 'hex' ? I.purple_dye : e.type === 'fireball' ? I.fire_charge : e.type === 'firework' ? I.firework_rocket : I[e.type], M, x, y, z, e.type === 'fireball' || e.type === 'eye_of_ender' ? 0.8 : 0);
       } else if (e.type === 'falling' || e.type === 'tnt') {
         M4.translate(M, 0, 0.49, 0); M4.scale(M, 0.98, 0.98, 0.98);
         const flash = e.type === 'tnt' && Math.floor(e.fuse / 5) % 2 === 0 ? 0.6 : 0;
@@ -771,6 +868,7 @@ class Game {
     }
     gl.bindSampler(0, null);
     this.drawVehicles(R);
+    drawEndEntities(this, R);
     this.drawFishingLines(R);
     gl.enable(gl.CULL_FACE);
     gl.bindVertexArray(null);
@@ -803,6 +901,7 @@ class Game {
   drawVehicles(R) {
     const gl = R.gl, w = this.world, pr = R.progs.vox, u = pr.u;
     const base = this._Vb || (this._Vb = M4.create()), M = this._Vm || (this._Vm = M4.create()), rot = this._Vr || (this._Vr = M4.create()), c3 = this._Vc || (this._Vc = [0, 0, 0]);
+    const pv = this.player && this.player.vehicle;
     let started = false;
     for (const v of w.entities) {
       if (!v.isVehicle || v.removed) continue;
@@ -822,9 +921,12 @@ class Game {
       gl.uniform2f(u.uLightE, Math.max(l0 >> 4, l1 >> 4) / 15, Math.max(l0 & 15, l1 & 15) / 15);
       gl.uniform1f(u.uGlow, v.engine + (v.boosting ? 0.8 : 0)); gl.uniform1f(u.uHurtV, v.hurtT > 0 ? 1 : 0);
       const model = VOX_MODELS[v.def.model], parts = v.parts();
+      // from the pilot's own cockpit camera the hull is swapped for its interior version
+      const inside = v === pv && this.player.vcam === 1;
       for (const k in model.parts) {
         const part = model.parts[k], spec = parts ? parts[k] : undefined;
         if (spec === null) continue;
+        if (part.view && (part.view === 'int') !== inside) continue;
         v.partMatrix(M, base, part, spec);
         gl.uniformMatrix4fv(u.uModel, false, M);
         gl.bindVertexArray(part.vao); gl.drawArrays(gl.TRIANGLES, 0, part.count);
@@ -836,13 +938,28 @@ class Game {
     this.munitions.drawFX(R);
     const p = this.player;
     for (const e of this.world.entities) if (e.isVehicle && !e.removed && (e === (p && p.vehicle) || e.dist2(this.camera.x, this.camera.y, this.camera.z) < 200 * 200)) e.drawFX(R);
+    if (this.world.dim === 'end') drawEndFX(this, R);
+    const a = this.alpha;
+    for (const e of this.world.entities) {
+      if (e.removed) continue;
+      if (e.type === 'dragon_fireball') { R.fxSprite(e.ix(a), e.iy(a), e.iz(a), 0.95, 0.85, 0.3, 1.0, 1.3); R.fxSprite(e.ix(a), e.iy(a), e.iz(a), 0.4, 1, 0.8, 1, 1.2); }
+      else if (e.type === 'eye_of_ender') R.fxSprite(e.ix(a), e.iy(a), e.iz(a), 0.45, 0.45, 1.0, 0.7, 0.5);
+      else if (e.type === 'firework') R.fxSprite(e.ix(a), e.iy(a) - 0.2, e.iz(a), 0.3, 1.0, 0.75, 0.4, 1.0);
+    }
     R.fxFlush();
   }
   collectLights(R) {
     if (this.state === 'menu' || !this.world) return;
     this.munitions.addLights(R);
     const p = this.player;
-    for (const e of this.world.entities) if (e.isVehicle && !e.removed && e.dist2(this.camera.x, this.camera.y, this.camera.z) < 150 * 150) e.lights(R);
+    for (const e of this.world.entities) {
+      if (e.removed) continue;
+      if (e.isVehicle) { if (e.dist2(this.camera.x, this.camera.y, this.camera.z) < 150 * 150) e.lights(R); }
+      else if (e.isCrystal) R.addLight(e.x, e.y + 1.2, e.z, 10, 1.0, 0.45, 0.9, 1.3);
+      else if (e.type === 'dragon_fireball') R.addLight(e.x, e.y, e.z, 8, 0.8, 0.3, 1.0, 1.4);
+      else if (e.type === 'breath_cloud') R.addLight(e.x, e.y + 0.6, e.z, e.r + 3, 0.75, 0.25, 0.9, 0.9);
+      else if (e.type === 'eye_of_ender') R.addLight(e.x, e.y, e.z, 4, 0.4, 1.0, 0.6, 0.8);
+    }
     // dynamic hand light from held light sources
     if (p && !p.vehicle && !p.dead) {
       const id = p.heldId(), lv = id && id < 1000 ? EMIT[id] : (id === I.lava_bucket ? 15 : 0);
@@ -943,15 +1060,27 @@ class Game {
     const num = (s, base) => s && s.startsWith('~') ? base + (s.length > 1 ? +s.slice(1) : 0) : +s;
     try {
       switch (c) {
-        case 'help': ui.message('Commands: gamemode, time, weather, tp, give, summon, vehicle, locate, seed, kill, difficulty, spawnpoint, gamerule, clear, xp, heal, feed'); break;
-        case 'vehicle': case 'v': { const k = { jet: 'jet', stormcrow: 'jet', gunship: 'gunship', vtol: 'gunship', mantis: 'gunship', bike: 'bike', viper: 'bike', hoverbike: 'bike', bomber: 'bomber', wraith: 'bomber', tank: 'tank', bastion: 'tank' }[a[1]]; if (!k) throw 'Usage: /vehicle jet | bomber | gunship | bike | tank'; const d = p.lookVec(), hl = Math.hypot(d[0], d[2]) || 1; const dist = k === 'bike' ? 4 : 10, x = p.x + d[0] / hl * dist, z = p.z + d[2] / hl * dist; const y = Math.max(w.heightAt(Math.floor(x), Math.floor(z)), Math.floor(p.y)); spawnVehicle(w, k, x, y + 0.05, z, p.yaw); ui.message('Deployed ' + VEH_DEFS[k].name + '. Walk up and press F to board.', '#afa'); break; }
+        case 'help': ui.message('Commands: gamemode, time, weather, tp, give, summon, vehicle, locate, dimension, seed, kill, difficulty, spawnpoint, gamerule, clear, xp, heal, feed'); break;
+        case 'vehicle': case 'v': { const k = { jet: 'jet', stormcrow: 'jet', gunship: 'gunship', vtol: 'gunship', mantis: 'gunship', bike: 'bike', viper: 'bike', hoverbike: 'bike', bomber: 'bomber', wraith: 'bomber', tank: 'tank', bastion: 'tank', mech: 'mech', titan: 'mech', walker: 'mech', sub: 'sub', submarine: 'sub', nautilus: 'sub', drill: 'drill', mole: 'drill', borer: 'drill' }[a[1]]; if (!k) throw 'Usage: /vehicle jet | bomber | gunship | bike | tank | mech | sub | drill'; const d = p.lookVec(), hl = Math.hypot(d[0], d[2]) || 1; const dist = k === 'bike' ? 4 : k === 'drill' ? 7 : 10, x = p.x + d[0] / hl * dist, z = p.z + d[2] / hl * dist; const y = Math.max(w.heightAt(Math.floor(x), Math.floor(z)), Math.floor(p.y)); spawnVehicle(w, k, x, y + 0.05, z, p.yaw); ui.message('Deployed ' + VEH_DEFS[k].name + '. Walk up and press F to board.', '#afa'); break; }
         case 'gamemode': case 'gm': { const m = { survival: 'survival', s: 'survival', 0: 'survival', creative: 'creative', c: 'creative', 1: 'creative', spectator: 'spectator', sp: 'spectator', 3: 'spectator' }[a[1]]; if (!m) throw 'Unknown mode'; p.mode = m; p.flying = m === 'spectator' ? true : (m === 'creative' ? p.flying : false); ui.message('Game mode set to ' + titleCase(m)); break; }
         case 'time': { if (a[1] === 'set') { const v = { day: 1000, noon: 6000, night: 13000, midnight: 18000, sunrise: 23000, sunset: 12000 }[a[2]]; const t = v !== undefined ? v : +a[2]; this.time = Math.floor(this.time / 24000) * 24000 + t; ui.message('Set the time to ' + t); } else if (a[1] === 'add') { this.time += +a[2]; } else ui.message('Day ' + Math.floor(this.time / 24000) + ', time ' + Math.floor(this.time % 24000)); break; }
         case 'weather': { const W = this.weather; W.rain = a[1] !== 'clear'; W.thunder = a[1] === 'thunder'; W.timer = 6000 + randInt(0, 6000); ui.message('Weather set to ' + a[1]); break; }
         case 'tp': { const x = num(a[1], p.x), y = num(a[2], p.y), z = num(a[3], p.z); if ([x, y, z].some(isNaN)) throw 'Usage: /tp x y z'; this.putPlayer(x, y, z); ui.message(`Teleported to ${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}`); break; }
         case 'give': { let n = a[1]; if (n && n.startsWith('minecraft:')) n = n.slice(10); const id = I[n] !== undefined ? I[n] : I[n + '_item']; if (id === undefined) throw 'Unknown item ' + n; const cnt = +(a[2] || 1); let left = cnt; while (left > 0) { const k = Math.min(left, maxStack(id)); const l = p.inv.add({ id, n: k, d: 0 }); if (l) this.dropItem(w, p.x, p.y + 1, p.z, { id, n: l, d: 0 }); left -= k; } ui.message(`Gave ${cnt} × ${itemName(id)}`); break; }
-        case 'summon': { const t = a[1]; if (!MOB_DEFS[t]) throw 'Unknown mob. Try: ' + Object.keys(MOB_DEFS).join(', '); const d = p.lookVec(); this.spawnMob(t, num(a[2], p.x + d[0] * 3), num(a[3], p.y), num(a[4], p.z + d[2] * 3), null); ui.message('Summoned ' + t); break; }
+        case 'summon': {
+          const t = a[1];
+          if (t === 'ender_dragon') { if (w.dim !== 'end') throw 'The Ender Dragon only lives in the End'; this.endFight.summon(); ui.message('The dragon rises', '#d98aff'); break; }
+          if (t === 'end_crystal') { const d = p.lookVec(); w.addEntity(new EndCrystal(num(a[2], p.x + d[0] * 3), num(a[3], p.y), num(a[4], p.z + d[2] * 3))); ui.message('Summoned end_crystal'); break; }
+          if (!MOB_DEFS[t]) throw 'Unknown mob. Try: ' + Object.keys(MOB_DEFS).concat(['ender_dragon', 'end_crystal']).join(', '); const d = p.lookVec(); this.spawnMob(t, num(a[2], p.x + d[0] * 3), num(a[3], p.y), num(a[4], p.z + d[2] * 3), null); ui.message('Summoned ' + t); break; }
         case 'locate': { const t = a[1]; if (!SDEF[t]) throw 'Structures: ' + Object.keys(SDEF).join(', '); ui.message('Searching…'); this.jobs.post({ t: 'locate', dim: w.dim, type: t, x: p.x, z: p.z }, null, (m) => { if (m.res) ui.message(`Nearest ${t} is at ${m.res.x}, ~, ${m.res.z} (${Math.round(Math.hypot(m.res.x - p.x, m.res.z - p.z))} blocks away)`, '#afa'); else ui.message('No ' + t + ' found nearby', '#f88'); }); break; }
+        case 'dimension': case 'dim': {
+          const d = { overworld: 'overworld', nether: 'nether', end: 'end', the_end: 'end' }[a[1]];
+          if (!d) throw 'Usage: /dimension overworld | nether | end';
+          if (d === w.dim) throw 'You are already there';
+          if (d === 'end' || w.dim === 'end') { if (d === 'nether') throw 'Go home first: /dimension overworld'; this.travelEnd(); }
+          else this.travelPortal();
+          break;
+        }
         case 'seed': ui.message('Seed: ' + this.meta.seed); break;
         case 'kill': p.hurt(1000, { type: 'void' }); break;
         case 'difficulty': { const d = { peaceful: 0, easy: 1, normal: 2, hard: 3 }[a[1]]; this.difficulty = d !== undefined ? d : clamp(+a[1], 0, 3); ui.message('Difficulty set to ' + ['Peaceful', 'Easy', 'Normal', 'Hard'][this.difficulty]); if (this.difficulty === 0) for (const e of w.entities) if (e.isMob && e.def.hostile) e.removed = true; break; }

@@ -2,6 +2,64 @@
 
 Open `minecraft.html` in Chrome, Edge or Firefox. It is a single standalone file with no external requests.
 
+## Update 3: the End, three new vehicles, fixes
+
+**The End**
+- **Getting there.**
+  - Craft eyes of ender (ember powder + ender pearl) and throw them. Each flies about 12 blocks toward the nearest stronghold and usually drops back so you can reuse it.
+  - Strongholds are underground: stone-brick corridors, a library, a storeroom, and a portal room with twelve end portal frames over a lava pit.
+  - Put an eye in every frame to open the portal.
+  - `/locate stronghold` also finds one.
+- **The main island.** End stone under a violet starfield sky.
+  - Ten obsidian pillars ring the island, each topped by an end crystal. Two of the crystals are caged in iron bars.
+  - The exit portal and its bedrock fountain sit in the middle.
+- **The Ender Dragon.**
+  - It circles the pillars and heals from nearby crystals (you can see the beams).
+  - It strafes you with fireballs that leave clouds of dragon's breath, and it charges.
+  - It lands on the fountain to breathe on anyone nearby.
+  - It smashes through any blocks you build except obsidian, end stone and bedrock.
+  - Hits to the head do full damage; the body, wings and tail take much less. Arrows, melee and every vehicle weapon hit the individual parts, and jet missiles can lock onto it.
+  - Blowing up the crystal that is currently healing it also hurts it.
+  - A boss bar and its own music play during the fight.
+- **When it dies.** A ten-second death sequence with beams of light and a lot of XP.
+  - The exit portal lights up and the dragon egg appears. The egg teleports away when you touch it; drop it onto a torch to collect it.
+  - An end gateway opens, and you can put four end crystals on the portal rim to summon the dragon again.
+- **Going home.** The exit portal takes you back to your spawn point. The first time, it plays an original credits roll.
+- **The outer islands**, about 1000 blocks out, reached through the gateway (walk in, or throw an ender pearl into it).
+  - Chorus forests: chorus fruit teleports you when eaten, and pops into purpur in a furnace.
+  - End cities: purpur towers with end rods and loot chests.
+  - End ships: each one guarantees an **elytra** and fireworks.
+  - Gateways link back and forth.
+- **Elytra.**
+  - Wear it in the chest slot, jump, and press jump again in mid-air to glide. It uses the original's glide physics: diving builds speed and pulling up trades speed for height.
+  - Use firework rockets to boost. Crashing into a wall at speed hurts.
+- **Endermen.**
+  - They roam the End, and also the overworld at night and warped forests.
+  - Look one in the eye and it screams and attacks. A carved pumpkin worn as a helmet protects you.
+  - They teleport when hurt, dodge arrows and hate water. They drop ender pearls.
+- **Other additions.** New blocks: end stone bricks, purpur blocks and pillars, their slabs, stairs and walls, end rods and chorus plants. The End has its own ambience, music and fog, the void kills anything that falls off an island, and beds explode outside the overworld.
+
+**New vehicles**
+
+| Vehicle | What it does |
+|---|---|
+| Titan assault mech | A two-legged walker with animated legs. WASD walks toward where you aim and the torso twists to follow the mouse. Arm autocannons, an eight-rocket shoulder salvo, and jump jets whose landing pounds the ground. It climbs one-block steps and stomps small mobs. |
+| Nautilus submarine | Steers and dives in 3D under water, floats on the surface, and is beached on land. Headlight beams light up dark water, and it leaves a propeller bubble trail. Pulse laser, torpedoes, and a sonar display with a depth gauge. |
+| Mole tunnel borer | A tracked drill. Hold the trigger to bore a 3×3 tunnel in any direction you look, including diagonally up or down. Ores go straight into your inventory and rubble is crushed. Overdrive, and seismic charges for blasting caverns. |
+
+`/vehicle mech|sub|drill`, the Vehicles tab, or craft them (see the recipe book).
+
+**Fixes**
+- You can walk from a dirt path onto a house's doorstep or into a raised doorway. Village doors also got proper steps where the ground falls away.
+- Vehicle views:
+  - the jet, gunship and bomber cockpit views no longer show the ground through the floor or loose pieces of the hull;
+  - the bomber's cockpit banks with the aircraft;
+  - the tank and bike cockpit cameras sit where the crew would;
+  - the underwater effect follows the camera rather than the seat.
+- Flat worlds no longer show dark grass rectangles after reloading.
+- Ember imps actually spawn in the Nether again.
+- Projectiles fly through grass and kelp instead of bursting on them.
+
 ## Update 2: sharper, smoother, more content
 
 **Sharper image**

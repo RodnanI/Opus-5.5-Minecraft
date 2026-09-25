@@ -10,8 +10,10 @@ const SDEF = {
   ruined_portal: { spacing: 18, sep: 6, salt: 0x6F708192, reach: 1, chance: 0.8 },
   mineshaft: { spacing: 10, sep: 3, salt: 0x708192A3, reach: 6, chance: 0.55 },
   fortress: { spacing: 14, sep: 4, salt: 0x8192A3B4, reach: 7, chance: 0.75 },
+  stronghold: { spacing: 36, sep: 12, salt: 0x51C0DE77, reach: 4, chance: 1 },
+  end_city: { spacing: 20, sep: 8, salt: 0x7E4DC17E, reach: 4, chance: 1 },
 };
-const OW_STRUCTS = ['mineshaft', 'village', 'pyramid', 'jungle_temple', 'igloo', 'witch_hut', 'ruined_portal'];
+const OW_STRUCTS = ['mineshaft', 'village', 'pyramid', 'jungle_temple', 'igloo', 'witch_hut', 'ruined_portal', 'stronghold'];
 
 class Bld {
   constructor(ctx, ox, y, oz, F, seed) {
@@ -98,6 +100,8 @@ class Structures {
         case 'ruined_portal': p = this.planRuinedPortal(c); break;
         case 'mineshaft': p = this.planMineshaft(c); break;
         case 'fortress': p = this.planFortress(c); break;
+        case 'stronghold': p = this.planStronghold(c); break;
+        case 'end_city': p = this.planEndCity(c); break;
       }
     }
     this.cache.set(k, p);
@@ -124,9 +128,20 @@ class Structures {
       for (const pc of p.pieces) if (ctx.overlaps(pc.x0, pc.z0, pc.x1, pc.z1)) { pc.build(ctx); ctx.tags |= 2; }
     });
   }
+  applyEnd(ctx) {
+    this.forEachNear('end_city', ctx.cx, ctx.cz, (p) => {
+      if (!ctx.overlaps(p.x0, p.z0, p.x1, p.z1)) return;
+      for (const pc of p.pieces) if (ctx.overlaps(pc.x0, pc.z0, pc.x1, pc.z1)) { pc.build(ctx); ctx.tags |= 4; }
+    });
+  }
   inVillage(x, z) {
     let r = false;
     this.forEachNear('village', x >> 4, z >> 4, (p) => { if (x >= p.x0 - 3 && x <= p.x1 + 3 && z >= p.z0 - 3 && z <= p.z1 + 3) r = true; });
+    return r;
+  }
+  inEndCity(x, z) {
+    let r = false;
+    this.forEachNear('end_city', x >> 4, z >> 4, (p) => { if (x >= p.x0 - 2 && x <= p.x1 + 2 && z >= p.z0 - 2 && z <= p.z1 + 2) r = true; });
     return r;
   }
   locate(type, x, z, maxR) {
@@ -137,7 +152,11 @@ class Structures {
       for (let rx = rcx - r; rx <= rcx + r; rx++) for (let rz = rcz - r; rz <= rcz + r; rz++) {
         if (Math.max(Math.abs(rx - rcx), Math.abs(rz - rcz)) !== r) continue;
         const p = this.plan(type, rx, rz);
-        if (p) { const px = (p.x0 + p.x1) / 2, pz = (p.z0 + p.z1) / 2, dd = (px - x) ** 2 + (pz - z) ** 2; if (dd < bd) { bd = dd; best = { x: Math.round(px), y: p.cy || 64, z: Math.round(pz) }; } }
+        if (p) {
+          // a plan may name its key spot (the stronghold's portal room); otherwise use the middle of its bounds
+          const px = p.target ? p.target[0] : (p.x0 + p.x1) / 2, pz = p.target ? p.target[2] : (p.z0 + p.z1) / 2, dd = (px - x) ** 2 + (pz - z) ** 2;
+          if (dd < bd) { bd = dd; best = { x: Math.round(px), y: p.target ? p.target[1] : p.cy || 64, z: Math.round(pz) }; }
+        }
       }
       if (best && r >= 2) break;
     }
@@ -398,6 +417,22 @@ class Structures {
         break;
       }
     }
+    // buildings sit at the median height of their footprint while roads follow the terrain, so a door can end
+    // up a block or two above the path in front of it: give those doors a step up
+    const doorU = { small_house: [2], house: [W >> 1], big_house: [W >> 1], library: [W >> 1], church: [2], pen: [W >> 1] }[bl.type];
+    if (doorU) for (const u of doorU) this.doorstep(b, u, m);
+    if (bl.type === 'smithy') for (let u = 1; u < W; u++) this.doorstep(b, u, m);
+  }
+  doorstep(b, u, m) {
+    const open = (c) => { const id = c & 4095; return id === 0 || REPL[id] || PLANT[id] || FLUID[id]; };
+    const c0 = b.get(u, 0, -1);
+    if (c0 < 0 || !open(c0)) return;                 // outside this chunk, or the ground already reaches floor level
+    let h = -1;
+    for (; h >= -3; h--) { const c = b.get(u, h, -1); if (c < 0) return; if (!open(c)) break; }
+    for (let k = h + 1; k < 0; k++) b.set(u, k, -1, m.found);
+    b.stairs(u, 0, -1, m.stairs, 2);
+    // two blocks down: a second step further out, if that spot is low too
+    if (h <= -2) { const c2 = b.get(u, -1, -2); if (c2 >= 0 && open(c2)) { for (let k = h + 1; k < -1; k++) b.set(u, k, -2, m.found); b.stairs(u, -1, -2, m.stairs, 2); } }
   }
 
   // ================================================================ PYRAMID
@@ -819,6 +854,166 @@ class Structures {
         if (side === 1 && hashF3(seed, x, y, z) < 0.03) ctx.chest(x, y + 1, z, alongX ? 2 : 1, 'fortress', hash3(seed, x, y, z));
       }
     } };
+  }
+  // ================================================================ STRONGHOLD
+  // Portal room (a raised ring of twelve end portal frames over a lava pit), a corridor to a hub, a library
+  // and a storeroom off the hub, and a ladder shaft that climbs to just under the surface.
+  planStronghold(c) {
+    const rng = c.rng, x = c.cx * 16 + 8, z = c.cz * 16 + 8;
+    const cl = this.gen.climateCached(x, z);
+    if (cl.h < SEA - 6 || cl.biome === BIO.MUSHROOM) return null;
+    const y = rng.range(16, 30), seed = rng.u32(), surf = Math.floor(cl.h);
+    const sb = (X, Y, Z) => { const h = hashF3(seed, X, Y, Z); return h < 0.2 ? B.mossy_stone_bricks : h < 0.34 ? B.cracked_stone_bricks : B.stone_bricks; };
+    const room = (ctx, x0, y0, z0, x1, y1, z1) => {
+      for (let X = Math.max(x0, ctx.x0); X <= Math.min(x1, ctx.x0 + 15); X++) for (let Z = Math.max(z0, ctx.z0); Z <= Math.min(z1, ctx.z0 + 15); Z++)
+        for (let Y = y0; Y <= y1; Y++) ctx.set(X, Y, Z, X === x0 || X === x1 || Z === z0 || Z === z1 || Y === y0 || Y === y1 ? sb(X, Y, Z) : 0);
+    };
+    const hole = (ctx, x0, y0, z0, x1, y1, z1) => ctx.fill(x0, y0, z0, x1, y1, z1, 0);
+    const torch = (ctx, X, Y, Z, f) => ctx.set(X, Y, Z, B.torch | ((1 + f) << 12));
+    const pieces = [];
+    // portal room
+    pieces.push({ x0: x - 6, z0: z - 6, x1: x + 6, z1: z + 6, build: (ctx) => {
+      room(ctx, x - 6, y, z - 6, x + 6, y + 9, z + 6);
+      for (let dz = -3; dz <= 2; dz++) for (let dx = -3; dx <= 3; dx++) {
+        const pit = Math.abs(dx) <= 1 && Math.abs(dz) <= 1;
+        ctx.set(x + dx, y + 1, z + dz, sb(x + dx, y + 1, z + dz)); ctx.set(x + dx, y + 2, z + dz, pit ? B.lava : B.stone_bricks);
+      }
+      for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== 2 || (Math.abs(dx) === 2 && Math.abs(dz) === 2)) continue;
+        const f = dz === -2 ? 2 : dz === 2 ? 0 : dx === -2 ? 1 : 3, eye = hashF3(seed ^ 9, x + dx, y, z + dz) < 0.1 ? 4 : 0;
+        ctx.set(x + dx, y + 3, z + dz, B.end_portal_frame | ((f | eye) << 12));
+      }
+      for (let dx = -1; dx <= 1; dx++) { ctx.set(x + dx, y + 2, z + 3, B.stone_brick_stairs); ctx.set(x + dx, y + 1, z + 4, B.stone_brick_stairs); }
+      // lava glow behind iron bars at the back, torches, and the doorway south
+      for (let dx = -4; dx <= 4; dx += 2) { ctx.set(x + dx, y + 4, z - 6, B.iron_bars); ctx.set(x + dx, y + 5, z - 6, B.iron_bars); }
+      for (const dz of [-3, 3]) { torch(ctx, x - 5, y + 4, z + dz, 1); torch(ctx, x + 5, y + 4, z + dz, 3); }
+      hole(ctx, x - 1, y + 1, z + 6, x + 1, y + 3, z + 6);
+    } });
+    // corridor to the hub
+    pieces.push({ x0: x - 2, z0: z + 6, x1: x + 2, z1: z + 20, build: (ctx) => {
+      room(ctx, x - 2, y, z + 6, x + 2, y + 4, z + 20);
+      hole(ctx, x - 1, y + 1, z + 6, x + 1, y + 3, z + 6); hole(ctx, x - 1, y + 1, z + 20, x + 1, y + 3, z + 20);
+      for (let dz = 9; dz <= 18; dz += 4) { torch(ctx, x - 1, y + 2, z + dz, 1); torch(ctx, x + 1, y + 2, z + dz + 2, 3); }
+      for (let dz = 7; dz <= 19; dz++) if (hashF3(seed ^ 3, x, y, z + dz) < 0.1) ctx.set(x + (hashF3(seed, dz, 1, 2) < 0.5 ? -1 : 1), y + 3, z + dz, B.cobweb);
+    } });
+    // hub
+    pieces.push({ x0: x - 5, z0: z + 20, x1: x + 5, z1: z + 30, build: (ctx) => {
+      room(ctx, x - 5, y, z + 20, x + 5, y + 6, z + 30);
+      hole(ctx, x - 1, y + 1, z + 20, x + 1, y + 3, z + 20);
+      hole(ctx, x - 5, y + 1, z + 24, x - 5, y + 2, z + 26); hole(ctx, x + 5, y + 1, z + 24, x + 5, y + 2, z + 26); hole(ctx, x, y + 1, z + 30, x, y + 2, z + 30);
+      for (let dx = -3; dx <= 3; dx++) for (let dz = 22; dz <= 28; dz++) if (Math.abs(dx) === 3 || dz === 22 || dz === 28) ctx.set(x + dx, y + 5, z + dz, B.stone_brick_slab | (1 << 12));
+      torch(ctx, x - 4, y + 3, z + 22, 1); torch(ctx, x + 4, y + 3, z + 28, 3); torch(ctx, x - 4, y + 3, z + 28, 1); torch(ctx, x + 4, y + 3, z + 22, 3);
+    } });
+    // library: shelves along the walls, a reading table and a chest
+    pieces.push({ x0: x - 17, z0: z + 19, x1: x - 5, z1: z + 31, build: (ctx) => {
+      room(ctx, x - 17, y, z + 19, x - 5, y + 7, z + 31);
+      hole(ctx, x - 5, y + 1, z + 24, x - 5, y + 2, z + 26);
+      for (let X = x - 16; X <= x - 6; X++) for (let Z = z + 20; Z <= z + 30; Z++) {
+        const wall = X === x - 16 || Z === z + 20 || Z === z + 30 || (X === x - 6 && (Z < z + 23 || Z > z + 27));
+        if (wall) for (let Y = y + 1; Y <= y + 3; Y++) ctx.set(X, Y, Z, hashF3(seed ^ 5, X, Y, Z) < 0.12 ? B.cobweb : B.bookshelf);
+      }
+      for (let Z = z + 23; Z <= z + 27; Z += 2) for (const X of [x - 12, x - 10]) { ctx.set(X, y + 1, Z, B.bookshelf); ctx.set(X, y + 2, Z, B.bookshelf); }
+      ctx.set(x - 14, y + 1, z + 25, B.oak_fence); ctx.set(x - 14, y + 2, z + 25, B.oak_planks); ctx.set(x - 14, y + 3, z + 25, B.lantern);
+      ctx.chest(x - 15, y + 1, z + 29, 0, 'stronghold', hash3(seed, x, y, z) ^ 11);
+      torch(ctx, x - 15, y + 5, z + 25, 1);
+    } });
+    // storeroom
+    pieces.push({ x0: x + 5, z0: z + 21, x1: x + 13, z1: z + 29, build: (ctx) => {
+      room(ctx, x + 5, y, z + 21, x + 13, y + 5, z + 29);
+      hole(ctx, x + 5, y + 1, z + 24, x + 5, y + 2, z + 26);
+      ctx.chest(x + 12, y + 1, z + 22, 3, 'stronghold', hash3(seed, x, y, z) ^ 21);
+      ctx.chest(x + 12, y + 1, z + 28, 3, 'stronghold', hash3(seed, x, y, z) ^ 31);
+      ctx.barrel(x + 12, y + 1, z + 25, 'stronghold', hash3(seed, x, y, z) ^ 41);
+      ctx.set(x + 7, y + 4, z + 22, B.cobweb); ctx.set(x + 11, y + 4, z + 28, B.cobweb);
+      torch(ctx, x + 6, y + 3, z + 25, 1);
+    } });
+    // ladder shaft up to a few blocks under the surface
+    const top = Math.max(y + 8, Math.min(y + 60, surf - 5));
+    pieces.push({ x0: x - 2, z0: z + 30, x1: x + 2, z1: z + 34, build: (ctx) => {
+      room(ctx, x - 2, y, z + 30, x + 2, top, z + 34);
+      hole(ctx, x, y + 1, z + 30, x, y + 2, z + 30);
+      for (let Y = y + 1; Y < top; Y++) ctx.set(x, Y, z + 33, B.ladder | (0 << 12));
+      for (let Y = y + 6; Y < top; Y += 8) torch(ctx, x - 1, Y, z + 32, 1);
+    } });
+    return { type: 'stronghold', x0: x - 17, z0: z - 6, x1: x + 13, z1: z + 34, cy: y, target: [x, y + 3, z], pieces };
+  }
+  // ================================================================ END CITY
+  // A purpur hall with a tower of stacked rooms on top, and often a ship moored beside the top floor
+  // (the ship's chest always holds an elytra).
+  planEndCity(c) {
+    const rng = c.rng, x = c.cx * 16 + 8, z = c.cz * 16 + 8;
+    if (!this.gen.column || Math.hypot(x, z) < END_OUTER + 40) return null;
+    const col = this.gen.column(x, z), cn = this.gen.column(x, z - 5), cs = this.gen.column(x, z + 5);
+    if (!col || !cn || !cs || col.top - col.bot < 14) return null;
+    const s = Math.floor(col.top) + 1, seed = rng.u32(), floors = rng.range(3, 5), ship = rng.next() < 0.5;
+    const P = B.purpur_block, PP = B.purpur_pillar, EB = B.end_stone_bricks, GL = B.magenta_stained_glass, ROD = B.end_rod;
+    const topY = s + 6 + floors * 5;
+    const pieces = [];
+    const shell = (ctx, x0, y0, z0, x1, y1, z1, floor) => {
+      for (let X = x0; X <= x1; X++) for (let Z = z0; Z <= z1; Z++) for (let Y = y0; Y <= y1; Y++) {
+        const ex = X === x0 || X === x1, ez = Z === z0 || Z === z1;
+        let v = 0;
+        if (Y === y0) v = floor; else if (Y === y1) v = P;
+        else if (ex && ez) v = PP;
+        else if (ex || ez) v = (Y - y0) % 4 === 2 && ((ex ? Z : X) & 1) === 0 ? GL : P;
+        ctx.set(X, Y, Z, v);
+      }
+    };
+    pieces.push({ x0: x - 7, z0: z - 7, x1: x + 7, z1: z + 7, build: (ctx) => {
+      // foundation into the island, then the hall
+      for (let X = x - 5; X <= x + 5; X++) for (let Z = z - 5; Z <= z + 5; Z++) for (let Y = s - 1; Y >= s - 6; Y--) { const cur = ctx.get(X, Y, Z); if (cur < 0 || (cur & 4095) === B.end_stone) break; ctx.set(X, Y, Z, EB); }
+      shell(ctx, x - 5, s - 1, z - 5, x + 5, s + 5, z + 5, EB);
+      for (const [dx, dz] of [[0, -5], [0, 5], [-5, 0], [5, 0]]) ctx.fill(x + dx, s, z + dz, x + dx, s + 2, z + dz, 0);
+      for (const [dx, dz] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) ctx.set(x + dx, s + 5, z + dz, ROD | (2 << 12));
+      // the tower: stacked 7x7 rooms with a ladder up the north wall
+      for (let f = 0; f < floors; f++) {
+        const y0 = s + 5 + f * 5;
+        shell(ctx, x - 3, y0, z - 3, x + 3, y0 + 5, z + 3, EB);
+        for (const [dx, dz] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) ctx.set(x + dx, y0 + 4, z + dz, ROD | (2 << 12));
+        ctx.set(x, y0 + 4, z, B.end_rod | (3 << 12));
+      }
+      // (in the hall the ladder needs a pillar to hang on; higher up the tower's north wall carries it)
+      for (let Y = s; Y <= s + 4; Y++) ctx.set(x, Y, z - 3, PP);
+      for (let Y = s; Y < topY; Y++) ctx.set(x, Y, z - 2, B.ladder | (2 << 12));
+      // top room: wider, with the loot and an open door toward the ship
+      shell(ctx, x - 4, topY, z - 4, x + 4, topY + 5, z + 4, EB);
+      ctx.set(x, topY, z - 2, B.ladder | (2 << 12));
+      for (let X = x - 5; X <= x + 5; X++) for (let Z = z - 5; Z <= z + 5; Z++) if (Math.abs(X - x) === 5 || Math.abs(Z - z) === 5) ctx.set(X, topY + 5, Z, B.purpur_slab);
+      ctx.chest(x + 2, topY + 1, z + 2, 0, 'end_city', hash3(seed, x, topY, z));
+      ctx.chest(x - 2, topY + 1, z + 2, 0, 'end_city', hash3(seed, x, topY, z) ^ 77);
+      if (ship) ctx.fill(x - 1, topY + 1, z - 4, x + 1, topY + 2, z - 4, 0);
+      for (const [dx, dz] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) ctx.set(x + dx, topY + 6, z + dz, ROD | (2 << 12));
+    } });
+    if (ship) {
+      const sy = topY, bz0 = z - 30, bz1 = z - 9;          // hull from bow (bz0) to stern (bz1), deck at sy
+      pieces.push({ x0: x - 5, z0: bz0 - 1, x1: x + 5, z1: z - 4, build: (ctx) => {
+        // bridge from the top room to the stern
+        for (let Z = bz1 + 1; Z <= z - 5; Z++) for (let dx = -1; dx <= 1; dx++) ctx.set(x + dx, sy, Z, B.purpur_slab | (1 << 12));
+        for (let Z = bz0; Z <= bz1; Z++) {
+          const t = (Z - bz0) / (bz1 - bz0), w = Math.round(1.5 + Math.sin(Math.PI * Math.min(1, t * 1.25)) * 2.5);
+          for (let dx = -w; dx <= w; dx++) {
+            const edge = Math.abs(dx) === w;
+            for (let d = 1; d <= 3; d++) if (Math.abs(dx) <= w - d + 1) ctx.set(x + dx, sy - d, Z, d === 3 ? EB : P);   // keel
+            ctx.set(x + dx, sy, Z, edge ? P : B.purpur_slab | (1 << 12));
+            if (edge) ctx.set(x + dx, sy + 1, Z, t > 0.1 ? B.purpur_stairs | (((dx < 0 ? 1 : 3)) << 12) : P);
+          }
+        }
+        // bow ornament, mast with end rods, stern cabin with the treasure
+        ctx.set(x, sy + 1, bz0 - 1, ROD | (5 << 12)); ctx.set(x, sy, bz0 - 1, P);
+        const mz = bz0 + 8;
+        for (let Y = sy + 1; Y <= sy + 9; Y++) ctx.set(x, Y, mz, B.obsidian);
+        for (let dx = -3; dx <= 3; dx++) ctx.set(x + dx, sy + 8, mz, dx === 0 ? B.obsidian : B.purple_wool);
+        ctx.set(x - 4, sy + 8, mz, ROD | (1 << 12)); ctx.set(x + 4, sy + 8, mz, ROD | (0 << 12));
+        for (let X = x - 2; X <= x + 2; X++) for (let Z = bz1 - 4; Z <= bz1; Z++) for (let Y = sy + 1; Y <= sy + 4; Y++) {
+          const w2 = X === x - 2 || X === x + 2 || Z === bz1 - 4 || Z === bz1, roof = Y === sy + 4;
+          ctx.set(X, Y, Z, roof ? P : w2 ? (Y === sy + 2 && (X === x) ? GL : P) : 0);
+        }
+        ctx.fill(x, sy + 1, bz1, x, sy + 2, bz1, 0);
+        ctx.chest(x, sy + 1, bz1 - 3, 2, 'end_ship', hash3(seed, x, sy, bz1));
+        ctx.set(x - 1, sy + 3, bz1 - 2, B.end_rod | (3 << 12));
+      } });
+    }
+    return { type: 'end_city', x0: x - 7, z0: ship ? z - 32 : z - 7, x1: x + 7, z1: z + 7, cy: s, pieces };
   }
   nfWartRoom(x, y, z, F, seed) {
     return { x0: x - 4, z0: z - 4, x1: x + 4, z1: z + 4, build: (ctx) => {

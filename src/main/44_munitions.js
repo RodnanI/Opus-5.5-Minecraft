@@ -2,6 +2,21 @@
 //  Munitions: plasma bolts, homing missiles, rockets, cutting laser, blasts.
 //  Simulated per frame with swept ray tests against blocks and entities.
 // ============================================================================
+// like raycast, but flies through plants, kelp and other non-solid blocks (projectiles should not burst on grass)
+function raycastSolid(w, x, y, z, dx, dy, dz, maxD) {
+  let t0 = 0;
+  for (let i = 0; i < 6; i++) {
+    const hit = raycast(w, x + dx * t0, y + dy * t0, z + dz * t0, dx, dy, dz, maxD - t0, false);
+    if (!hit) return null;
+    if (SOLID[hit.id]) { hit.t += t0; return hit; }
+    t0 += hit.t + 0.02;
+    // step past the plant's cell before testing again
+    const ex = Math.floor(x + dx * t0), ey = Math.floor(y + dy * t0), ez = Math.floor(z + dz * t0);
+    if (ex === hit.x && ey === hit.y && ez === hit.z) t0 += 0.35;
+    if (t0 >= maxD) return null;
+  }
+  return null;
+}
 class Munitions {
   constructor(game) { this.game = game; this.list = []; this.flashes = []; this.beams = []; this.burn = new Map(); this.t = 0; }
   get world() { return this.game.world; }
@@ -18,6 +33,11 @@ class Munitions {
     this.list.push({ kind: 'rocket', owner, x, y, z, dx, dy, dz, speed: 95, life: 4.5, age: 0, power: o.power, trail: 0, dmg: 0 });
     this.game.audio.play('rocket', { x, y, z, range: 50, vol: 0.7 });
   }
+  // slow, heavy and happy underwater: it leaves a bubble wake instead of smoke
+  torpedo(owner, x, y, z, dx, dy, dz, o) {
+    this.list.push({ kind: 'torpedo', owner, x, y, z, dx, dy, dz, speed: 26, life: 7, age: 0, power: o.power, trail: 0, dmg: 0 });
+    this.game.audio.play('torpedo', { x, y, z, range: 60 });
+  }
   bomb(owner, x, y, z, vx, vy, vz, o) {
     const sp = Math.hypot(vx, vy, vz) || 1;
     this.list.push({ kind: 'bomb', owner, x, y, z, vx, vy, vz, dx: vx / sp, dy: vy / sp, dz: vz / sp, speed: sp, grav: BOMB_G, life: 25, age: 0, power: o.power, trail: 0, dmg: 0 });
@@ -31,16 +51,16 @@ class Munitions {
   laser(owner, x, y, z, dx, dy, dz, range, dt, o) {
     const w = this.world;
     const hit = raycast(w, x, y, z, dx, dy, dz, range, false);
-    let t = hit ? hit.t : range, ent = null;
+    let t = hit ? hit.t : range, ent = null, part = -1;
     for (const e of w.entitiesNear(x + dx * t / 2, y + dy * t / 2, z + dz * t / 2, t / 2 + 3)) {
       if (!this.hittable(e, owner)) continue;
-      const hw = e.w / 2 + 0.1, h = rayAABB(x, y, z, dx, dy, dz, [e.x - hw, e.y - 0.1, e.z - hw, e.x + hw, e.y + e.h + 0.1, e.z + hw]);
-      if (h && h.t < t) { t = h.t; ent = e; }
+      const h = entityRayHit(e, x, y, z, dx, dy, dz, 0.1);
+      if (h && h.t < t) { t = h.t; ent = e; part = h.part; }
     }
     const ex = x + dx * t, ey = y + dy * t, ez = z + dz * t;
     if (ent) {
       ent._lz = (ent._lz || 0) + o.dps * dt;
-      if (ent._lz >= 2) { const d = Math.floor(ent._lz); ent._lz -= d; ent.invul = 0; ent.hurt(d, { type: 'laser', source: owner.rider || owner, kb: 0.05 }); if (!ent.isVehicle) ent.fireTicks = Math.max(ent.fireTicks || 0, 40); }
+      if (ent._lz >= 2) { const d = Math.floor(ent._lz); ent._lz -= d; ent.invul = 0; ent.lastHitPart = part; ent.hurt(d, { type: 'laser', source: owner.rider || owner, kb: 0.05 }); ent.lastHitPart = -1; if (!ent.isVehicle) ent.fireTicks = Math.max(ent.fireTicks || 0, 40); }
     } else if (hit) {
       const b = BLOCKS[hit.id], hard = b ? b.hard : 1;
       if (hard !== undefined && hard >= 0 && hard < 40 && hit.id !== B.bedrock) {
@@ -68,9 +88,9 @@ class Munitions {
     const w = this.world, c = owner.center ? owner.center([0, 0, 0]) : [owner.x, owner.y, owner.z];
     let best = null, bs = cone;
     for (const e of w.entitiesNear(c[0], c[1], c[2], range)) {
-      if (!(e.isMob || (e.isVehicle && e !== owner)) || e.dead || e.removed) continue;
+      if (!(e.isMob || e.isBoss || (e.isVehicle && e !== owner)) || e.dead || e.removed) continue;
       const dx = e.x - c[0], dy = e.y + e.h * 0.5 - c[1], dz = e.z - c[2], d = Math.hypot(dx, dy, dz) || 1;
-      const a = Math.acos(clamp((dx * dir[0] + dy * dir[1] + dz * dir[2]) / d, -1, 1)) * (e.isMob && e.def.hostile ? 0.8 : 1);
+      const a = Math.acos(clamp((dx * dir[0] + dy * dir[1] + dz * dir[2]) / d, -1, 1)) * (e.isBoss ? 0.6 : e.isMob && e.def.hostile ? 0.8 : 1);
       if (a < bs) { bs = a; best = e; }
     }
     if (best && rayBlocked(w, c[0], c[1], c[2], best.x, best.y + best.h * 0.5, best.z)) return null;
@@ -86,21 +106,22 @@ class Munitions {
       m.age += dt;
       if (m.age > m.life) { if (m.kind !== 'bolt') this.detonate(m, m.x, m.y, m.z); continue; }
       if (m.kind === 'missile') this.guide(m, dt);
+      if (m.kind === 'torpedo') m.speed = Math.min(58, m.speed + 30 * dt);
       if (m.grav) { m.vy -= m.grav * dt; m.speed = Math.hypot(m.vx, m.vy, m.vz) || 1e-3; m.dx = m.vx / m.speed; m.dy = m.vy / m.speed; m.dz = m.vz / m.speed; }
       if (m.kind === 'rocket') { m.dy -= 0.9 * dt / 10; const l = Math.hypot(m.dx, m.dy, m.dz); m.dx /= l; m.dy /= l; m.dz /= l; }
       const step = m.speed * dt;
-      const hit = raycast(w, m.x, m.y, m.z, m.dx, m.dy, m.dz, step, false);
-      let et = hit ? hit.t : step, ent = null;
+      const hit = raycastSolid(w, m.x, m.y, m.z, m.dx, m.dy, m.dz, step);
+      let et = hit ? hit.t : step, ent = null, part = -1;
       const mx = m.x + m.dx * step * 0.5, my = m.y + m.dy * step * 0.5, mz = m.z + m.dz * step * 0.5;
       for (const e of w.entitiesNear(mx, my, mz, step * 0.5 + 4)) {
         if (!this.hittable(e, m.owner)) continue;
         const pad = m.kind === 'bolt' ? m.size * 0.6 + 0.1 : 0.35;
-        const hw = e.w / 2 + pad, h = rayAABB(m.x, m.y, m.z, m.dx, m.dy, m.dz, [e.x - hw, e.y - pad, e.z - hw, e.x + hw, e.y + e.h + pad, e.z + hw]);
-        if (h && h.t <= et) { et = h.t; ent = e; }
+        const h = entityRayHit(e, m.x, m.y, m.z, m.dx, m.dy, m.dz, pad);
+        if (h && h.t <= et) { et = h.t; ent = e; part = h.part; }
       }
       if (ent || hit) {
         const px = m.x + m.dx * et, py = m.y + m.dy * et, pz = m.z + m.dz * et;
-        if (ent && m.dmg) { ent.invul = 0; ent.hurt(m.dmg, { type: 'plasma', source: m.owner.rider || m.owner, kb: 0.3 }); if (ent.isMob) ent.fireTicks = Math.max(ent.fireTicks || 0, 20); }
+        if (ent && m.dmg) { ent.invul = 0; ent.lastHitPart = part; ent.hurt(m.dmg, { type: 'plasma', source: m.owner.rider || m.owner, kb: 0.3 }); ent.lastHitPart = -1; if (ent.isMob) ent.fireTicks = Math.max(ent.fireTicks || 0, 20); }
         if (m.kind === 'bolt') this.impact(m, px - m.dx * 0.1, py - m.dy * 0.1, pz - m.dz * 0.1, hit && !ent ? hit : null);
         else this.detonate(m, px - m.dx * 0.3, py - m.dy * 0.3, pz - m.dz * 0.3);
         continue;
@@ -109,8 +130,10 @@ class Munitions {
       if (m.kind !== 'bolt') {
         m.trail -= dt;
         if (m.trail <= 0) {
-          m.trail = m.kind === 'missile' ? 0.03 : m.kind === 'shell' ? 0.02 : 0.045;
-          P.spawn('p_smoke', m.x - m.dx * 0.6, m.y - m.dy * 0.6, m.z - m.dz * 0.6, { vx: (Math.random() - 0.5) * 0.02, vy: 0.01, vz: (Math.random() - 0.5) * 0.02, life: 30 + Math.random() * 20, size: 0.45 + Math.random() * 0.3, color: [0.72, 0.72, 0.74], alpha: 0.7 });
+          m.trail = m.kind === 'missile' ? 0.03 : m.kind === 'shell' ? 0.02 : m.kind === 'torpedo' ? 0.025 : 0.045;
+          const wid = w.getId(Math.floor(m.x), Math.floor(m.y), Math.floor(m.z));
+          if (FLUID[wid] === 1) P.spawn('p_bubble', m.x - m.dx * 0.8 + (Math.random() - 0.5) * 0.3, m.y - m.dy * 0.8, m.z - m.dz * 0.8 + (Math.random() - 0.5) * 0.3, { vx: (Math.random() - 0.5) * 0.03, vy: 0.05 + Math.random() * 0.04, vz: (Math.random() - 0.5) * 0.03, life: 30 + Math.random() * 20, size: 0.12 + Math.random() * 0.08 });
+          else P.spawn('p_smoke', m.x - m.dx * 0.6, m.y - m.dy * 0.6, m.z - m.dz * 0.6, { vx: (Math.random() - 0.5) * 0.02, vy: 0.01, vz: (Math.random() - 0.5) * 0.02, life: 30 + Math.random() * 20, size: 0.45 + Math.random() * 0.3, color: [0.72, 0.72, 0.74], alpha: 0.7 });
         }
         if (m.kind === 'missile' && m.target && !m.target.dead && !m.target.removed) {
           const t = m.target, d = Math.hypot(t.x - m.x, t.y + t.h * 0.5 - m.y, t.z - m.z);
@@ -177,6 +200,9 @@ class Munitions {
       } else if (m.kind === 'shell') {
         R.fxBeam(m.x - m.dx * 3.5, m.y - m.dy * 3.5, m.z - m.dz * 3.5, m.x, m.y, m.z, 0.13, 1.0, 0.82, 0.45, 2.2);
         R.fxSprite(m.x, m.y, m.z, 0.4, 1.0, 0.85, 0.55, 1.2);
+      } else if (m.kind === 'torpedo') {
+        R.fxBeam(m.x - m.dx * 1.1, m.y - m.dy * 1.1, m.z - m.dz * 1.1, m.x, m.y, m.z, 0.12, 0.6, 0.9, 0.8, 1.0);
+        R.fxSprite(m.x - m.dx * 1.2, m.y - m.dy * 1.2, m.z - m.dz * 1.2, 0.35, 0.5, 1.0, 0.8, 1.2);
       } else {
         const big = m.kind === 'missile';
         const bl = big ? 0.9 : 0.6;

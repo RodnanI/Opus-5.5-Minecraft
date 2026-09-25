@@ -200,6 +200,32 @@ class Audio {
       case 'cannon': this.noise(dst, t, 1.3, 'lowpass', 900, 0.8, 1.0, 0.003, true); this.tone(dst, t, 'sine', 72, 28, 0.9, 0.9); this.noise(dst, t, 0.16, 'bandpass', 2600, 0.8, 0.5); break;
       case 'veh_charge': this.tone(dst, t, 'sawtooth', 200, 1600, 1.1, 0.1, 0.05); break;
       case 'sentinel_hurt': case 'sentinel_death': for (const f of [310, 740, 1180]) this.tone(dst, t, 'sine', f, f * 0.95, 0.5, 0.1); break;
+      // ---- the End
+      case 'dragon_roar': { this.voice(dst, t, 95 * (0.9 + r() * 0.2), 52, 2.4, 0.55, 420, [6, 9]); this.voice(dst, t + 0.05, 190, 90, 2.0, 0.25, 900, [7, 14]); const s = this.noise(dst, t, 2.2, 'bandpass', 700, 0.6, 0.45, 0.25, true); s.frequency.exponentialRampToValueAtTime(260, t + 2.1); break; }
+      case 'dragon_growl': this.voice(dst, t, 62 * (0.9 + r() * 0.2), 48, 1.6, 0.45, 300, [4, 6]); this.noise(dst, t, 1.4, 'lowpass', 380, 1, 0.3, 0.3, true); break;
+      case 'dragon_flap': { const s = this.noise(dst, t, 0.55, 'lowpass', 520, 0.8, 0.9, 0.12, true); s.frequency.exponentialRampToValueAtTime(140, t + 0.5); this.tone(dst, t + 0.05, 'sine', 70, 38, 0.4, 0.3, 0.08); break; }
+      case 'dragon_hurt': this.voice(dst, t, 170 * (0.9 + r() * 0.2), 80, 0.9, 0.5, 700, [10, 18]); this.noise(dst, t, 0.4, 'bandpass', 1200, 1, 0.3, 0.02); break;
+      case 'dragon_death': { this.voice(dst, t, 130, 30, 6.5, 0.55, 500, [3, 12]); this.voice(dst, t, 260, 60, 6, 0.25, 1100, [5, 20]); const s = this.noise(dst, t, 7, 'bandpass', 900, 0.5, 0.5, 1.5, true); s.frequency.exponentialRampToValueAtTime(120, t + 6.5); break; }
+      case 'dragon_shoot': { const s = this.noise(dst, t, 0.9, 'lowpass', 2200, 0.8, 0.6, 0.01, true); s.frequency.exponentialRampToValueAtTime(250, t + 0.8); this.voice(dst, t, 150, 90, 0.6, 0.3, 600, [9, 15]); break; }
+      case 'dragon_breath': { const s = this.noise(dst, t, 2.2, 'bandpass', 900, 0.5, 0.45, 0.1); s.frequency.exponentialRampToValueAtTime(400, t + 2); this.tone(dst, t, 'sine', 180, 120, 1.5, 0.12, 0.2); break; }
+      case 'eye_launch': this.tone(dst, t, 'sine', 400, 1300, 0.45, 0.18); this.noise(dst, t, 0.35, 'bandpass', 2400, 2, 0.15, 0.05); break;
+      case 'eye_death': for (let i = 0; i < 6; i++) this.tone(dst, t + i * 0.03, 'triangle', 2400 + r() * 1800, 900, 0.18, 0.1); this.noise(dst, t, 0.3, 'highpass', 4000, 1, 0.3); break;
+      case 'eye_place': this.tone(dst, t, 'sine', 660, 990, 0.3, 0.2); this.tone(dst, t + 0.06, 'triangle', 1320, 1320, 0.4, 0.08); this.noise(dst, t, 0.12, 'lowpass', 900, 1, 0.3); break;
+      case 'end_portal_open': [196, 247, 294, 392, 494, 587].forEach((f, i) => { this.tone(dst, t + i * 0.12, 'sawtooth', f, f * 1.005, 3.2 - i * 0.2, 0.05, 0.3); this.tone(dst, t + i * 0.12, 'sine', f * 2, f * 2, 3, 0.05, 0.3); }); this.noise(dst, t, 3.5, 'bandpass', 500, 2, 0.2, 1); break;
+      case 'end_travel': { this.voice(dst, t, 55, 300, 2.8, 0.2, 600, [2, 14]); const s = this.noise(dst, t, 3, 'bandpass', 300, 1.5, 0.45, 0.6); s.frequency.exponentialRampToValueAtTime(2400, t + 2.8); break; }
+      case 'gateway': { for (const f of [880, 1320, 1760]) this.tone(dst, t, 'sine', f, f * 0.5, 1.2, 0.08, 0.02); const s = this.noise(dst, t, 1, 'bandpass', 2600, 3, 0.25, 0.01); s.frequency.exponentialRampToValueAtTime(500, t + 0.9); break; }
+      case 'firework_launch': { const s = this.noise(dst, t, 0.9, 'bandpass', 900, 1, 0.3, 0.02); s.frequency.exponentialRampToValueAtTime(3500, t + 0.8); break; }
+      case 'firework_blast': { this.noise(dst, t, 1.4, 'lowpass', 1200, 0.7, 0.9, 0.003, true); this.tone(dst, t, 'sine', 110, 40, 0.6, 0.4); for (let i = 0; i < 10; i++) this.noise(dst, t + 0.35 + r() * 0.9, 0.04, 'highpass', 5000, 1, 0.2); break; }
+      case 'teleport': { const s = this.noise(dst, t, 0.5, 'bandpass', 1500, 3, 0.35, 0.01); s.frequency.exponentialRampToValueAtTime(300, t + 0.45); this.tone(dst, t, 'sine', 1100, 250, 0.4, 0.15); break; }
+      case 'enderman': this.voice(dst, t, 90 * (0.8 + r() * 0.5), 70 + r() * 80, 0.9, 0.2, 500, [18, 30]); this.noise(dst, t, 0.7, 'bandpass', 1400, 4, 0.08, 0.2); break;
+      case 'enderman_stare': { this.voice(dst, t, 60, 240, 1.6, 0.35, 700, [25, 50]); const s = this.noise(dst, t, 1.6, 'bandpass', 400, 3, 0.35, 0.3); s.frequency.exponentialRampToValueAtTime(3000, t + 1.5); break; }
+      case 'enderman_hurt': this.voice(dst, t, 200, 90, 0.4, 0.35, 900, [30, 60]); break;
+      case 'enderman_death': this.voice(dst, t, 170, 40, 1.3, 0.35, 800, [20, 50]); this.noise(dst, t, 1, 'bandpass', 1500, 3, 0.2, 0.2); break;
+      case 'mech_step': this.noise(dst, t, 0.45, 'lowpass', 260, 1, 0.9, 0.004, true); this.tone(dst, t, 'sine', 62, 34, 0.35, 0.55); this.tone(dst, t + 0.02, 'square', 170 * (0.9 + r() * 0.2), 120, 0.12, 0.05); this.noise(dst, t + 0.05, 0.25, 'bandpass', 1700, 3, 0.08, 0.05); break;
+      case 'mech_stomp': this.noise(dst, t, 1.3, 'lowpass', 480, 0.7, 1.0, 0.003, true); this.tone(dst, t, 'sine', 70, 26, 0.9, 0.9); this.noise(dst, t, 0.2, 'bandpass', 900, 1, 0.5); break;
+      case 'torpedo': { const s = this.noise(dst, t, 1.2, 'lowpass', 700, 1, 0.6, 0.02, true); s.frequency.exponentialRampToValueAtTime(260, t + 1.1); this.tone(dst, t, 'sine', 140, 70, 0.5, 0.35); for (let i = 0; i < 6; i++) this.tone(dst, t + 0.05 + i * 0.07, 'sine', 900 + r() * 700, 500, 0.06, 0.05); break; }
+      case 'sonar': { this.tone(dst, t, 'sine', 1480, 1470, 1.4, 0.16, 0.01); this.tone(dst, t + 0.25, 'sine', 1480, 1470, 1.0, 0.05, 0.01); break; }
+      case 'glide_boost': { const s = this.noise(dst, t, 1.2, 'bandpass', 700, 0.8, 0.45, 0.02); s.frequency.exponentialRampToValueAtTime(1800, t + 0.4); break; }
     }
   }
   // ---------------------------------------------------------------- continuous loops (engines, lasers, lock tone)
@@ -229,7 +255,8 @@ class Audio {
     if (vol <= 0) { if (n) n.target = 0; return; }
     if (!n) {
       n = this.loopNode((n, g) => {
-        if (name === 'laser') { const f = this.filt('bandpass', 1400, 2.5, g); this.osc(n, 'sawtooth', 118, f); this.osc(n, 'square', 237, f); const lfo = this.osc(n, 'sine', 13, this.gainN(500, f.frequency)); void lfo; this.noiseSrc(n, false, this.gainN(0.25, this.filt('highpass', 3000, 0.7, g))); }
+        if (name === 'drill') { const f = this.filt('bandpass', 900, 1.2, g); this.noiseSrc(n, false, this.gainN(0.8, f)); const lp = this.filt('lowpass', 420, 1, g); this.osc(n, 'sawtooth', 46, this.gainN(0.35, lp)); const q = this.osc(n, 'square', 23, this.gainN(0.25, lp)); void q; const lfo = this.osc(n, 'sine', 9, this.gainN(300, f.frequency)); void lfo; }
+        else if (name === 'laser') { const f = this.filt('bandpass', 1400, 2.5, g); this.osc(n, 'sawtooth', 118, f); this.osc(n, 'square', 237, f); const lfo = this.osc(n, 'sine', 13, this.gainN(500, f.frequency)); void lfo; this.noiseSrc(n, false, this.gainN(0.25, this.filt('highpass', 3000, 0.7, g))); }
         else { this.osc(n, 'square', 1250, this.gainN(0.5, g)); }
       });
       L.set(k, n);
@@ -251,6 +278,14 @@ class Audio {
           n.turb = this.osc(n, 'triangle', 320, this.gainN(0.08, g));
           const lp = this.filt('lowpass', 650, 0.9, g); n.chopG = this.gainN(0.6, lp); this.noiseSrc(n, true, n.chopG);
           n.chop = this.osc(n, 'sine', 11, this.gainN(0.45, n.chopG.gain));
+        } else if (spec.kind === 'sub') {
+          n.lp = this.filt('lowpass', 300, 1.2, g); this.noiseSrc(n, true, this.gainN(1.1, n.lp));
+          n.hum = this.osc(n, 'sine', 55, this.gainN(0.22, g)); n.whirF = this.filt('bandpass', 220, 4, g); n.whirG = this.gainN(0.3, n.whirF); this.noiseSrc(n, false, n.whirG);
+        } else if (spec.kind === 'mech') {
+          n.lp = this.filt('lowpass', 380, 1.5, g);
+          n.o1 = this.osc(n, 'sawtooth', 38, this.gainN(0.22, n.lp)); n.o2 = this.osc(n, 'sawtooth', 38.6, this.gainN(0.18, n.lp));
+          n.whineF = this.filt('bandpass', 900, 8, g); this.noiseSrc(n, false, this.gainN(0.1, n.whineF));
+          n.jetG = this.gainN(0, this.filt('bandpass', 700, 0.6, g)); this.noiseSrc(n, false, n.jetG);
         } else {
           n.lp = this.filt('lowpass', 500, 2, g);
           n.o1 = this.osc(n, 'sawtooth', 60, this.gainN(0.2, n.lp)); n.o2 = this.osc(n, 'sawtooth', 60.7, this.gainN(0.2, n.lp));
@@ -270,9 +305,15 @@ class Audio {
     } else if (spec.kind === 'gunship') {
       n.target = Math.min(0.7, thr * 0.7 + spec.boost * 0.15);
       set(n.turb.frequency, 260 + thr * 260 + spec.speed * 3); set(n.chop.frequency, 6 + thr * 9);
+    } else if (spec.kind === 'sub') {
+      n.target = v.rider ? 0.18 + thr * 0.4 : 0;
+      set(n.lp.frequency, 160 + thr * 500 + spec.boost * 200); set(n.hum.frequency, 42 + thr * 40); set(n.whirF.frequency, 160 + thr * 520); set(n.whirG.gain, 0.08 + thr * 0.35);
+    } else if (spec.kind === 'mech') {
+      n.target = v.rider ? 0.25 + thr * 0.3 + spec.boost * 0.3 : 0;
+      set(n.lp.frequency, 260 + spec.speed * 30); set(n.o1.frequency, 34 + spec.speed * 2); set(n.o2.frequency, 34.6 + spec.speed * 2); set(n.whineF.frequency, 700 + spec.speed * 70); set(n.jetG.gain, spec.boost * 1.2);
     } else {
       n.target = v.rider ? 0.3 + thr * 0.35 : 0;
-      if (spec.kind === 'tank') { set(n.lp.frequency, 220 + spec.speed * 18 + spec.boost * 300); set(n.o1.frequency, 30 + spec.speed * 1.6 + spec.boost * 10); set(n.o2.frequency, 30.5 + spec.speed * 1.6 + spec.boost * 10); set(n.whineF.frequency, 600 + spec.speed * 30); return; }
+      if (spec.kind === 'tank' || spec.kind === 'drill') { set(n.lp.frequency, 220 + spec.speed * 18 + spec.boost * 300); set(n.o1.frequency, 30 + spec.speed * 1.6 + spec.boost * 10); set(n.o2.frequency, 30.5 + spec.speed * 1.6 + spec.boost * 10); set(n.whineF.frequency, 600 + spec.speed * 30); return; }
       set(n.lp.frequency, 380 + spec.speed * 26 + spec.boost * 800); set(n.o1.frequency, 48 + spec.speed * 2.2 + spec.boost * 30); set(n.o2.frequency, 48.6 + spec.speed * 2.2 + spec.boost * 30); set(n.whineF.frequency, 900 + spec.speed * 45);
     }
     if (v.removed) n.target = 0;
@@ -322,12 +363,29 @@ class Audio {
     if (this.ambT <= 0 && p) {
       this.ambT = 20 + Math.random() * 60;
       if (g.world.dim === 'nether') this.netherAmbient();
+      else if (g.world.dim === 'end') { this.endAmbient(); this.ambT = 12 + Math.random() * 25; }
       else if (p.eyeSky < 3 && p.y < 55) this.caveAmbient();
     }
-    // music
+    // wind rushing past while gliding with an elytra
+    const glide = p && p.gliding ? clamp(Math.hypot(p.vx, p.vy, p.vz) / 2.2, 0.08, 1) : 0;
+    if (glide > 0 && !this.windNode) {
+      const s = this.ctx.createBufferSource(); s.buffer = this.noiseBuf; s.loop = true;
+      const f = this.ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 600; f.Q.value = 0.6;
+      const gg = this.ctx.createGain(); gg.gain.value = 0; s.connect(f); f.connect(gg); gg.connect(this.sfx); s.start();
+      this.windNode = { s, f, g: gg };
+    }
+    if (this.windNode) {
+      const W = this.windNode;
+      W.g.gain.value += (glide * 0.35 - W.g.gain.value) * Math.min(1, dt * 4);
+      W.f.frequency.value = 400 + glide * 1600;
+      if (!glide && W.g.gain.value < 0.003) { W.s.stop(); W.g.disconnect(); this.windNode = null; }
+    }
+    // music (the dragon fight gets its own, more urgent cue)
     if (SETTINGS.musicVol > 0 && g.state === 'playing') {
       this.musicT -= dt;
-      if (this.musicT <= 0 && !this.playingMusic) { this.playMusic(g.world.dim === 'nether'); }
+      const boss = g.endFight && g.endFight.active;
+      if (boss && !this.playingMusic && this.musicT > 4) this.musicT = 4;
+      if (this.musicT <= 0 && !this.playingMusic) { this.playMusic(g.world.dim === 'nether' ? 'nether' : g.world.dim === 'end' ? (boss ? 'boss' : 'end') : false); }
     }
     if (g.state === 'menu' && SETTINGS.musicVol > 0 && !this.playingMusic) { this.musicT -= dt; if (this.musicT <= 0) this.playMusic(false); }
   }
@@ -342,17 +400,35 @@ class Audio {
     this.voice(dst, t, 45, 40, 6, 0.4, 200, [0.2, 2]);
     this.noise(dst, t, 5, 'lowpass', 300, 1, 0.3, 2, true);
   }
-  playMusic(nether) {
+  endAmbient() {
+    // hollow wind over the void and distant, unplaceable chimes
+    const t = this.ctx.currentTime, dst = this.ctx.createGain(); dst.gain.value = 0.16; dst.connect(this.amb); dst.connect(this.verb);
+    const s = this.noise(dst, t, 7, 'bandpass', 300 + Math.random() * 200, 3, 0.35, 2.5, true); s.frequency.exponentialRampToValueAtTime(180 + Math.random() * 400, t + 6.5);
+    if (Math.random() < 0.6) { const f = [880, 988, 1175, 1319, 1480][Math.floor(Math.random() * 5)]; this.tone(dst, t + 1 + Math.random() * 3, 'sine', f, f * 0.998, 3.5, 0.05, 0.02); this.tone(dst, t + 1.6 + Math.random() * 3, 'sine', f * 1.5, f * 1.5, 3, 0.03, 0.02); }
+  }
+  playMusic(mode) {
     const ctx = this.ctx; this.playingMusic = true;
-    const scales = nether ? [[0, 1, 3, 5, 7, 8, 10]] : [[0, 2, 4, 7, 9], [0, 2, 3, 7, 8], [0, 2, 4, 5, 7, 9, 11], [0, 3, 5, 7, 10]];
+    const nether = mode === true || mode === 'nether', end = mode === 'end', boss = mode === 'boss';
+    const scales = boss ? [[0, 2, 3, 5, 7, 8, 11]] : end ? [[0, 2, 4, 6, 7, 9, 11], [0, 2, 4, 6, 8, 10]] : nether ? [[0, 1, 3, 5, 7, 8, 10]] : [[0, 2, 4, 7, 9], [0, 2, 3, 7, 8], [0, 2, 4, 5, 7, 9, 11], [0, 3, 5, 7, 10]];
     const scale = scales[Math.floor(Math.random() * scales.length)];
-    const root = nether ? 41 + Math.floor(Math.random() * 4) : 50 + Math.floor(Math.random() * 7);
+    const root = boss ? 45 + Math.floor(Math.random() * 3) : end ? 54 + Math.floor(Math.random() * 5) : nether ? 41 + Math.floor(Math.random() * 4) : 50 + Math.floor(Math.random() * 7);
     const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
     const dst = ctx.createGain(); dst.gain.value = 0.9; dst.connect(this.music);
-    const wet = ctx.createGain(); wet.gain.value = 0.9; dst.connect(wet); wet.connect(this.verb);
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = nether ? 900 : 2600; lp.connect(dst);
+    const wet = ctx.createGain(); wet.gain.value = end ? 1.4 : 0.9; dst.connect(wet); wet.connect(this.verb);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = nether ? 900 : boss ? 1800 : 2600; lp.connect(dst);
     let t = ctx.currentTime + 0.5;
-    const bars = 10 + Math.floor(Math.random() * 10), beat = nether ? 0.9 : 0.6 + Math.random() * 0.25;
+    const bars = boss ? 16 : 10 + Math.floor(Math.random() * 10), beat = boss ? 0.42 : end ? 1.05 : nether ? 0.9 : 0.6 + Math.random() * 0.25;
+    if (boss) {
+      // a driving low ostinato under the melody for the dragon fight
+      for (let b = 0; b < bars; b++) for (let s = 0; s < 8; s++) {
+        const m = root - 24 + (s === 6 ? scale[4] : s === 7 ? scale[2] : 0) + (b % 4 === 3 ? scale[5] - 12 : 0), f = mtof(m), time = t + b * beat * 4 + s * beat / 2;
+        const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+        const bl = ctx.createBiquadFilter(); bl.type = 'lowpass'; bl.frequency.value = 420;
+        const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, time); g.gain.exponentialRampToValueAtTime(s % 2 ? 0.05 : 0.08, time + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, time + beat * 0.45);
+        o.connect(bl); bl.connect(g); g.connect(dst); o.start(time); o.stop(time + beat * 0.5);
+        if (s === 0 || s === 4) { const k = ctx.createOscillator(); k.type = 'sine'; k.frequency.setValueAtTime(110, time); k.frequency.exponentialRampToValueAtTime(40, time + 0.18); const kg = ctx.createGain(); kg.gain.setValueAtTime(0.25, time); kg.gain.exponentialRampToValueAtTime(0.0001, time + 0.25); k.connect(kg); kg.connect(dst); k.start(time); k.stop(time + 0.3); }
+      }
+    }
     const piano = (time, m, vel, len) => {
       const f = mtof(m);
       for (const [mul, a, dec] of [[1, 1, len], [2, 0.35, len * 0.5], [3, 0.12, len * 0.3], [4.01, 0.05, len * 0.2]]) {

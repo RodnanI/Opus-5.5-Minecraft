@@ -192,13 +192,34 @@ vec3 applyFog(vec3 c, vec3 pos) {
   c = mix(c, fc, air);
   return mix(c, fc, f);
 }`;
+// End portal / gateway surfaces: layers of drifting stars fixed to the screen, so the portal reads as a window
+// into deep space rather than a texture on a block
+const END_PORTAL_FN = `
+uniform float uPortalLayer;
+float hash21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+vec3 endPortalFX() {
+  vec2 sp = gl_FragCoord.xy / 480.0;
+  vec3 col = vec3(0.01, 0.028, 0.034);
+  for (int i = 0; i < 6; i++) {
+    float fi = float(i), a = fi * 1.7 + uTime * 0.01 * (1.0 + fi * 0.25);
+    mat2 R = mat2(cos(a), -sin(a), sin(a), cos(a));
+    vec2 q = R * (sp * (1.0 + fi * 0.55)) + vec2(uTime * 0.018 * (1.0 + fi * 0.3), fi * 0.37);
+    vec2 cell = floor(q * 22.0), f = fract(q * 22.0) - 0.5;
+    float h = hash21(cell + fi * 17.0);
+    vec3 tint = mix(vec3(0.16, 0.62, 0.56), vec3(0.5, 0.28, 0.82), fract(h * 7.0 + fi * 0.3));
+    col += tint * step(0.92, h) * smoothstep(0.24, 0.0, length(f)) * (1.25 - fi * 0.12);
+    col += tint * 0.022 * h;
+  }
+  return col * uEmissive;
+}`;
 const CHUNK_FS = GLSL_COMMON + SKY_FN + `
 uniform sampler2DArray uTex;
 uniform float uLodBias;
 in vec3 vUV; in vec4 vLight; in vec3 vTint; flat in int vFlags; in vec3 vPos; in vec3 vNormal;
 out vec4 outColor;
-` + LIGHT_FN + ANIM_UV_FN + TEX_SHARP_FN + `
+` + LIGHT_FN + ANIM_UV_FN + TEX_SHARP_FN + END_PORTAL_FN + `
 void main() {
+  if (abs(vUV.z - uPortalLayer) < 0.5) { outColor = vec4(endPortalFX(), 1.0); return; }
   int anim = (vFlags >> 2) & 3, face = (vFlags >> 5) & 7, tm = vFlags & 3, wave = (vFlags >> 8) & 3;
   vec3 uv = anim == 0 ? vUV : animUV(vUV, anim, face);
   vec4 tex = texSharp(uTex, uv, 16.0, anim == 0, uLodBias);
@@ -416,14 +437,38 @@ void main() { vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2); vUv = p; g
 const SKY_FS = GLSL_COMMON + SKY_FN + `
 uniform mat4 uInvVP;
 uniform vec3 uMoonDir;
-uniform float uTime, uSunSize, uMoonPhase, uNether, uStars, uRain;
+uniform float uTime, uSunSize, uMoonPhase, uNether, uStars, uRain, uEnd;
 uniform vec3 uNetherFog;
 in vec2 vUv;
 out vec4 o;
 float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float vn3(vec3 p) {
+  vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(hash(i), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+// the End: a black void with slow violet nebula veils and a dense, faintly coloured starfield all around
+vec3 endSky(vec3 d) {
+  vec3 q = d + vec3(uTime * 0.0015, 0.0, uTime * 0.001);
+  float n = vn3(q * 2.3) * 0.5 + vn3(q * 5.3 + 3.1) * 0.3 + vn3(q * 12.0 + 7.7) * 0.2;
+  float veil = smoothstep(0.42, 0.85, n), core = smoothstep(0.62, 0.95, vn3(q * 3.4 + 11.0) * 0.7 + n * 0.3);
+  vec3 c = mix(uNetherFog * 0.65, uNetherFog * 1.15, smoothstep(-0.8, 0.9, d.y));
+  c += vec3(0.1, 0.035, 0.16) * veil * veil + vec3(0.02, 0.07, 0.08) * core;
+  for (int k = 0; k < 2; k++) {
+    float sc = k == 0 ? 180.0 : 330.0;
+    vec3 g = floor(d * sc); float h = hash(g + float(k) * 41.0);
+    if (h > (k == 0 ? 0.992 : 0.985)) {
+      float s = smoothstep(1.4 / sc, 0.0, length(d - normalize((g + 0.5) / sc)));
+      vec3 tint = mix(vec3(0.85, 0.75, 1.0), vec3(0.65, 0.95, 0.95), fract(h * 57.0));
+      c += tint * s * (k == 0 ? 1.1 : 0.55) * (0.7 + 0.3 * sin(uTime * (1.0 + h * 2.0) + h * 80.0));
+    }
+  }
+  return c;
+}
 void main() {
   vec4 a = uInvVP * vec4(vUv * 2.0 - 1.0, 1.0, 1.0);
   vec3 d = normalize(a.xyz / a.w);
+  if (uEnd > 0.5) { o = vec4(endSky(d), 1.0); return; }
   if (uNether > 0.5) { o = vec4(uNetherFog, 1.0); return; }
   vec3 c = skyCol(d);
   if (uStars > 0.01 && d.y > -0.05) {

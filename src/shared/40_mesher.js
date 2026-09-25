@@ -456,6 +456,41 @@ class Mesher {
         if (hang) this.box(M, x, y, z, p, 7.5, 10, 7.5, 8.5, 16, 8.5, tex, 0, 0xFFFFFF, 0, 0);
         break;
       }
+      case R_EPFRAME: {
+        const t = [TEX[tb], TEX[tb + 1], TEX[tb + 2], TEX[tb + 3], TEX[tb + 4], TEX[tb + 5]];
+        this.box(M, x, y, z, p, 0, 0, 0, 16, 13, 16, t, 0, 0xFFFFFF, 0, 0);
+        if (meta & 4) this.box(M, x, y, z, p, 4, 13, 4, 12, 16, 12, TEXX[id * 4], 0, 0xFFFFFF, 0, 0);
+        break;
+      }
+      case R_EPORTAL: {
+        // full bright; CHUNK_FS recognises the texture layer and draws a screen-space starfield instead
+        const tex = TEX[tb], fl = (60) | (60 << 6) | (3 << 12);
+        if (BLOCKS[id].gateway) {
+          for (let f = 0; f < 6; f++) { const nid = pb[p + NOFF[f]] & 4095; if (nid === id || OPAQUE[nid]) continue; this.boxFace(M, f, x, y, z, 0, 0, 0, 16, 16, 16, tex, fl, 0, 0xFFFFFF, 0, 1, 0, 0); }
+        } else {
+          this.boxFace(M, 2, x, y, z, 0, 12, 0, 16, 12, 16, tex, fl, 0, 0xFFFFFF, 0, 1, 0, 0);
+          this.boxFace(M, 3, x, y, z, 0, 12, 0, 16, 12, 16, tex, fl, 0, 0xFFFFFF, 0, 1, 0, 0);
+          for (const f of [0, 1, 4, 5]) { const nid = pb[p + NOFF[f]] & 4095; if (nid === id || OPAQUE[nid]) continue; this.boxFace(M, f, x, y, z, 0, 0, 0, 16, 12, 16, tex, fl, 0, 0xFFFFFF, 0, 1, 0, 0); }
+        }
+        break;
+      }
+      case R_ROD: {
+        const b = ROD_BOXES[meta % 6], tex = TEX[tb];
+        this.box(M, x, y, z, p, b[0], b[1], b[2], b[3], b[4], b[5], tex, 0, 0xFFFFFF, 0, 1);
+        this.box(M, x, y, z, p, b[6], b[7], b[8], b[9], b[10], b[11], tex, 0, 0xFFFFFF, 0, 1);
+        break;
+      }
+      case R_CHORUS: {
+        const tex = TEX[tb];
+        this.box(M, x, y, z, p, 4, 4, 4, 12, 12, 12, tex, 0, 0xFFFFFF, 0, 0);
+        for (let f = 0; f < 6; f++) if (chorusLinks(pb[p + NOFF[f]] & 4095, f)) { const a = CHORUS_ARMS[f]; this.box(M, x, y, z, p, a[0], a[1], a[2], a[3], a[4], a[5], tex, 0, 0xFFFFFF, 0, 0); }
+        break;
+      }
+      case R_EGG: {
+        const tex = TEX[tb];
+        for (const e of EGG_LAYERS) this.box(M, x, y, z, p, e[1], e[0], e[1], 16 - e[1], e[2], 16 - e[1], tex, 0, 0xFFFFFF, 0, 0);
+        break;
+      }
     }
   }
   liquid(x, y, z, p, id, v) {

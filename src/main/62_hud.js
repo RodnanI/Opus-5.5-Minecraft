@@ -40,6 +40,9 @@ class VehicleHUD {
     if (v.kind === 'jet' || v.kind === 'bomber') this.jet(c, v, dt);
     else if (v.kind === 'gunship') this.gunship(c, v, dt);
     else if (v.kind === 'tank') this.tank(c, v, dt);
+    else if (v.kind === 'mech') this.mech(c, v, dt);
+    else if (v.kind === 'sub') this.sub(c, v, dt);
+    else if (v.kind === 'drill') this.drill(c, v, dt);
     else this.bike(c, v, dt);
     if (v.mountT > 0) this.controls(v);
   }
@@ -424,6 +427,117 @@ class VehicleHUD {
     this.targets(v, 120, null, 0, false);
     this.hullBar(fs * 1.5, fs * 1.6, v);
     this.text('VIPER // HB-2', fs * 1.5, fs * 3.2, 'left', fs * 0.8);
+    this.warnings(v);
+  }
+  // ------------------------------------------------------------ TITAN
+  mech(c, v, dt) {
+    const W = this.w, H = this.h, cx = W / 2, cy = H / 2, fs = this.fs;
+    this.col = '#7FE6FF';
+    const aim = v.aimPoint([0, 0, 0], 280), cen = v.center([0, 0, 0]), rng = Math.hypot(aim[0] - cen[0], aim[1] - cen[1], aim[2] - cen[2]);
+    // twin-bracket reticle, plus where each gun arm is actually pointing
+    this.poly([cx - 26, cy - 14, cx - 32, cy - 14, cx - 32, cy + 14, cx - 26, cy + 14]); this.poly([cx + 26, cy - 14, cx + 32, cy - 14, cx + 32, cy + 14, cx + 26, cy + 14]);
+    this.circle(cx, cy, 3);
+    for (const k of [0, 1]) {
+      const arm = k ? 'armL' : 'armR', m = v.partPoint(arm, 0, 0, -2.8, [0, 0, 0]), d = v.partDir(arm, 0, 0, -1, [0, 0, 0]);
+      const s = this.proj(m[0] + d[0] * rng, m[1] + d[1] * rng, m[2] + d[2] * rng);
+      if (s) { this.line(s[0] - 5, s[1] - 5, s[0] + 5, s[1] + 5); this.line(s[0] - 5, s[1] + 5, s[0] + 5, s[1] - 5); }
+    }
+    this.text(rng >= 279 ? '----' : Math.round(rng) + 'm', cx + 40, cy + 22, 'left', fs * 0.85);
+    // legs / torso diagram: the box is the legs, the line is where the torso faces
+    const dx0 = fs * 1.5 + 70, dy0 = H - 90 - 62 - fs * 5.5, ta = -v.torsoYaw;
+    this.poly([dx0 - 9, dy0 - 16, dx0 + 9, dy0 - 16, dx0 + 9, dy0 + 16, dx0 - 9, dy0 + 16], true);
+    this.line(dx0 - Math.cos(ta) * 16, dy0 - Math.sin(ta) * 16, dx0 + Math.cos(ta) * 16, dy0 + Math.sin(ta) * 16);
+    this.line(dx0, dy0, dx0 + Math.sin(ta) * 26, dy0 - Math.cos(ta) * 26);
+    // stride speed, jets and weapons
+    const sx = cx - Math.min(W * 0.28, 300), wx = cx + Math.min(W * 0.28, 300) - fs * 6, wy = H - fs * 7;
+    this.text(Math.round(Math.hypot(v.vel[0], v.vel[2]) * 3.6) + ' KPH', sx, H - fs * 7, 'left', fs * 1.1);
+    this.text('RUN', sx, H - fs * 5.4, 'left', fs * 0.8, v.boosting ? '#FFD23F' : this.col); this.bar(sx + fs * 3, H - fs * 5.75, fs * 7, fs * 0.55, v.boost, '#FFB23D');
+    this.text('JETS', sx, H - fs * 4, 'left', fs * 0.8, v.jets ? '#FF9A4A' : this.col); this.bar(sx + fs * 3, H - fs * 4.35, fs * 7, fs * 0.55, v.fuel, v.fuel < 0.2 ? '#FF5A2E' : '#FF9A4A');
+    if (v.agl > 0.5) this.text('ALT ' + v.agl.toFixed(1), sx, H - fs * 2.6, 'left', fs * 0.8);
+    this.weaponLine(wx, wy, 'CANNON', v.heat, v.overheat > 0);
+    this.text('ROCKETS', wx, wy + fs * 1.8, 'left', fs * 0.9, v.mReload <= 0 ? '#FFD23F' : this.col);
+    this.pips(wx + fs * 5.2, wy + fs * 1.3, v.salvo > 0 ? v.salvo : v.mReload <= 0 ? 8 : 0, 8, v.mReload <= 0 ? '#FFD23F' : this.col);
+    if (v.mReload > 0 && v.salvo <= 0) this.text('RELOAD ' + v.mReload.toFixed(1), wx + fs * 12.5, wy + fs * 1.8, 'left', fs * 0.75);
+    this.headingTape(cx, fs * 3.2, Math.min(W * 0.4, 420), v.heading());
+    this.targets(v, 220, null, 0, true);
+    this.hullBar(fs * 1.5, fs * 1.6, v);
+    this.text('TITAN // AM-6', fs * 1.5, fs * 3.2, 'left', fs * 0.8);
+    this.radar(fs * 1.5 + 70, H - 90, 62, v, 180);
+    this.warnings(v);
+  }
+  // ------------------------------------------------------------ NAUTILUS
+  sub(c, v, dt) {
+    const W = this.w, H = this.h, cx = W / 2, cy = H / 2, fs = this.fs;
+    this.col = '#7DFFD8';
+    // pitch ladder around a fixed boresight
+    this.line(cx - 14, cy, cx - 5, cy); this.line(cx + 5, cy, cx + 14, cy); this.line(cx, cy + 5, cx, cy + 11);
+    const pd = v.hp / DEG;
+    c.save(); c.beginPath(); c.rect(cx - 140, cy - 110, 280, 220); c.clip();
+    for (let d = Math.ceil((pd - 40) / 10) * 10; d <= pd + 40; d += 10) {
+      const y = cy + (d - pd) * 4.2, half = d === 0 ? 90 : 46;
+      this.line(cx - half, y, cx - half * 0.35, y); this.line(cx + half * 0.35, y, cx + half, y);
+      if (d) this.text(String(-d), cx + half + 8, y, 'left', fs * 0.75);
+    }
+    c.restore();
+    // depth and throttle gauges
+    const gx = cx + Math.min(W * 0.3, 320);
+    this.text(v.wet ? String(v.depth) : '--', gx, cy, 'center', fs * 2.2);
+    this.text('DEPTH', gx, cy - fs * 1.8, 'center', fs * 0.8); this.text('M', gx, cy + fs * 1.5, 'center', fs * 0.8);
+    const tx = cx - Math.min(W * 0.3, 320), th = 140;
+    this.bar(tx - fs * 0.5, cy - th / 2, fs, th, (v.prop + 1) / 2, v.boosting ? '#FFD23F' : this.col);
+    this.text(v.prop > 0.05 ? 'AHEAD' : v.prop < -0.05 ? 'ASTERN' : 'STOP', tx, cy + th / 2 + fs * 1.1, 'center', fs * 0.8);
+    this.text(Math.round(v.speed * 1.94) + ' KN', tx, cy - th / 2 - fs * 1.1, 'center', fs * 0.9);
+    // weapons and boost
+    const wx = cx + Math.min(W * 0.28, 300) - fs * 6, wy = H - fs * 7;
+    this.weaponLine(wx, wy, 'LASER', v.heat, v.overheat > 0);
+    const tf = 1 - Math.max(0, v.tReload) / 1.8;
+    this.text('TORPEDO', wx, wy + fs * 1.8, 'left', fs * 0.9, v.tReload <= 0 ? '#FFD23F' : this.col);
+    this.bar(wx + fs * 5.2, wy + fs * 1.45, fs * 7, fs * 0.7, tf, v.tReload <= 0 ? '#FFD23F' : this.col);
+    this.bar(cx - Math.min(W * 0.28, 300), H - fs * 3.8, fs * 7, fs * 0.55, v.boost, '#FFB23D');
+    this.text('BOOST', cx - Math.min(W * 0.28, 300), H - fs * 4.9, 'left', fs * 0.8, v.boosting ? '#FFD23F' : this.col);
+    this.headingTape(cx, fs * 3.2, Math.min(W * 0.4, 420), v.heading());
+    this.targets(v, 140, null, 0, true);
+    this.hullBar(fs * 1.5, fs * 1.6, v);
+    this.text('NAUTILUS // SSV-1', fs * 1.5, fs * 3.2, 'left', fs * 0.8);
+    this.radar(fs * 1.5 + 70, H - 90, 62, v, 120);
+    this.text('SONAR', fs * 1.5 + 70, H - 90 - 62 - fs * 0.9, 'center', fs * 0.75);
+    this.warnings(v);
+  }
+  // ------------------------------------------------------------ MOLE
+  drill(c, v, dt) {
+    const W = this.w, H = this.h, cx = W / 2, cy = H / 2, fs = this.fs;
+    this.col = '#FFC44A';
+    // bore sight: the 3x3 cut, with the bore angle beside it
+    const b = 42;
+    this.poly([cx - b, cy - b, cx + b, cy - b, cx + b, cy + b, cx - b, cy + b], true);
+    for (const k of [-1, 1]) { this.line(cx + k * b / 3, cy - b, cx + k * b / 3, cy - b + 6); this.line(cx + k * b / 3, cy + b, cx + k * b / 3, cy + b - 6); this.line(cx - b, cy + k * b / 3, cx - b + 6, cy + k * b / 3); this.line(cx + b, cy + k * b / 3, cx + b - 6, cy + k * b / 3); }
+    this.circle(cx, cy, 3);
+    const deg = Math.round(v.boreP / DEG);
+    this.text((deg > 0 ? '+' : '') + deg + '\u00b0', cx + b + 10, cy, 'left', fs);
+    this.text('BORE', cx + b + 10, cy - fs * 1.3, 'left', fs * 0.75);
+    // drill RPM gauge
+    const gx = cx, gy = H - fs * 6.5, r = Math.min(W * 0.07, 70), segs = 30;
+    for (let i = 0; i < segs; i++) { const t0 = i / segs, on = t0 < v.spin / 1.3; c.globalAlpha = on ? 1 : 0.2; c.strokeStyle = t0 > 0.8 ? '#FF5A2E' : this.col; c.lineWidth = 6; c.beginPath(); c.arc(gx, gy, r, Math.PI * (1 + t0), Math.PI * (1 + (i + 0.7) / segs)); c.stroke(); }
+    c.globalAlpha = 1;
+    this.text(Math.round(v.spin * 900) + ' RPM', gx, gy - r * 0.35, 'center', fs * 1.1);
+    this.text(v.grinding ? 'CUTTING' : v.spin > 0.2 ? 'SPINNING' : 'IDLE', gx, gy + fs * 0.4, 'center', fs * 0.8, v.grinding ? '#FFFFFF' : this.col);
+    const wx = cx + Math.min(W * 0.28, 300) - fs * 6, wy = H - fs * 7;
+    this.weaponLine(wx, wy, 'HEAT', v.heat, v.overheat > 0);
+    const cf = 1 - Math.max(0, v.cReload) / 2.6;
+    this.text('CHARGE', wx, wy + fs * 1.8, 'left', fs * 0.9, v.cReload <= 0 ? '#FFD23F' : this.col);
+    this.bar(wx + fs * 5.2, wy + fs * 1.45, fs * 7, fs * 0.7, cf, v.cReload <= 0 ? '#FFD23F' : this.col);
+    // depth, speed and the ore hopper tally
+    const lx = cx - Math.min(W * 0.28, 300);
+    this.text('Y ' + Math.floor(v.y), lx, H - fs * 7, 'left', fs * 1.1);
+    this.text(Math.round(Math.hypot(v.vel[0], v.vel[2]) * 3.6) + ' KPH', lx, H - fs * 5.5, 'left', fs * 0.9);
+    this.bar(lx, H - fs * 3.8, fs * 7, fs * 0.55, v.boost, '#FFB23D');
+    this.text('OVERDRIVE', lx, H - fs * 4.5, 'left', fs * 0.7, v.boosting ? '#FFD23F' : this.col);
+    const got = Object.entries(v.got).sort((a, b2) => b2[1] - a[1]).slice(0, 6);
+    this.text('HOPPER  ' + v.gotN, W - fs * 1.5, fs * 1.6, 'right', fs * 0.85);
+    got.forEach(([id, n], i) => this.text(itemName(+id) + '  ' + n, W - fs * 1.5, fs * (3.0 + i * 1.3), 'right', fs * 0.8, +id === v.gotLast && v.gotT > 0 ? '#FFFFFF' : this.col));
+    this.headingTape(cx, fs * 3.2, Math.min(W * 0.34, 340), v.heading());
+    this.hullBar(fs * 1.5, fs * 1.6, v);
+    this.text('MOLE // TB-4', fs * 1.5, fs * 3.2, 'left', fs * 0.8);
     this.warnings(v);
   }
 }

@@ -17,6 +17,7 @@ const MOB_DEFS = {
   ashen_skeleton: { hp: 20, w: 0.7, h: 2.3, speed: 0.125, model: 'ashen_skeleton', scale: 1.15, hostile: true, attack: 6, fireImmune: true, drops: [['coal', 0, 1], ['bone', 0, 2]], rare: [['ember_rod', 0.05]], holds: 'stone_sword', snd: 'skeleton', xp: [5, 5], follow: 16 },
   ghoul: { hp: 20, w: 0.6, h: 1.95, speed: 0.115, model: 'ghoul', neutral: true, attack: 5, fireImmune: true, drops: [['rotten_flesh', 0, 1], ['gold_nugget', 0, 1]], rare: [['gold_ingot', 0.025]], holds: 'golden_sword', snd: 'ghoul', xp: [5, 5], follow: 35 },
   sentinel: { hp: 100, w: 1.4, h: 2.7, speed: 0.1, model: 'sentinel', defender: true, attack: 11, drops: [['iron_ingot', 3, 5], ['poppy', 0, 2]], snd: 'sentinel', persistent: true, heavy: true },
+  enderman: { hp: 40, w: 0.6, h: 2.9, speed: 0.13, model: 'enderman', neutral: true, enderman: true, attack: 7, drops: [['ender_pearl', 0, 1]], snd: 'enderman', xp: [5, 5], follow: 64 },
 };
 const PROF_COLORS = { farmer: 0xC8A060, librarian: 0xE8E4D8, smith: 0x4A4A4E, cleric: 0x7A3A9A, butcher: 0xE8E8E8, shepherd: 0x8E6A4A, fletcher: 0x5A8A3A, none: 0x6A8A4A };
 const SHEEP_COLORS = [[0, 81], [7, 5], [8, 5], [15, 5], [12, 3], [6, 1]];
@@ -45,6 +46,7 @@ class Mob extends Entity {
     this.panic = 0; this.love = 0; this.breedCd = 0; this.fuse = 0; this.anger = 0; this.eggT = randInt(6000, 12000);
     this.home = null; this.jumpT = 0; this.shootT = randInt(20, 60);
     this.lastHurtBy = null; this.idleSnd = randInt(80, 400);
+    this.stareT = 0; this.tpCd = 0;
   }
   get hostileNow() {
     const d = this.def;
@@ -59,6 +61,8 @@ class Mob extends Entity {
     if (this.invul > 0) { if (amount <= this.lastDmg) return false; amount -= this.lastDmg; }
     if (src && (src.type === 'fire' || src.type === 'lava') && this.fireImmune) return false;
     if (this.type === 'sentinel' && src && src.type === 'fall') return false;
+    // endermen never let a projectile land: they blink away first
+    if (this.def.enderman && src && (src.proj || src.type === 'arrow' || src.type === 'thrown' || src.type === 'fireball')) { this.teleportRandom(); return false; }
     this.health -= amount; this.lastDmg = amount; this.invul = 10; this.hurtTime = 10;
     const s = src && src.source;
     if (s && s !== this) {
@@ -73,7 +77,10 @@ class Mob extends Entity {
       if (s.isPlayer) this.killedByPlayer = 100;
     }
     if (this.health <= 0) this.die(src);
-    else this.game.audio.play(this.def.snd + '_hurt', { x: this.x, y: this.y, z: this.z });
+    else {
+      this.game.audio.play(this.def.snd + '_hurt', { x: this.x, y: this.y, z: this.z });
+      if (this.def.enderman && Math.random() < (src && src.type === 'mob' ? 0.35 : 0.9)) this.teleportRandom();
+    }
     return true;
   }
   die(src) {
@@ -208,6 +215,7 @@ class Mob extends Entity {
       } else if (this.target && this.target.isPlayer && (!hostile || this.target.creative || this.target.dead)) this.target = null;
       if (this.target && (this.target.dead || this.target.removed)) this.target = null;
     }
+    if (d.enderman) this.aiEnderman(p);
     const t = this.target;
     // --- flying (imp)
     if (d.flying) { this.aiFly(t); return; }
@@ -303,6 +311,53 @@ class Mob extends Entity {
     }
     this.headYaw += angleDiff(this.headYaw, this.bodyYaw) * 0.1;
     this.pitch *= 0.9;
+  }
+  // ---------------------------------------------------------------- endermen
+  aiEnderman(p) {
+    const g = this.game, w = this.world;
+    if (this.tpCd > 0) this.tpCd--;
+    if ((this.age & 3) === 0) g.particles.spawn('p_portal', this.x + (Math.random() - 0.5) * this.w * 1.6, this.y + Math.random() * this.h, this.z + (Math.random() - 0.5) * this.w * 1.6, { vx: (Math.random() - 0.5) * 0.06, vy: (Math.random() - 0.5) * 0.06, vz: (Math.random() - 0.5) * 0.06, life: 24, size: 0.09, emissive: true, color: [0.8, 0.45, 1] });
+    // water and rain burn them; they blink away from it
+    if (this.age % 10 === 0 && (this.inWater || w.isRainingAt(Math.floor(this.x), Math.floor(this.y + this.h), Math.floor(this.z)))) { this.hurt(1, { type: 'drown' }); if (!this.dead) this.teleportRandom(); }
+    // meeting an enderman's eyes angers it (a carved pumpkin worn as a helmet hides your gaze)
+    if (p && !p.dead && !p.creative && !p.spectator && this.anger <= 0 && g.difficulty > 0 && p.world === w) {
+      const ex = this.x - p.x, ey = this.y + 2.55 - p.eyeY(), ez = this.z - p.z, d = Math.hypot(ex, ey, ez), helm = p.inv.get(36);
+      if (d < 64 && d > 0.5 && !(helm && helm.id === B.carved_pumpkin)) {
+        const l = p.lookVec(), dot = (l[0] * ex + l[1] * ey + l[2] * ez) / d;
+        if (dot > 1 - 0.05 / d && this.canSee(p)) {
+          if (++this.stareT > 4) { this.stareT = 0; this.anger = 700; this.target = p; this.headYaw = Math.atan2(-ex, ez); g.audio.play('enderman_stare', { x: this.x, y: this.y, z: this.z, range: 40 }); }
+        } else this.stareT = 0;
+      }
+    }
+    // angry endermen close the distance in jumps
+    const t = this.target;
+    if (t && this.anger > 0 && this.tpCd <= 0 && !t.dead) {
+      const d2 = this.dist2(t.x, t.y, t.z);
+      if (d2 > 24 * 24 || (d2 > 5 * 5 && Math.random() < 0.025) || (this.path === null && d2 > 3 * 3 && Math.random() < 0.05)) this.teleportToward(t);
+    }
+  }
+  teleportRandom() { for (let i = 0; i < 12; i++) if (this.teleportTo(this.x + (Math.random() - 0.5) * 32, this.y + randInt(-12, 12), this.z + (Math.random() - 0.5) * 32)) return true; return false; }
+  teleportToward(t) {
+    const dx = this.x - t.x, dy = this.y - t.y, dz = this.z - t.z, l = Math.hypot(dx, dy, dz) || 1, k = Math.min(16, l - 2.5);
+    for (let i = 0; i < 8; i++) if (this.teleportTo(this.x - dx / l * k + (Math.random() - 0.5) * 8, this.y - dy / l * k + randInt(-4, 4), this.z - dz / l * k + (Math.random() - 0.5) * 8)) return true;
+    return false;
+  }
+  teleportTo(x, y, z) {
+    const w = this.world, g = this.game, bx = Math.floor(x), bz = Math.floor(z);
+    if (!w.isLoaded(bx, bz)) return false;
+    let by = clamp(Math.floor(y), 1, CH - 4);
+    while (by > 1 && !SOLID[w.getId(bx, by - 1, bz)]) by--;
+    const floor = w.getId(bx, by - 1, bz);
+    if (!SOLID[floor] || FLUID[floor] || floor === B.lava || floor === B.magma_block) return false;
+    for (let i = 0; i < 3; i++) { const id = w.getId(bx, by + i, bz); if (SOLID[id] || FLUID[id] || id === B.fire) return false; }
+    const P = g.particles, burst = (px, py, pz) => { for (let i = 0; i < 24; i++) P.spawn('p_portal', px + (Math.random() - 0.5) * 0.8, py + Math.random() * this.h, pz + (Math.random() - 0.5) * 0.8, { vx: (Math.random() - 0.5) * 0.2, vy: (Math.random() - 0.5) * 0.2, vz: (Math.random() - 0.5) * 0.2, life: 30, size: 0.12, emissive: true, color: [0.8, 0.45, 1] }); };
+    burst(this.x, this.y, this.z);
+    g.audio.play('teleport', { x: this.x, y: this.y, z: this.z, range: 24 });
+    this.x = this.lx = bx + 0.5; this.y = this.ly = by; this.z = this.lz = bz + 0.5; this.vx = this.vy = this.vz = 0; this.fallDist = 0;
+    this.path = null; this.tpCd = 20;
+    burst(this.x, this.y, this.z);
+    g.audio.play('teleport', { x: this.x, y: this.y, z: this.z, range: 24 });
+    return true;
   }
   aiExploder(t, dist) {
     const g = this.game;
@@ -450,21 +505,30 @@ function mobSpawnTick(g) {
   for (const e of w.entities) if (e.isMob && !e.removed) { if (e.def.passive) passive++; else hostile++; }
   const cap = Math.min(24, 8 + EFF.renderDist * 2);
   const R = Math.min(EFF.renderDist, 6);
-  for (let a = 0; a < 5; a++) {
+  // a random column per attempt; most random heights land inside solid rock, so try a good number of them
+  for (let a = 0; a < 16; a++) {
     const cx = Math.floor(p.x / 16) + randInt(-R, R), cz = Math.floor(p.z / 16) + randInt(-R, R);
     const c = w.getChunk(cx, cz); if (!c || !c.lit) continue;
     const x = cx * 16 + randInt(0, 15), z = cz * 16 + randInt(0, 15);
     const d2 = (x - p.x) ** 2 + (z - p.z) ** 2;
     if (d2 < 24 * 24) continue;
+    if (w.dim === 'end') {
+      // endermen roam every island of the End
+      if (hostile >= Math.min(cap, 14) || g.difficulty === 0) continue;
+      const y = w.heightAt(x, z);
+      if (w.getId(x, y - 1, z) !== B.end_stone || !mobSpaceAt(w, x, y, z, 3)) continue;
+      g.spawnMob('enderman', x + 0.5, y, z + 0.5, null); hostile++;
+      continue;
+    }
     if (w.dim === 'nether') {
       if (hostile >= cap || g.difficulty === 0) continue;
       const y = randInt(8, 120);
       if (!mobSpaceAt(w, x, y, z, 2)) continue;
       const bio = w.biomeAt(x, z);
       const fort = (c.tags & 2) !== 0;
-      const list = fort ? [['ashen_skeleton', 40], ['imp', 15], ['cinder_slime', 10], ['ghoul', 10]] : bio === BIO.SOUL_VALLEY ? [['ashen_skeleton', 20], ['imp', 15], ['ghoul', 5]] : bio === BIO.BASALT ? [['cinder_slime', 40], ['imp', 5]] : bio === BIO.CRIMSON ? [['ghoul', 40], ['cinder_slime', 5]] : bio === BIO.WARPED ? [['imp', 5], ['ghoul', 5]] : [['ghoul', 40], ['cinder_slime', 12], ['imp', 8]];
+      const list = fort ? [['ashen_skeleton', 40], ['imp', 15], ['cinder_slime', 10], ['ghoul', 10]] : bio === BIO.SOUL_VALLEY ? [['ashen_skeleton', 20], ['imp', 15], ['ghoul', 5]] : bio === BIO.BASALT ? [['cinder_slime', 40], ['imp', 5]] : bio === BIO.CRIMSON ? [['ghoul', 40], ['cinder_slime', 5]] : bio === BIO.WARPED ? [['imp', 5], ['ghoul', 5], ['enderman', 10]] : [['ghoul', 40], ['cinder_slime', 12], ['imp', 8]];
       const type = weightedPick(list, Math.random());
-      if (type === 'imp' && !mobSpaceAt(w, x, y + 2, z, 2)) continue;
+      if ((type === 'imp' || type === 'enderman') && !mobSpaceAt(w, x, y, z, 3)) continue;
       const n = type === 'ghoul' ? randInt(1, 4) : 1;
       for (let i = 0; i < n; i++) { const ox = x + randInt(-2, 2), oz = z + randInt(-2, 2); if (mobSpaceAt(w, ox, y, oz, 2)) { g.spawnMob(type, ox + 0.5, y, oz + 0.5, null); hostile++; } }
       continue;
@@ -472,11 +536,12 @@ function mobSpawnTick(g) {
     // overworld hostile
     if (hostile < cap && g.difficulty > 0) {
       const top = w.heightAt(x, z);
-      const y = randInt(1, Math.max(2, top + 1));
+      // half the attempts go to the surface itself (night-time monsters), the rest anywhere down the column (caves)
+      const y = Math.random() < 0.5 ? top : randInt(1, Math.max(2, top + 1));
       if (mobSpaceAt(w, x, y, z, 2) && w.blockLightAt(x, y, z) === 0 && w.lightLevel(x, y, z) <= 7) {
-        const type = weightedPick([['zombie', 32], ['skeleton', 26], ['spider', 20], ['boomcap', 20], ['witch', 2]], Math.random());
-        const n = type === 'witch' ? 1 : randInt(1, 3);
-        for (let i = 0; i < n; i++) { const ox = x + randInt(-2, 2), oz = z + randInt(-2, 2); if (mobSpaceAt(w, ox, y, oz, type === 'spider' ? 1 : 2) && w.lightLevel(ox, y, oz) <= 7) { g.spawnMob(type, ox + 0.5, y, oz + 0.5, null); hostile++; } }
+        const type = weightedPick([['zombie', 32], ['skeleton', 26], ['spider', 20], ['boomcap', 20], ['witch', 2], ['enderman', 3]], Math.random());
+        const n = type === 'witch' ? 1 : type === 'enderman' ? randInt(1, 2) : randInt(1, 3);
+        for (let i = 0; i < n; i++) { const ox = x + randInt(-2, 2), oz = z + randInt(-2, 2); if (mobSpaceAt(w, ox, y, oz, type === 'spider' ? 1 : type === 'enderman' ? 3 : 2) && w.lightLevel(ox, y, oz) <= 7) { g.spawnMob(type, ox + 0.5, y, oz + 0.5, null); hostile++; } }
         continue;
       }
     }
@@ -527,6 +592,13 @@ function poseMob(e, a, time) {
     case 'spider': for (let i = 0; i < 8; i++) { const side = i < 4 ? 1 : -1, k = i % 4; const ph = phase + (k % 2) * Math.PI; set('leg' + i, 0, side * (-0.6 + k * 0.4) + Math.sin(ph) * 0.35 * amt, side * (-0.55 - Math.abs(Math.cos(ph)) * 0.25 * amt)); } break;
     case 'boomcap': { for (let i = 0; i < 4; i++) set('leg' + i, (i === 0 || i === 3 ? sw : -sw)); set('cap', Math.sin(time * 2) * 0.03, 0, Math.sin(phase) * 0.05 * amt); break; }
     case 'imp': { const f = Math.sin(time * 14) * 0.7; set('rwing', 0, -0.4 + f, 0); set('lwing', 0, 0.4 - f, 0); set('tail', 0.4 + Math.sin(time * 3) * 0.2); set('rarm', 0.3 + (e.swing || 0) * 0.12); set('larm', 0.3); break; }
+    case 'enderman': {
+      // long arms hang still; the head trembles while it is angry
+      set('rarm', -sw * 0.45 + (e.swing > 0 ? Math.sin(e.swing / 8 * Math.PI) * 1.4 : 0), 0, 0.05); set('larm', sw * 0.45, 0, -0.05);
+      set('rleg', sw * 0.7); set('lleg', -sw * 0.7);
+      if (e.anger > 0) { const i = pi.head; P[i].rx += (Math.random() - 0.5) * 0.12 - 0.12; P[i].ry += (Math.random() - 0.5) * 0.12; }
+      break;
+    }
     case 'sentinel': set('rarm', -sw * 0.6 - (e.swing > 0 ? Math.sin(e.swing / 8 * Math.PI) * 1.8 : 0)); set('larm', sw * 0.6 - (e.swing > 0 ? Math.sin(e.swing / 8 * Math.PI) * 1.8 : 0)); break;
   }
   return P;

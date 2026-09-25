@@ -73,6 +73,21 @@ const FOODS2 = { beetroot: [1, 1.2], beetroot_soup: [6, 7.2], sweet_berries: [2,
 for (const f in FOODS2) defItem(f, { food: FOODS2[f], stack: f === 'beetroot_soup' ? 1 : 64 });
 defItem('beetroot_seeds', { place: B.beetroots });
 ITEMS[I.sweet_berries].place = B.sweet_berry_bush;
+// ---- the End (appended after everything above so saved item ids stay put)
+defItem('ember_powder', { disp: 'Ember Powder' });
+defItem('eye_of_ender', { use: 'eye', disp: 'Eye of Ender' });
+defItem('chorus_fruit', { food: [4, 2.4] });
+defItem('popped_chorus_fruit', {});
+defItem('end_crystal', { use: 'crystal', disp: 'End Crystal' });
+defItem('elytra', { stack: 1, dur: 432, armor: { slot: 1, def: 0, tough: 0, mat: 'elytra' }, glider: true });
+defItem('firework_rocket', { use: 'firework' });
+defItem('spawn_egg_enderman', { tex: 'spawn_egg', tint: 0x161616, tint2: 0x9A3AE0, use: 'spawn_egg', mob: 'enderman', disp: 'Enderman Spawn Egg', creativeOnly: true });
+defItem('titan_mech', { stack: 1, use: 'vehicle', vehicle: 'mech', disp: 'Titan Assault Mech', tex: 'veh_mech' });
+defItem('nautilus_sub', { stack: 1, use: 'vehicle', vehicle: 'sub', disp: 'Nautilus Submarine', tex: 'veh_sub' });
+defItem('mole_drill', { stack: 1, use: 'vehicle', vehicle: 'drill', disp: 'Mole Tunnel Borer', tex: 'veh_drill' });
+ITEMS[B.end_rod].flat = 'i:end_rod_item';
+// a carved pumpkin can be worn: endermen cannot meet your eyes through it
+ITEMS[B.carved_pumpkin].armor = { slot: 0, def: 0, tough: 0, mat: 'pumpkin' };
 const EMPTY_ON_EAT = { mushroom_stew: 'bowl', beetroot_soup: 'bowl' };
 // crafting ingredients that leave a container behind in the grid
 const CRAFT_REMAINS = { water_bucket: 'bucket', lava_bucket: 'bucket', milk_bucket: 'bucket' };
@@ -214,6 +229,9 @@ function shapeless(out, n, ings) {
   shaped('mantis_gunship', 1, ['DGD', 'IRI', 'IPI'], { I: 'iron_ingot', G: 'glass', D: 'diamond', R: 'redstone', P: 'gunpowder' });
   shaped('wraith_bomber', 1, ['DGD', 'IRI', 'PPP'], { I: 'iron_ingot', G: 'glass', D: 'diamond', R: 'redstone', P: 'gunpowder' });
   shaped('bastion_tank', 1, ['IRI', 'DID', 'GPG'], { I: 'iron_ingot', D: 'diamond', R: 'redstone', G: 'glowstone_dust', P: 'gunpowder' });
+  shaped('titan_mech', 1, ['GDG', 'IRI', 'PIP'], { G: 'glowstone_dust', D: 'diamond', I: 'iron_ingot', R: 'redstone', P: 'gunpowder' });
+  shaped('nautilus_sub', 1, ['IGI', 'IDI', 'KRK'], { I: 'iron_ingot', G: 'glass', D: 'diamond', K: 'kelp', R: 'redstone' });
+  shaped('mole_drill', 1, ['DI ', 'IRI', 'III'], { D: 'diamond', I: 'iron_ingot', R: 'redstone' });
   for (const [n, base] of SLABS) shaped(n, 6, ['MMM'], { M: base });
   for (const [n, base] of STAIRS) shaped(n, 4, ['M  ', 'MM ', 'MMM'], { M: base });
 })();
@@ -278,6 +296,18 @@ function shapeless(out, n, ings) {
   shapeless('beetroot_soup', 1, ['bowl', 'beetroot', 'beetroot', 'beetroot', 'beetroot', 'beetroot', 'beetroot']);
   shaped('golden_carrot', 1, ['NNN', 'NCN', 'NNN'], { N: 'gold_nugget', C: 'carrot' });
   for (const [dye, src] of [['orange', 'orange_tulip'], ['light_gray', 'white_tulip'], ['pink', 'pink_tulip'], ['orange', 'torchflower'], ['pink', 'pink_petals'], ['red', 'beetroot']]) shapeless(dye + '_dye', 1, [src]);
+  // the End
+  shapeless('ember_powder', 2, ['ember_rod']);
+  shapeless('eye_of_ender', 1, ['ember_powder', 'ender_pearl']);
+  shaped('purpur_block', 4, ['PP', 'PP'], { P: 'popped_chorus_fruit' });
+  shaped('purpur_pillar', 1, ['S', 'S'], { S: 'purpur_slab' });
+  shaped('end_rod', 4, ['R', 'P'], { R: 'ember_rod', P: 'popped_chorus_fruit' });
+  shaped('end_stone_bricks', 4, ['SS', 'SS'], { S: 'end_stone' });
+  shaped('end_crystal', 1, ['GGG', 'GEG', 'GMG'], { G: 'glass', E: 'eye_of_ender', M: 'magma_cream' });
+  shapeless('firework_rocket', 3, ['paper', 'gunpowder']);
+  for (const [n, base] of SLABS3) shaped(n, 6, ['MMM'], { M: base });
+  for (const [n, base] of STAIRS3) shaped(n, 4, ['M  ', 'MM ', 'MMM'], { M: base });
+  shaped('end_stone_brick_wall', 6, ['MMM', 'MMM'], { M: 'end_stone_bricks' });
 })();
 
 function craftMatch(grid, gw) {
@@ -336,6 +366,7 @@ smelt('raw_iron', 'iron_ingot', 0.7); smelt('raw_gold', 'gold_ingot', 1); smelt(
 smelt('ancient_debris', 'netherite_scrap', 2); smelt('basalt', 'smooth_basalt', 0.1); smelt('deepslate_bricks', 'cracked_deepslate_bricks', 0.1);
 smelt('polished_blackstone_bricks', 'cracked_polished_blackstone_bricks', 0.1); smelt('nether_bricks', 'cracked_nether_bricks', 0.1); smelt('red_sandstone', 'smooth_red_sandstone', 0.1);
 smelt('quartz_block', 'smooth_quartz', 0.1); smelt('cod', 'cooked_cod', 0.35); smelt('salmon', 'cooked_salmon', 0.35); smelt('sea_pickle', 'lime_dye', 0.1);
+smelt('chorus_fruit', 'popped_chorus_fruit', 0.1);
 // blast furnaces only take ores and raw metal, smokers only food; both work twice as fast
 for (const k in SMELT) { const inp = ITEMS[k], out = ITEMS[SMELT[k].out]; SMELT[k].cat = /_ore$|^raw_|^ancient_debris$/.test(inp.name) ? 'ore' : out.food ? 'food' : ''; }
 function fuelValue(id) {
@@ -371,12 +402,17 @@ for (const [tab, extra] of Object.entries({
   ruined_portal: [['golden_carrot', 4, 12, 15], ['gilded_blackstone', 1, 2, 5]],
   fortress: [['netherite_scrap', 1, 1, 2], ['gilded_blackstone', 1, 3, 4]],
 })) LOOT[tab][2].push(...extra);
+// the End: [min rolls, max rolls, entries, guaranteed items]
+LOOT.stronghold = [2, 5, [['ender_pearl', 1, 2, 12], ['iron_ingot', 1, 5, 10], ['gold_ingot', 1, 3, 5], ['redstone', 4, 9, 5], ['bread', 1, 3, 15], ['apple', 1, 3, 15], ['iron_pickaxe', 1, 1, 5], ['iron_sword', 1, 1, 5], ['iron_chestplate', 1, 1, 5], ['diamond', 1, 3, 3], ['ember_rod', 1, 2, 6], ['golden_apple', 1, 1, 2], ['book', 1, 3, 6], ['eye_of_ender', 1, 1, 3]]];
+LOOT.end_city = [3, 7, [['diamond', 2, 6, 5], ['iron_ingot', 4, 8, 10], ['gold_ingot', 2, 7, 15], ['emerald', 2, 6, 3], ['diamond_sword', 1, 1, 3], ['diamond_pickaxe', 1, 1, 3], ['diamond_chestplate', 1, 1, 3], ['diamond_helmet', 1, 1, 3], ['iron_sword', 1, 1, 3], ['iron_chestplate', 1, 1, 3], ['ender_pearl', 1, 3, 6], ['chorus_fruit', 2, 6, 6], ['firework_rocket', 3, 8, 6], ['netherite_scrap', 1, 1, 1]]];
+LOOT.end_ship = [3, 6, LOOT.end_city[2], [['elytra', 1], ['firework_rocket', 16]]];
 function rollLoot(table, seed) {
   const t = LOOT[table]; if (!t) return [];
   const r = new RNG(seed || (Math.random() * 1e9) | 0);
   const n = r.range(t[0], t[1]);
   const tot = t[2].reduce((a, e) => a + e[3], 0);
   const out = [];
+  if (t[3]) for (const [name, cnt] of t[3]) out.push({ id: I[name], n: cnt, d: 0 });
   for (let k = 0; k < n; k++) {
     let v = r.next() * tot;
     for (const e of t[2]) { v -= e[3]; if (v < 0) { const id = I[e[0]]; if (id !== undefined) out.push({ id, n: Math.min(maxStack(id), r.range(e[1], e[2])), d: 0 }); break; } }

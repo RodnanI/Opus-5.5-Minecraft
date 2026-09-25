@@ -77,6 +77,8 @@ function blockDrops(v, heldId, player) {
     case B.gilded_blackstone: return r() < 0.1 ? [one('gold_nugget', 2 + Math.floor(r() * 4))] : [one(id)];
     case B.glow_lichen: case B.nether_sprouts: return shears ? [one(id)] : [];
     case B.weeping_vines: case B.twisting_vines: return shears || r() < 0.33 ? [one(id)] : [];
+    case B.chorus_plant: return r() < 0.5 ? [one('chorus_fruit')] : [];
+    case B.chorus_flower: return [one(id)];
   }
   if (b.drop === null) return [];
   if (b.drop === undefined) return [one(id)];
@@ -110,6 +112,7 @@ function supported(w, x, y, z, v) {
   if (WLOG[id]) return OPAQUE[bid] === 1;
   if (id === B.weeping_vines) { const a = w.getId(x, y + 1, z); return a === id || SOLID[a] === 1; }
   if (id === B.twisting_vines) return bid === id || SOLID[bid] === 1;
+  if (id === B.chorus_plant || id === B.chorus_flower) return chorusSupported(w, x, y, z, id, bid);
   if (s === R_CROSS && PLANT[id]) return SOIL.has(bid);
   if (s === R_TORCH) {
     if (meta === 0) { return isSolidTop(bid, below) || SHAPE[bid] === R_FENCE; }
@@ -127,6 +130,40 @@ function supported(w, x, y, z, v) {
   if (s === R_FIRE) { if (isSolidTop(bid, below) || bid === B.netherrack || bid === B.soul_sand) return true; for (let f = 0; f < 6; f++) if (FLAMMABLE[w.getId(x + FACE_DX[f], y + FACE_DY[f], z + FACE_DZ[f])]) return true; return false; }
   if (s === R_BED) { const f = meta & 3, head = meta & 4; const ox = x + (head ? -FACING_DX[f] : FACING_DX[f]), oz = z + (head ? -FACING_DZ[f] : FACING_DZ[f]); return w.getId(ox, y, oz) === id; }
   return true;
+}
+// chorus: a plant stands on end stone or more chorus, or hangs off a plant beside it that does; a flower needs a stem
+// below it or exactly one stem beside it over empty air (the tip of a branch)
+function chorusSupported(w, x, y, z, id, bid) {
+  if (bid === B.chorus_plant || bid === B.end_stone) return true;
+  let n = 0;
+  for (let f = 0; f < 4; f++) {
+    const nx = x + FACING_DX[f], nz = z + FACING_DZ[f];
+    if (w.getId(nx, y, nz) !== B.chorus_plant) continue;
+    if (id === B.chorus_plant) { const nb = w.getId(nx, y - 1, nz); if (nb === B.chorus_plant || nb === B.end_stone) return true; }
+    n++;
+  }
+  return id === B.chorus_plant ? n > 0 : n === 1 && bid === 0;
+}
+// chorus flowers grow upward a few blocks, then branch sideways; each branch ages the flower until it stops (age 5)
+function chorusGrow(w, x, y, z, meta) {
+  if (meta >= 5 || y + 2 >= CH || Math.random() > 0.35) return;
+  const air = (ax, ay, az) => w.getId(ax, ay, az) === 0;
+  const lonely = (ax, ay, az, except) => { for (let f = 0; f < 4; f++) { if (f === except) continue; if (!air(ax + FACING_DX[f], ay, az + FACING_DZ[f])) return false; } return true; };
+  let h = 0; while (h < 5 && w.getId(x, y - 1 - h, z) === B.chorus_plant) h++;
+  const onStone = w.getId(x, y - 1 - h, z) === B.end_stone;
+  const place = (ax, ay, az, m) => w.setBlock(ax, ay, az, B.chorus_flower | (m << 12), 1);
+  if (air(x, y + 1, z) && air(x, y + 2, z) && lonely(x, y + 1, z, -1) && (h < 2 || (onStone && h < 4) || Math.random() < 0.25 / h)) {
+    w.setBlock(x, y, z, B.chorus_plant, 1); place(x, y + 1, z, meta); return;
+  }
+  if (meta < 4) {
+    let grew = false;
+    for (let i = 0, n = randInt(1, meta === 0 ? 4 : 3); i < n; i++) {
+      const f = randInt(0, 3), nx = x + FACING_DX[f], nz = z + FACING_DZ[f];
+      if (air(nx, y, nz) && air(nx, y - 1, nz) && lonely(nx, y, nz, (f + 2) & 3)) { if (!grew) w.setBlock(x, y, z, B.chorus_plant, 1); place(nx, y, nz, meta + 1); grew = true; }
+    }
+    if (grew) return;
+  }
+  w.setBlock(x, y, z, B.chorus_flower | (5 << 12), 0);
 }
 function neighborChanged(w, x, y, z) {
   if (y < 0 || y >= CH) return;
@@ -373,6 +410,7 @@ function randomTick(w, x, y, z, v) {
       return;
     }
     case B.fire: w.schedule(x, y, z, 1); return;
+    case B.chorus_flower: chorusGrow(w, x, y, z, meta); return;
   }
   if (LEAVES[id]) { if (!(meta & 8) && !leafSupported(w, x, y, z)) breakBlock(w, x, y, z, true, null); return; }
   // copper slowly weathers towards green (scrape it back with an axe)
@@ -500,7 +538,25 @@ function portalValid(w, x, y, z, v) {
   const ok = (id) => id === B.nether_portal || id === B.obsidian;
   return ok(w.getId(x, y + 1, z)) && ok(w.getId(x, y - 1, z)) && ok(w.getId(x + dx, y, z + dz)) && ok(w.getId(x - dx, y, z - dz));
 }
+// ---------------------------------------------------------------- end portals
+// twelve frames around an open 3x3 square, every one holding an eye: the square fills with end portal
+const END_RING = [];
+for (let d = -1; d <= 1; d++) END_RING.push([d, -2], [d, 2], [-2, d], [2, d]);
+function tryLightEndPortal(w, x, y, z) {
+  const eye = (px, pz) => { const v = w.getBlock(px, y, pz); return (v & 4095) === B.end_portal_frame && ((v >> 12) & 4) !== 0; };
+  for (const [ox, oz] of END_RING) {
+    const cx = x - ox, cz = z - oz;
+    if (!END_RING.every(([rx, rz]) => eye(cx + rx, cz + rz))) continue;
+    let open = true;
+    for (let dz = -1; dz <= 1 && open; dz++) for (let dx = -1; dx <= 1; dx++) { const id = w.getId(cx + dx, y, cz + dz); if (id !== 0 && id !== B.end_portal && !REPL[id]) { open = false; break; } }
+    if (!open) continue;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) w.setBlock(cx + dx, y, cz + dz, B.end_portal, 1);
+    return true;
+  }
+  return false;
+}
 function tryLightPortal(w, x, y, z) {
+  if (w.dim === 'end') return false;
   const airish = (id) => id === 0 || id === B.fire;
   for (let ax = 0; ax < 2; ax++) {
     const dx = ax === 0 ? 1 : 0, dz = ax === 0 ? 0 : 1;

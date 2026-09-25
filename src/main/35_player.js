@@ -51,6 +51,7 @@ class Player extends Entity {
     this.target = null; this.spawnPoint = null; this.sleeping = 0;
     this.camMode = 0; this.vehicle = null; this.vcam = 0; this.stats = { jumps: 0, blocks: 0, kills: 0 };
     this.effects = {};
+    this.gliding = false; this.glideT = 0; this.lastJump = false;
   }
   get creative() { return this.mode === 'creative'; }
   get spectator() { return this.mode === 'spectator'; }
@@ -70,6 +71,8 @@ class Player extends Entity {
     if (s.d >= d.dur) { this.inv.set(this.sel, null); this.game_.audio.play('break_tool', {}); this.game_.particles.burst(this.x, this.y + 1.4, this.z, 'p_crit', 6, [0.8, 0.8, 0.8]); }
     this.inv.version++;
   }
+  // an elytra in the chest slot that still has wing left (it stops working one point short of breaking)
+  canGlide() { const s = this.inv.get(37), d = s && ITEMS[s.id]; return !!(d && d.glider && (s.d || 0) < d.dur - 1); }
   armorPoints() { let a = 0; for (let i = 36; i < 40; i++) { const s = this.inv.get(i); if (s && ITEMS[s.id].armor) a += ITEMS[s.id].armor.def; } return a; }
   addXP(v) {
     this.xp += v / xpForLevel(this.xpLevel);
@@ -86,7 +89,7 @@ class Player extends Entity {
     if (V && src) {
       const t = src.type;
       if (t === 'explosion' && src.source && (src.source === V || src.source === this)) return false;
-      if (V.def.enclosed && (t === 'mob' || t === 'arrow' || t === 'fireball' || t === 'thrown' || t === 'plasma' || t === 'laser')) return V.hurt(amount, src);
+      if (V.def.enclosed && (t === 'mob' || t === 'arrow' || t === 'fireball' || t === 'thrown' || t === 'plasma' || t === 'laser' || t === 'breath')) return V.hurt(amount, src);
       if (V.def.enclosed && t === 'explosion') { V.hurt(amount * 0.5, src); return false; }
       if (t === 'fall' || t === 'suffocate' || t === 'drown') return false;
     }
@@ -95,9 +98,15 @@ class Player extends Entity {
     if (this.invul > 10 && !(src && src.type === 'void')) { if (amount <= this.lastDmg) return false; const d = amount - this.lastDmg; this.lastDmg = amount; amount = d; }
     else { this.lastDmg = amount; this.invul = 20; }
     const t = src ? src.type : '';
-    if (t === 'mob' || t === 'arrow' || t === 'explosion' || t === 'fireball' || t === 'thrown') {
+    if (t === 'mob' || t === 'arrow' || t === 'explosion' || t === 'fireball' || t === 'thrown' || t === 'dragon') {
       let def = 0, tough = 0;
-      for (let i = 36; i < 40; i++) { const s = this.inv.get(i); if (s) { const a = ITEMS[s.id].armor; def += a.def; tough += a.tough; s.d = (s.d || 0) + Math.max(1, Math.floor(amount / 4)); if (s.d >= ITEMS[s.id].dur) { this.inv.set(i, null); g.audio.play('break_tool', {}); } } }
+      for (let i = 36; i < 40; i++) {
+        const s = this.inv.get(i), d = s && ITEMS[s.id], a = d && d.armor; if (!a) continue;
+        def += a.def; tough += a.tough;
+        // an elytra or a pumpkin worn on the head take no wear from hits
+        if (!d.dur || d.glider) continue;
+        s.d = (s.d || 0) + Math.max(1, Math.floor(amount / 4)); if (s.d >= d.dur) { this.inv.set(i, null); g.audio.play('break_tool', {}); }
+      }
       amount = amount * (1 - Math.min(20, Math.max(def / 5, def - amount / (2 + tough / 4))) / 25);
       this.inv.version++;
     }
@@ -122,7 +131,7 @@ class Player extends Entity {
     this.dead = true; this.health = 0;
     const cause = src ? src.type : 'unknown';
     const who = src && src.source && src.source.def ? 'a ' + titleCase(src.source.type) : null;
-    const msgs = { fall: 'fell from a high place', lava: 'tried to swim in lava', fire: 'went up in flames', drown: 'drowned', starve: 'starved to death', void: 'fell out of the world', explosion: 'blew up', mob: 'were slain by ' + (who || 'a monster'), arrow: 'were shot by ' + (who || 'an arrow'), fireball: 'were fireballed by ' + (who || 'an Ember Imp'), cactus: 'were pricked to death', suffocate: 'suffocated in a wall', thrown: 'were hexed by a Witch', kill: 'died' };
+    const msgs = { fall: 'fell from a high place', lava: 'tried to swim in lava', fire: 'went up in flames', drown: 'drowned', starve: 'starved to death', void: 'fell out of the world', explosion: 'blew up', mob: 'were slain by ' + (who || 'a monster'), arrow: 'were shot by ' + (who || 'an arrow'), fireball: 'were fireballed by ' + (who || 'an Ember Imp'), cactus: 'were pricked to death', suffocate: 'suffocated in a wall', thrown: 'were hexed by a Witch', kill: 'died', dragon: 'were slain by the Ender Dragon', breath: "were withered by the dragon's breath", kinetic: 'experienced kinetic energy' };
     this.deathMsg = 'You ' + (msgs[cause] || 'died');
     if (!g.gameRules.keepInventory) {
       for (let i = 0; i < 41; i++) { const s = this.inv.get(i); if (s) { g.dropItem(this.world, this.x, this.y + 1, this.z, s, true); this.inv.set(i, null); } }
@@ -165,6 +174,11 @@ class Player extends Entity {
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const mx = s * cy + f * sy, mz = s * sy - f * cy; // strafe right = +x at yaw 0
     const accel = (a) => { this.vx += mx * a; this.vz += mz * a; };
+    // elytra: press jump in mid-air to spread the wings; landing or water folds them again
+    const jp = inp.jump && !this.lastJump; this.lastJump = inp.jump;
+    if (this.gliding && (this.onGround || this.inWater || this.inLava || this.flying || !this.canGlide() || this.sleeping)) this.gliding = false;
+    if (!this.gliding && jp && !this.onGround && !this.flying && !this.inWater && !this.inLava && this.canGlide() && this.vy < 0.2) { this.gliding = true; this.glideT = 0; g.audio.play('glide_boost', { vol: 0.25 }); }
+    if (this.gliding) { this.tickGlide(); return; }
     if (this.flying) {
       accel(this.sprinting ? 0.1 : 0.05);
       if (inp.jump) this.vy += 0.15 * 1.0; if (inp.sneak) this.vy -= 0.15;
@@ -219,12 +233,9 @@ class Player extends Entity {
       g.audio.play('step', { mat: 'wool', vol: 0.5, pitch: 1.4 });
     }
     if (climb && (this.collidedH || inp.jump)) this.vy = 0.2;
-    // auto jump
-    if (SETTINGS.autoJump && this.onGround && this.collidedH && (Math.abs(f) + Math.abs(s)) > 0.3 && !this.sneaking) {
-      const ax = this.x + mx * 0.6, az = this.z + mz * 0.6, fy = Math.floor(this.y + 0.5);
-      const hb = w.getBlock(Math.floor(ax), fy, Math.floor(az));
-      if (SOLID[hb & 4095] && !SOLID[w.getId(Math.floor(ax), fy + 1, Math.floor(az))] && !SOLID[w.getId(Math.floor(ax), fy + 2, Math.floor(az))] && !SOLID[w.getId(Math.floor(this.x), Math.floor(this.y + 2.2), Math.floor(this.z))]) this.vy = 0.42 / 0.98 + 0.08; // this runs after the move, so pre-compensate this tick's gravity/drag to get a full 0.42 jump (~1.25 blocks)
-    }
+    // auto jump: measure the obstacle ahead with real collision shapes (so open doors, gates, slabs and paths
+    // count by their actual size), and only jump if the player fits on top of it and has headroom to get there
+    if (SETTINGS.autoJump && this.onGround && this.collidedH && (Math.abs(f) + Math.abs(s)) > 0.3 && !this.sneaking && this.autoJumpRise(mx, mz) > 0) this.vy = 0.42 / 0.98 + 0.08; // this runs after the move, so pre-compensate this tick's gravity/drag to get a full 0.42 jump (~1.25 blocks)
     this.vy -= 0.08; this.vy *= 0.98;
     this.vx *= slip; this.vz *= slip;
     if (this.onGround) { if (this.fallDist > 0) this.land(this.fallDist); this.fallDist = 0; }
@@ -236,6 +247,41 @@ class Player extends Entity {
       this.stepAcc = (this.stepAcc || 0) + moved;
       if (this.stepAcc > (this.sprinting ? 2.0 : 1.7)) { this.stepAcc = 0; const b = w.getId(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z)); if (b) g.audio.play('step', { mat: BLOCKS[b].snd, vol: this.sneaking ? 0.08 : 0.2 }); }
     }
+  }
+  // gliding flight (the same aerodynamics as the original: diving trades height for speed, pulling up trades
+  // speed back for height; flying into a wall hurts in proportion to the speed lost)
+  tickGlide() {
+    const g = this.game_, w = this.world, l = this.lookVec(), pr = -this.pitch;
+    const hl = Math.hypot(l[0], l[2]), hv = Math.hypot(this.vx, this.vz);
+    let cp = Math.cos(pr); cp = cp * cp;
+    this.vy += 0.08 * (-1 + cp * 0.75);
+    if (this.vy < 0 && hl > 0) { const k = this.vy * -0.1 * cp; this.vx += l[0] * k / hl; this.vy += k; this.vz += l[2] * k / hl; }
+    if (pr < 0 && hl > 0) { const k = hv * -Math.sin(pr) * 0.04; this.vx -= l[0] * k / hl; this.vy += k * 3.2; this.vz -= l[2] * k / hl; }
+    if (hl > 0) { this.vx += (l[0] / hl * hv - this.vx) * 0.1; this.vz += (l[2] / hl * hv - this.vz) * 0.1; }
+    this.vx *= 0.99; this.vy *= 0.98; this.vz *= 0.99;
+    const before = Math.hypot(this.vx, this.vz), oy = this.y;
+    moveEntity(w, this, this.vx, this.vy, this.vz);
+    if (this.collidedH) { const dmg = (before - Math.hypot(this.vx, this.vz)) * 10 - 3; if (dmg > 0) { this.hurt(dmg, { type: 'kinetic' }); g.audio.play(dmg > 4 ? 'fall_big' : 'fall_small', {}); } }
+    // a gentle glide lands softly; a dive into the ground does not
+    if (this.vy > -0.5) this.fallDist = 1; else this.fallDist += Math.max(0, oy - this.y);
+    if (this.onGround) { this.gliding = false; if (this.fallDist > 0) this.land(this.fallDist); this.fallDist = 0; }
+    if (++this.glideT % 20 === 0 && !this.creative) { const s = this.inv.get(37); if (s) { s.d = (s.d || 0) + 1; this.inv.version++; } }
+    this.sprinting = false;
+  }
+  // height of the ledge right in front of the player that auto-jump should climb (0 = nothing climbable)
+  autoJumpRise(mx, mz) {
+    const w = this.world, hw = this.w / 2, ml = Math.hypot(mx, mz);
+    if (ml < 1e-4) return 0;
+    const px = this.x + mx / ml * 0.35, pz = this.z + mz / ml * 0.35;
+    const boxes = collisionBoxes(w, px - hw, this.y, pz - hw, px + hw, this.y + 1.3, pz + hw, this._ajb || (this._ajb = []));
+    let top = -Infinity;
+    for (const b of boxes) if (b[0] < px + hw && b[3] > px - hw && b[2] < pz + hw && b[5] > pz - hw && b[4] > this.y + 0.01 && b[1] < this.y + 1.26) top = Math.max(top, b[4]);
+    const rise = top - this.y;
+    if (!(rise > 0.05) || rise > 1.26) return 0;
+    // room to stand on top of it, and headroom to rise that far where the player is now
+    if (aabbIntersectsBlocks(w, px - hw, top + 0.001, pz - hw, px + hw, top + this.h, pz + hw)) return 0;
+    if (aabbIntersectsBlocks(w, this.x - hw, this.y + this.h, this.z - hw, this.x + hw, top + this.h, this.z + hw)) return 0;
+    return rise;
   }
   // ------------------------------------------------------------ main tick
   tick(inp) {
@@ -249,6 +295,8 @@ class Player extends Entity {
     if (!w.isLoaded(Math.floor(this.x), Math.floor(this.z))) return;
     if (this.vehicle) { if (this.vehicle.removed) this.vehicle = null; else this.vehicle.syncRider(this); }
     if (!this.vehicle) this.tickMovement(inp);
+    // the void below the End (the player runs its own movement, so it checks this itself)
+    if (this.y < -64) this.voidDamage();
     const sp = Math.hypot(this.x - this.lx, this.z - this.lz);
     this.walkAmt = (this.walkAmt || 0) + (Math.min(1, sp * 6) - (this.walkAmt || 0)) * 0.3; this.walkPhase = (this.walkPhase || 0) + sp * 3.2;
     if (this.onGround && !this.flying) { this.bob += sp * 1.9; this.bobAmt += (Math.min(1, sp * 6) - this.bobAmt) * 0.4; } else this.bobAmt *= 0.6;
@@ -320,6 +368,11 @@ class Player extends Entity {
   tickPortal() {
     const g = this.game_, w = this.world;
     if (this.portalCd > 0) this.portalCd--;
+    if (this.portalCd <= 0 && !this.vehicle) {
+      const fx = Math.floor(this.x), fz = Math.floor(this.z), a = w.getId(fx, Math.floor(this.y + 0.2), fz), b = w.getId(fx, Math.floor(this.y + 1.2), fz);
+      if (a === B.end_portal || b === B.end_portal) { this.portalCd = 100; g.travelEnd(); return; }
+      if (a === B.end_gateway || b === B.end_gateway) { this.portalCd = 100; g.useGateway(fx, a === B.end_gateway ? Math.floor(this.y + 0.2) : Math.floor(this.y + 1.2), fz); return; }
+    }
     const inP = w.getId(Math.floor(this.x), Math.floor(this.y + 0.5), Math.floor(this.z)) === B.nether_portal || w.getId(Math.floor(this.x), Math.floor(this.y + 1.2), Math.floor(this.z)) === B.nether_portal;
     if (inP && this.portalCd <= 0) {
       this.portalTime++;
@@ -335,14 +388,13 @@ class Player extends Entity {
     const reach = this.creative ? 5 : 4.5;
     const o = ray ? ray.o : [this.x, this.eyeY(), this.z], d = ray ? ray.d : this.lookVec();
     const hit = raycast(w, o[0], o[1], o[2], d[0], d[1], d[2], reach, false);
-    let ent = null, et = hit ? hit.t : (this.creative ? 5 : 3.5);
+    let ent = null, et = hit ? hit.t : (this.creative ? 5 : 3.5), part = -1;
     for (const e of w.entitiesNear(this.x, this.y, this.z, 8)) {
-      if (e === this || e.removed || e.dead || !e.hurt || e.isProjectile) continue;
-      const hw = e.w / 2 + 0.1;
-      const h = rayAABB(o[0], o[1], o[2], d[0], d[1], d[2], [e.x - hw, e.y, e.z - hw, e.x + hw, e.y + e.h + 0.1, e.z + hw]);
-      if (h && h.t < et) { et = h.t; ent = e; }
+      if (e === this || e.removed || e.dead || !e.hurt || e.isProjectile || e.type === 'breath_cloud') continue;
+      const h = entityRayHit(e, o[0], o[1], o[2], d[0], d[1], d[2], 0.1, 0);
+      if (h && h.t < et) { et = h.t; ent = e; part = h.part; }
     }
-    if (ent) this.target = { entity: ent, t: et };
+    if (ent) this.target = { entity: ent, t: et, part };
     else if (hit) this.target = hit;
     else this.target = null;
     return this.target;
@@ -357,6 +409,7 @@ class Player extends Entity {
     // attack / break
     if (inp.attackPressed) {
       this.swingAnim = 1;
+      if (t && !t.entity && t.id === B.dragon_egg && !this.creative) { g.teleportEgg(t.x, t.y, t.z); return; }
       if (t && t.entity) this.attack(t.entity);
       else if (!t) this.attackT = 0;
     }
@@ -402,7 +455,10 @@ class Player extends Entity {
     this.attackT = 0;
     if (e.isMob && e.def.villager) { }
     const kb = 0.4 + (this.sprinting && charge > 0.9 ? 0.5 : 0);
-    if (e.hurt(dmg, { type: 'mob', source: this, kb })) {
+    e.lastHitPart = this.target && this.target.entity === e ? this.target.part : -1;
+    const landed = e.hurt(dmg, { type: 'mob', source: this, kb });
+    e.lastHitPart = -1;
+    if (landed) {
       if (crit) g.particles.burst(e.x, e.y + e.h * 0.6, e.z, 'p_crit', 10, [1, 1, 1]);
       g.audio.play(crit ? 'crit' : 'hit', { vol: 0.5 });
       if (this.sprinting) this.sprinting = false;
@@ -436,6 +492,7 @@ class Player extends Entity {
     }
     const id = t.id, b = BLOCKS[id];
     if (b.hard < 0) return;
+    if (id === B.dragon_egg) { g.teleportEgg(t.x, t.y, t.z); this.breakPos = null; return; }
     let sp = this.toolSpeed(id);
     if (this.inWater) sp /= 5;
     if (!this.onGround && !this.flying) sp /= 5;
@@ -477,9 +534,26 @@ class Player extends Entity {
     if (d.food) { this.food = Math.min(20, this.food + d.food[0]); this.sat = Math.min(this.food, this.sat + d.food[0] * d.food[1] / d.food[0] * 1); }
     if (d.name === 'golden_apple') { this.effects.regen = 100; this.absorb = 4; }
     if (d.name === 'milk_bucket') { this.effects = {}; }
+    if (d.name === 'chorus_fruit') this.chorusTeleport();
     g.audio.play('burp', { vol: 0.5 });
     const empty = EMPTY_ON_EAT[d.name] || (d.name === 'milk_bucket' ? 'bucket' : null);
     if (!this.creative) { if (empty) this.replaceHeld({ id: I[empty], n: 1, d: 0 }); else this.consumeHeld(1); }
+  }
+  // chorus fruit: blink to a random safe spot nearby
+  chorusTeleport() {
+    const w = this.world, g = this.game_;
+    for (let i = 0; i < 16; i++) {
+      const x = Math.floor(this.x + (Math.random() - 0.5) * 16), z = Math.floor(this.z + (Math.random() - 0.5) * 16);
+      if (!w.isLoaded(x, z)) continue;
+      let y = clamp(Math.floor(this.y) + randInt(-8, 8), 1, CH - 3);
+      while (y > 1 && !SOLID[w.getId(x, y - 1, z)]) y--;
+      if (!SOLID[w.getId(x, y - 1, z)] || SOLID[w.getId(x, y, z)] || SOLID[w.getId(x, y + 1, z)] || FLUID[w.getId(x, y, z)]) continue;
+      g.particles.burst(this.x, this.y + 1, this.z, 'p_portal', 16, [0.8, 0.5, 1]);
+      g.putPlayer(x + 0.5, y, z + 0.5);
+      g.particles.burst(this.x, this.y + 1, this.z, 'p_portal', 16, [0.8, 0.5, 1]);
+      g.audio.play('teleport', {});
+      return;
+    }
   }
   // fishing: cast a bobber; use again to reel in (catches something if a fish is biting)
   useFishingRod(held) {
@@ -522,6 +596,13 @@ class Player extends Entity {
     if (!hd) return false;
     if (hd.use === 'spyglass') { this.using = 'spyglass'; this.useTicks = 0; g.audio.play('click', { vol: 0.2, pitch: 1.4 }); return true; }
     if (hd.use === 'fish') return this.useFishingRod(held);
+    if (hd.use === 'firework') {
+      if (!this.gliding) return false;
+      w.addEntity(new FireworkRocket(this.x, this.y + 0.5, this.z, this));
+      g.audio.play('glide_boost', {}); g.audio.play('firework_launch', { vol: 0.6 });
+      this.consumeHeld(1); return true;
+    }
+    if (hd.use === 'eye') return this.throwEye();
     // air use
     if (hd.food && (this.food < 20 || this.creative || hd.name === 'golden_apple' || hd.name === 'milk_bucket')) { this.using = 'food'; this.useTicks = 0; return true; }
     if (hd.use === 'drink') { this.using = 'food'; this.useTicks = 0; return true; }
@@ -542,6 +623,26 @@ class Player extends Entity {
       }
     }
     return false;
+  }
+  // the eye of ender floats toward the nearest stronghold (it only knows the way in the overworld)
+  throwEye() {
+    const g = this.game_, w = this.world;
+    if (w.dim !== 'overworld') { g.ui.message('The eye of ender refuses to leave your hand here', '#c9a8e0'); return false; }
+    if (this.eyeBusy) return true;
+    this.consumeHeld(1); this.eyeBusy = true;
+    const launch = (res) => {
+      this.eyeBusy = false;
+      if (!res || this.world !== w) { this.inv.add({ id: I.eye_of_ender, n: 1, d: 0 }); g.ui.message('The eye finds nothing to follow', '#c9a8e0'); return; }
+      const d = this.lookVec();
+      w.addEntity(new EyeOfEnder(this.x + d[0] * 0.6, this.eyeY() - 0.1, this.z + d[2] * 0.6, res.x + 0.5, res.z + 0.5, this));
+      g.audio.play('eye_launch', {});
+      this.swingAnim = 1;
+    };
+    const C = g.strongholdCache;
+    if (C && C.seed === g.meta.seed && Math.hypot(C.x - this.x, C.z - this.z) < 256) { launch(C.res); return true; }
+    const qx = this.x, qz = this.z;
+    g.jobs.post({ t: 'locate', dim: 'overworld', type: 'stronghold', x: qx, z: qz }, null, (m) => { g.strongholdCache = { seed: g.meta.seed, x: qx, z: qz, res: m.res }; launch(m.res); });
+    return true;
   }
   useOnBlock(t, held, hd) {
     const g = this.game_, w = this.world;
@@ -587,6 +688,29 @@ class Player extends Entity {
       return true;
     }
     if (u === 'spawn_egg') { g.spawnMob(hd.mob, ax + 0.5, ay, az + 0.5, null); this.consumeHeld(1); return true; }
+    if (u === 'eye' && t.id === B.end_portal_frame) {
+      if ((t.v >> 12) & 4) return false;
+      w.setBlock(t.x, t.y, t.z, t.v | (4 << 12), 1);
+      g.audio.play('eye_place', { x: t.x + 0.5, y: t.y + 0.5, z: t.z + 0.5 });
+      for (let i = 0; i < 12; i++) g.particles.spawn('p_portal', t.x + 0.2 + Math.random() * 0.6, t.y + 0.9, t.z + 0.2 + Math.random() * 0.6, { vy: 0.04 + Math.random() * 0.04, life: 30, size: 0.1, emissive: true, color: [0.5, 1, 0.8] });
+      this.consumeHeld(1);
+      if (tryLightEndPortal(w, t.x, t.y, t.z)) { g.audio.play('end_portal_open', {}); g.ui.message('The End portal opens beneath the frames…', '#b98aff'); }
+      return true;
+    }
+    if (u === 'crystal') {
+      if (t.face !== 2 || (t.id !== B.obsidian && t.id !== B.bedrock)) return false;
+      if (w.getId(t.x, t.y + 1, t.z) !== 0 || w.getId(t.x, t.y + 2, t.z) !== 0) return false;
+      if (w.entitiesNear(t.x + 0.5, t.y + 1, t.z + 0.5, 1.2, (e) => e.isCrystal).length) return false;
+      w.addEntity(new EndCrystal(t.x + 0.5, t.y + 1, t.z + 0.5));
+      const c = w.getChunk(t.x >> 4, t.z >> 4); if (c) c.modified = true;
+      g.audio.play('place', { mat: 'glass', x: t.x, y: t.y + 1, z: t.z });
+      this.consumeHeld(1); return true;
+    }
+    if (u === 'firework') {
+      w.addEntity(new FireworkRocket(ax + 0.5, ay + 0.1, az + 0.5));
+      g.audio.play('firework_launch', { x: ax, y: ay, z: az });
+      this.consumeHeld(1); return true;
+    }
     if (u === 'vehicle') {
       const d = VEH_DEFS[hd.vehicle], r = Math.floor(d.w * 0.4);
       for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) for (let dy = 0; dy < 2; dy++) if (SOLID[w.getId(ax + dx, ay + dy, az + dz)]) { g.ui.message('Not enough room to deploy here', '#f88'); return false; }
@@ -633,6 +757,8 @@ class Player extends Entity {
     if (s === R_LANTERN) meta = t.face === 3 ? 1 : 0;
     if (s === R_CHEST) meta = (f + 2) & 3;
     if (bid === B.pointed_dripstone) meta = t.face === 3 ? 0 : 1;
+    if (s === R_ROD) meta = t.face;
+    if (bid === B.end_portal_frame) meta = (f + 2) & 3;
     if (LEAVES[bid]) meta = 8;
     let v = bid | (meta << 12);
     // validity
