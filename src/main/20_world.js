@@ -18,6 +18,24 @@ class Chunk {
     this.lastSeen = 0;
   }
 }
+// Recently unloaded chunks that were never modified, kept in memory (SETTINGS.chunkCacheMB) so that coming back to
+// an area skips terrain generation: only the lighting pass runs again. Modified chunks are saved instead, and
+// chunks holding persistent entities never come from here. Least recently unloaded go first.
+class ChunkCache {
+  constructor() { this.map = new Map(); this.bytes = 0; this.world = null; this.hits = 0; }
+  limit() { return Math.max(0, +SETTINGS.chunkCacheMB || 0) * 1048576; }
+  put(k, e) {
+    if (this.limit() <= 0) return;
+    this.drop(k);
+    this.map.set(k, e); this.bytes += e.bytes;
+    this.trim();
+  }
+  take(k) { const e = this.map.get(k); if (e) { this.drop(k); this.hits++; } return e || null; }
+  drop(k) { const e = this.map.get(k); if (e) { this.map.delete(k); this.bytes -= e.bytes; } }
+  trim() { const lim = this.limit(); for (const k of this.map.keys()) { if (this.bytes <= lim) break; this.drop(k); } }
+  clear() { this.map.clear(); this.bytes = 0; }
+  describe() { const lim = this.limit(); return lim > 0 ? `World cache: ${this.map.size} chunks, ${(this.bytes / 1048576).toFixed(0)} / ${(lim / 1048576).toFixed(0)} MB, ${this.hits} reloads from memory` : 'World cache: off'; }
+}
 class World {
   constructor(game, dim) {
     this.game = game; this.dim = dim;
@@ -220,20 +238,32 @@ class World {
   }
   update(px, pz, budgetMs) {
     const t0 = now();
-    const pcx = Math.floor(px / 16), pcz = Math.floor(pz / 16);
+    const pcx = Math.floor(px / 16), pcz = Math.floor(pz / 16), pcy = Math.floor(this.game.camera.y / 16);
     const R = EFF.renderDist, LR = R + 1;
-    // candidate lists (nearest first) that feed() hands to the workers, both here and whenever a job completes
-    const cc = this.chunkCands || (this.chunkCands = []); cc.length = 0; this.chunkCi = 0;
-    for (const [dx, dz] of this.spiral(LR)) {
-      const cx = pcx + dx, cz = pcz + dz, k = ckey(cx, cz);
-      if (this.chunks.has(k) || this.pending.has(k)) continue;
-      cc.push(cx, cz);
-      if (cc.length >= 64) break;
+    // candidate lists (nearest first) that feed() hands to the workers, both here and whenever a job completes.
+    // Rebuilt when the player changes chunk, a list runs out, or every 50 ms: at hundreds of frames per second
+    // walking the whole spiral and mesh queue every frame would cost more than the frame itself
+    const moved = pcx !== this.ccx || pcz !== this.ccz || pcy !== this.ccy || LR !== this.cLR;
+    const cc = this.chunkCands || (this.chunkCands = []);
+    if (moved || t0 - (this.ccT || 0) > 50 || (this.chunkCi >= cc.length && t0 - this.ccT > 8)) {
+      this.ccT = t0; cc.length = 0; this.chunkCi = 0;
+      for (const [dx, dz] of this.spiral(LR)) {
+        const cx = pcx + dx, cz = pcz + dz, k = ckey(cx, cz);
+        if (this.chunks.has(k) || this.pending.has(k)) continue;
+        cc.push(cx, cz);
+        if (cc.length >= 64) break;
+      }
     }
-    this.pickMeshes(pcx, pcz, Math.floor(this.game.camera.y / 16));
+    if (moved || t0 - (this.mcT || 0) > 16 || !this.meshCands || this.meshCi >= this.meshCands.length) { this.mcT = t0; this.pickMeshes(pcx, pcz, pcy); }
+    this.ccx = pcx; this.ccz = pcz; this.ccy = pcy; this.cLR = LR;
     this.feed();
+    // light integration gets a share of the frame rather than a fixed slice, so short frames stay short
+    // (at 60 fps this is the same 4 ms as before)
+    const P = this.game.pacer;
+    if (P && P.avgMs > 0 && this.game.state === 'playing') budgetMs = Math.min(budgetMs, Math.max(0.3, P.avgMs * 0.3));
     // unload far chunks
-    if ((this.game.frame & 15) === 0) {
+    if (t0 - (this.unloadT || 0) > 250) {
+      this.unloadT = t0;
       const UR = LR + 2;
       for (const c of this.chunks.values()) {
         const dx = c.cx - pcx, dz = c.cz - pcz;
@@ -282,6 +312,12 @@ class World {
   requestChunk(cx, cz, k) {
     this.pending.add(k);
     const dim = this.dim, jobs = this.game.jobs;
+    const hit = this.game.meta && !this.isMenu ? this.game.chunkCache.take(this.cacheKey(k)) : null;
+    if (hit) {
+      const blocks = hit.blocks.slice();
+      jobs.post({ t: 'light', dim, cx, cz, blocks, biomes: hit.biomes, tints: hit.tints }, [blocks.buffer], (d) => this.onChunkData(d, { tags: hit.tags, be: hit.be, ents: [] }));
+      return;
+    }
     if (this.savedKeys.has(k)) {
       this.game.save.loadChunk(dim, cx, cz).then(rec => {
         if (this.game.world !== this || !this.pending.has(k)) return;
@@ -314,8 +350,13 @@ class World {
       if (d.spawns && d.spawns.length) c.modified = true;
     }
   }
+  cacheKey(k) { return this.dim + '|' + k; }
   unloadChunk(c) {
     if (c.modified || this.chunkHasPersistentEntities(c)) this.game.save.saveChunk(this, c);
+    else if (this.game.meta && !this.isMenu) {
+      const t = c.tints, bytes = c.blocks.byteLength + c.biomes.byteLength + (t ? t.grass.byteLength + t.foliage.byteLength + t.water.byteLength : 0) + 2048;
+      this.game.chunkCache.put(this.cacheKey(c.key), { blocks: c.blocks, biomes: c.biomes, tints: t, tags: c.tags, be: [...c.be.values()], bytes });
+    }
     for (const sec of c.sections) { this.game.renderer.freeSection(sec); this.meshQueue.delete(sec); this.urgent.delete(sec); }
     for (const be of c.be.values()) this.activeBE.delete(be);
     // remove entities in chunk

@@ -9,7 +9,8 @@ class Jobs {
     this.cbs = new Map();
     const shared = document.getElementById('shared-src').textContent;
     const wsrc = document.getElementById('worker-src').textContent;
-    const n = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
+    // the desktop launcher can ask for more (or fewer) chunk workers than the browser default
+    const n = LAUNCH.workers || Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
     let ok = false;
     try {
       const url = URL.createObjectURL(new Blob([shared, '\n', wsrc], { type: 'application/javascript' }));

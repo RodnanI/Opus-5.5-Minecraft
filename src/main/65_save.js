@@ -74,6 +74,33 @@ class Save {
     c.modified = false;
     if (this.pending.size > 32) this.flush();
   }
+  // a world and all its saved chunks as one JSON file (chunk blocks as base64 of their RLE), to move worlds between
+  // browsers or into the desktop launcher's own profile
+  async exportWorld(id) {
+    await this.flush(); await this.open();
+    const meta = this.memory ? this.memory.worlds.get(id) : await this.req(this.tx('worlds', 'readonly').get(id));
+    if (!meta) throw new Error('World not found');
+    const recs = this.memory ? [...this.memory.chunks.values()].filter(r => r.w === id) : await this.req(this.tx('chunks', 'readonly').index('w').getAll(IDBKeyRange.only(id)));
+    const b64 = (a) => { const u8 = new Uint8Array(a.buffer, a.byteOffset, a.byteLength); let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+    return { format: 'voxelcraft-world', version: 1, meta, chunks: recs.map(r => ({ k: r.k.slice(id.length + 1), b: b64(r.b), be: r.be || [], e: r.e || [], tags: r.tags || 0 })) };
+  }
+  // imports under a new id, so importing the same file twice gives two worlds
+  async importWorld(data) {
+    if (!data || data.format !== 'voxelcraft-world' || !data.meta || !Array.isArray(data.chunks)) throw new Error('Not a VoxelCraft world file');
+    await this.open();
+    const id = 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+    const meta = Object.assign({}, data.meta, { id, lastPlayed: Date.now() });
+    const unb64 = (s) => { const bin = atob(s), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return new Uint16Array(u8.buffer); };
+    const recs = data.chunks.map(c => ({ k: id + '|' + c.k, w: id, b: unb64(c.b), be: c.be || [], e: c.e || [], tags: c.tags || 0 }));
+    if (this.memory) { this.memory.worlds.set(id, meta); for (const r of recs) this.memory.chunks.set(r.k, r); return meta; }
+    await new Promise((res, rej) => {
+      const t = this.db.transaction(['worlds', 'chunks'], 'readwrite');
+      t.objectStore('worlds').put(meta);
+      const s = t.objectStore('chunks'); for (const r of recs) s.put(r);
+      t.oncomplete = res; t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    });
+    return meta;
+  }
   async flush() {
     if (!this.pending.size) return;
     const recs = [...this.pending.values()]; this.pending.clear();

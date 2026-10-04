@@ -2,6 +2,46 @@
 
 Open `minecraft.html` in Chrome, Edge or Firefox. It is a single standalone file with no external requests.
 
+On Windows 10 and 11 there is also a desktop edition: `dist/VoxelCraft-Windows/VoxelCraft.exe` (built by `node build.js`, see Update 5), which runs the same game without the browser's frame-rate limit and with every engine setting under your control.
+
+## Update 5: no frame-rate cap, a Windows launcher, faster rendering
+
+**No frame-rate cap**
+- Max FPS (Settings, Video) is Unlimited by default, with VSync and caps from 30 to 1000 as options. *Limit FPS in Menus* keeps the title and pause screens at the refresh rate.
+- A browser tab can only show one frame per display refresh. In a normal tab, Unlimited renders as many frames as the hardware allows between refreshes and still lets the browser present smoothly; the FPS counter then says how many it shows ("1012 FPS (60 shown)"). The desktop launcher removes the browser's limit, so every frame reaches the screen.
+- The game no longer assumes about 60 frames a second anywhere. The shadow refresh, cockpit screens, engine sounds, the HUD, the hand animation and chunk streaming run by time, so 2000 fps behaves like 60 fps, just smoother. The HUD and overlays redraw at most 240 times a second (they keep their picture in between).
+- F3 shows CPU and GPU frame time, the frame pacing and, in the launcher, its settings.
+
+**Faster and smoother rendering, in every browser**
+- Rendering on Windows is up to 5x faster. Chrome, Edge and Firefox draw WebGL through Direct3D 11 there, and that path copied the chunk geometry on every draw because of how its buffers were declared. On an RX 7900 XT at 1600x900, High went from about 215 fps to about 1100.
+- Exploring at high frame rates no longer stutters. Writing new chunk geometry into big buffers made the graphics driver wait, which caused 25-80 ms hitches several times a second while terrain streamed in. The buffers are a quarter the size now, and the GPU queue (frames in flight) is limited: *GPU Queue* in Settings, Video.
+
+**Desktop launcher (Windows 10 and 11)**
+- `node build.js` builds `dist/VoxelCraft-Windows` (and a zip of it): the game, `VoxelCraft.exe` and a readme. The exe is compiled with the C# compiler that comes with Windows, so nothing has to be installed. `node build.js --html` builds only `minecraft.html`.
+- VoxelCraft.exe runs the game in a separate, private instance of a Chromium browser you already have (Chrome, Edge, Brave, Chromium, Vivaldi, Opera), with its own profile, so it never touches your normal browsing.
+- Everything is tunable, in the launcher window and in `VoxelCraft.ini` (which explains every option):
+  - frame rate: no browser frame-rate limit or VSync, the in-game cap, menu limit, Auto Quality and its target, the GPU queue, HUD refresh;
+  - graphics: Direct3D 11, OpenGL, Direct3D 11 on 12 or Vulkan, which GPU (high performance, power saving, or a specific adapter), preset, render distance, resolution scale, the GPU blocklist, a low-latency canvas;
+  - memory: the JavaScript heap, the garbage collector's young generation, the world memory cache, the render distance limit (up to 64 chunks instead of 24) and the number of terrain worker threads;
+  - the process priority of the game's browser processes, keeping the PC awake, never throttling the page, window mode and monitor, extra Chromium switches and extra game settings.
+- **Run benchmark** on the Play page times every graphics backend on your PC, standing still and flying over new terrain, and the Auto backend uses the best one. It ranks by steady FPS, the frame rate you see 90% of the time: a backend with a high average but stalls loses. On an RX 7900 XT at 1080p, High:
+
+  | Backend | Average FPS | Steady FPS |
+  |---|---|---|
+  | OpenGL | 984 | 250 |
+  | Direct3D 11 | 754 | 233 |
+  | Direct3D 11 on 12 | 500 | 179 |
+  | Vulkan | 197 | 172 |
+
+  A still scene alone would mislead: Vulkan rendered one at over 5000 fps there but streamed new terrain at under 300, and OpenGL without the GPU queue limit averaged 2000 fps that looked like 20.
+- What RAM can and cannot do: Chromium caps a page's JavaScript heap at about 4 GB (it already allows that much on PCs with 16 GB of RAM). Terrain data lives outside that heap, so the useful places for RAM are the **world memory cache** (explored chunks stay in memory, so coming back skips terrain generation; it helps most on CPUs with few cores) and a longer render distance (48 chunks keeps about 7,700 chunks loaded: about 1.2 GB of RAM and 1.5 GB of VRAM).
+- Command line: `VoxelCraft.exe --play` (start straight away), `--benchmark`, `--print` (show the browser command line), `--gpus`.
+
+**Other changes**
+- Singleplayer has **Export** and **Import**: a world travels as one `.vcworld.json` file, for example from your normal browser into the desktop edition (each browser keeps its own worlds).
+- World Memory Cache (Settings, Video) is also available in a browser tab; it is off there by default.
+- If the graphics driver resets, the game saves the world and offers a reload instead of freezing behind a dialog.
+
 ## Update 4: flying the jets from the cockpit
 
 Press F5 in the Stormcrow or the Wraith until you are in the pilot's seat.
@@ -146,7 +186,7 @@ RAM makes almost no difference; the GPU path does. Press F3 and check the render
 
 ## Testing locally
 
-`node serve.js` serves `minecraft.html` at http://localhost:8123. Opening the file directly works too.
+`node serve.js` serves `minecraft.html` at http://localhost:8123. Opening the file directly works too. The desktop edition is `dist/VoxelCraft-Windows/VoxelCraft.exe` after `node build.js`.
 
 ## What changed from the original build
 
@@ -178,7 +218,7 @@ Press F to board or exit a vehicle and F5 to switch cameras. Each vehicle has it
 
 ## Editing
 
-The sources are in `src/` (`shared/` runs in the workers and the main thread, `main/` runs on the main thread only). Rebuild the single file with:
+The sources are in `src/` (`shared/` runs in the workers and the main thread, `main/` runs on the main thread only). The launcher is `launcher/VoxelCraftLauncher.cs`. Rebuild the single file and the Windows edition with:
 
 ```
 node build.js

@@ -17,11 +17,12 @@ class Game {
     this.player = null; this.world = null; this.meta = null;
     this.matBuf = new Float32Array(24 * 16);
     this.boostFx = 0; this.shake = 0;
+    this.chunkCache = new ChunkCache();
   }
   async boot() {
     const gl = GLX.init(this.canvas);
     if (!gl) { $('#fatal').style.display = 'flex'; $('#fatal').innerHTML = '<div><h1>WebGL 2 is not available</h1><p>This game needs a browser with WebGL 2 support (Chrome, Edge, Firefox, Safari 15+).</p></div>'; return; }
-    this.canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); alert('Graphics context lost — please reload the page.'); });
+    this.canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.onContextLost(); });
     if (GLX.software && !SETTINGS.swApplied) { applyPreset('potato'); SETTINGS.swApplied = 1; saveSettings(); }
     this.renderer = new Renderer(this);
     this.perf = new PerfGovernor(this);
@@ -47,11 +48,26 @@ class Game {
     this.startMenuWorld();
     this.ui.showTitle();
     this.last = performance.now();
-    requestAnimationFrame((t) => this.loop(t));
+    this.pacer = new FramePacer(this);
+    this.pacer.start();
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.meta) { this.saveAll(); if (this.state === 'playing') this.pause(); } });
     window.addEventListener('beforeunload', () => { if (this.meta) this.saveAll(); });
     window.addEventListener('resize', () => this.renderer.resize());
     setInterval(() => { if (this.meta && (this.state === 'playing' || this.state === 'paused')) this.saveAll(); }, 60000);
+  }
+  // A lost context (driver reset, GPU process crash) cannot be recovered without rebuilding every GPU resource, so
+  // the world is saved and the page offers a reload. Not an alert(): that would freeze the page (and the launcher's
+  // benchmark, which reads the result from the window title) until someone clicks it.
+  onContextLost() {
+    if (this.ctxLost) return;
+    this.ctxLost = true;
+    if (LAUNCH.bench) document.title = 'VCBENCH:' + JSON.stringify({ ok: false, error: 'the graphics context was lost', renderer: GLX.renderer || '' });
+    if (this.meta && this.player) this.saveAll().catch(() => { });
+    const f = $('#fatal'); f.style.display = 'flex';
+    f.innerHTML = '<div><h1>The graphics driver stopped responding</h1><p>The WebGL context was lost: the GPU driver reset, or the browser\'s GPU process crashed.' + (this.meta ? ' Your world was saved.' : '') + '</p>' +
+      (LAUNCH.desktop ? '<p>If this keeps happening, pick another graphics backend in the launcher (Graphics &gt; Graphics backend).</p>' : '') +
+      '<p><button id="ctx-reload" style="font: inherit; padding: 8px 22px; cursor: pointer">Reload</button></p></div>';
+    $('#ctx-reload').onclick = () => location.reload();
   }
   // ---------------------------------------------------------------- menu panorama world
   startMenuWorld() {
@@ -85,6 +101,7 @@ class Game {
   }
   async playWorld(meta) {
     this.ui.clearScreen();
+    if (this.chunkCache.world !== meta.id) { this.chunkCache.clear(); this.chunkCache.world = meta.id; }
     this.meta = meta; this.save.worldId = meta.id;
     meta.lastPlayed = Date.now();
     this.jobs.broadcast({ t: 'init', seed: meta.seed, opts: { worldType: meta.type, structures: meta.structures !== false } });
@@ -176,6 +193,7 @@ class Game {
     await this.saveAll();
     await this.unloadWorld();
     this.disposeWorld(this.world);
+    this.chunkCache.clear(); this.chunkCache.world = null;
     this.ui.hideLoading();
     this.input.releaseLock();
     this.startMenuWorld();
@@ -202,23 +220,26 @@ class Game {
     };
   }
   // ---------------------------------------------------------------- main loop
-  loop(t) {
-    requestAnimationFrame((tt) => this.loop(tt));
-    const S = SETTINGS;
-    if (S.fpsCap && this.lastRender && t - this.lastRender < 1000 / S.fpsCap - 1.5) return;
-    const interval = t - this.last;
-    let dt = Math.min(0.1, interval / 1000);
-    this.last = t; this.lastRender = t;
+  // one frame, called by the frame pacer with the interval since the previous frame, and that interval minus any
+  // time the pacer spent deliberately waiting (what Auto Quality judges)
+  runFrame(intervalMs, busyMs) {
+    const dt = Math.min(0.1, Math.max(0, intervalMs) / 1000);
+    const t0 = this.last = this.lastRender = performance.now();
     this.frame++;
-    const t0 = performance.now();
-    this.fpsSmooth += (1 / Math.max(dt, 0.001) - this.fpsSmooth) * 0.05;
     try { this.frameUpdate(dt); } catch (e) { console.error(e); if (!this.errShown) { this.errShown = true; this.ui.message('Error: ' + e.message, '#f66'); } }
     const work = performance.now() - t0;
     this.frameMs += (work - this.frameMs) * 0.1;
-    if (this.perf) this.perf.update(interval, work);
+    if (this.pacer.fps) this.fpsSmooth = this.pacer.fps;
+    if (this.perf) this.perf.update(busyMs, work);
   }
   frameUpdate(dt) {
     const w = this.world, p = this.player;
+    // audio (and the vehicles' engine sounds) update at most 60 times a second, the HUD and overlays at most
+    // SETTINGS.hudHz: at hundreds of frames per second redrawing them every frame only costs time (the HUD keeps
+    // its last drawing in between)
+    this.audioAcc = (this.audioAcc || 0) + dt;
+    this.audioTick = this.audioAcc >= 1 / 60 - 1e-4;
+    const adt = this.audioAcc; if (this.audioTick) this.audioAcc = 0;
     if (this.state === 'loading') {
       w.update(this.loadTarget[0], this.loadTarget[1], 12);
       this.jobs.pump(this.frameMs);
@@ -241,7 +262,7 @@ class Game {
       this.renderer.render(this, dt);
       EFF.renderDist = R0;
       this.jobs.pump(this.frameMs);
-      this.audio.update(dt);
+      if (this.audioTick) this.audio.update(adt);
       return;
     }
     const playing = this.state === 'playing';
@@ -266,11 +287,16 @@ class Game {
     }
     this.renderer.render(this, dt);
     if (this.wantShot) { this.wantShot = false; this.canvas.toBlob((b) => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'voxelcraft_' + Date.now() + '.png'; a.click(); }); this.ui.message('Saved screenshot', '#afa'); }
-    this.ui.updateHUD(dt);
-    this.vhud.draw(dt);
-    this.ui.tickScreens();
+    const hz = +SETTINGS.hudHz || 0;
+    this.hudAcc = (this.hudAcc || 0) + dt;
+    if (!hz || this.hudAcc >= 1 / hz - 1e-4) {
+      const hdt = this.hudAcc; this.hudAcc = 0;
+      this.ui.updateHUD(hdt);
+      this.vhud.draw(hdt);
+      this.ui.tickScreens();
+    }
     if ((this.frame & 15) === 0) this.input.updateTouchVisibility();
-    this.audio.update(dt);
+    if (this.audioTick) this.audio.update(adt);
     if (p.sleeping) this.ui.showSleep(Math.min(1, p.sleeping / 80));
   }
   screenRay(sx, sy) {
@@ -759,6 +785,7 @@ class Game {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, R.skinTex); gl.uniform1i(ent.u.uSkin, 0);
     gl.uniform1f(ent.u.uAlphaMul, 1);
     const ED = SETTINGS.entityDist, t = R.time;
+    const fdt = this._entT === undefined ? 1 / 60 : clamp(t - this._entT, 0, 0.1); this._entT = t;
     const held = [];
     const Mm = this._Mm || (this._Mm = M4.create());
     const drawModel = (e, model, x, y, z, bodyYaw, scale, opts) => {
@@ -809,7 +836,7 @@ class Game {
       let flash = 0;
       if (e.type === 'boomcap' && e.fuse > 0) { const f = e.fuse / 30; scale *= 1 + f * 0.15 + Math.sin(e.fuse * 1.3) * 0.03; flash = Math.floor(e.fuse / 3) % 2 ? 0.55 : 0; }
       if (e.type === 'tnt') continue;
-      if (isP && !p.vehicle) { e.bodyYaw = e.bodyYaw === undefined ? e.yaw : e.bodyYaw + angleDiff(e.bodyYaw, e.yaw) * (Math.hypot(e.vx, e.vz) > 0.02 ? 0.3 : 0.08); e.headYaw = e.yaw; if (Math.abs(angleDiff(e.bodyYaw, e.yaw)) > 0.8) e.bodyYaw = e.yaw - Math.sign(angleDiff(e.bodyYaw, e.yaw)) * 0.8; }
+      if (isP && !p.vehicle) { e.bodyYaw = e.bodyYaw === undefined ? e.yaw : e.bodyYaw + angleDiff(e.bodyYaw, e.yaw) * (1 - Math.pow(Math.hypot(e.vx, e.vz) > 0.02 ? 0.7 : 0.92, fdt * 60)); e.headYaw = e.yaw; if (Math.abs(angleDiff(e.bodyYaw, e.yaw)) > 0.8) e.bodyYaw = e.yaw - Math.sign(angleDiff(e.bodyYaw, e.yaw)) * 0.8; }
       const by = (e.lyaw !== undefined && !isP) ? e.bodyYaw : e.bodyYaw;
       const mats = drawModel(e, model, x, y, z, by, scale, { flash, q: isP && p.vehicle ? p.vehicle.q : null });
       const hid = isP ? (p.vehicle ? 0 : e.heldId()) : (e.heldItem ? e.heldItem() : 0);
@@ -1006,7 +1033,8 @@ class Game {
     const p = this.player; if (!p || p.vehicle || p.camMode !== 0 || p.spectator || SETTINGS.hudHidden || p.dead || p.sleeping) return;
     const gl = R.gl, a = this.alpha, w = this.world;
     const held = p.heldStack(), d = held ? ITEMS[held.id] : null;
-    this.equipT = Math.min(1, (this.equipT === undefined ? 1 : this.equipT) + 0.12);
+    const hdt = this._handT === undefined ? 0 : clamp(R.time - this._handT, 0, 0.1); this._handT = R.time;
+    this.equipT = Math.min(1, (this.equipT === undefined ? 1 : this.equipT) + hdt * 7.2);
     const sw = p.swingAnim > 0 ? 1 - p.swingAnim : 0;
     const s1 = Math.sin(sw * Math.PI), s2 = Math.sin(Math.sqrt(sw) * Math.PI);
     const bob = p.lbob + (p.bob - p.lbob) * a, amt = SETTINGS.viewBob ? p.lbobAmt + (p.bobAmt - p.lbobAmt) * a : 0;

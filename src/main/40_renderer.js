@@ -1,9 +1,13 @@
 // ============================================================================
 //  Renderer: textures, chunk meshes, visibility, shadows, sky, post-processing
 //
-//  Chunk geometry lives in large per-region vertex arenas (16x16 chunks each).
+//  Chunk geometry lives in large per-region vertex arenas (8x8 chunks each).
 //  Every section is a sub-allocation, so a whole region is drawn with a single
 //  WEBGL_multi_draw call per layer instead of one draw call per 16^3 section.
+//  8x8 rather than 16x16: writing into an arena the GPU is drawing from is expensive in ANGLE, and the cost grows
+//  with the arena. While terrain streams in that happens hundreds of times a second, and arenas a quarter the size
+//  removed the 25-80 ms stalls 16x16 ones caused at high frame rates (measured on Direct3D 11 and OpenGL), for a
+//  few more (cheap) multi-draw calls.
 // ============================================================================
 const WEATHER_VS = GLSL_COMMON + `
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aUV; layout(location=2) in float aA;
@@ -14,7 +18,7 @@ uniform sampler2DArray uTexI; uniform vec3 uCol, uFogColor; uniform float uFar;
 in vec3 vUV; in float vA; in vec3 vPos; out vec4 o;
 void main() { vec4 t = texture(uTexI, vUV); if (t.a < 0.05) discard; float f = smoothstep(uFar * 0.6, uFar, length(vPos)); o = vec4(mix(t.rgb * uCol, uFogColor, f), t.a * vA * 0.75); }`;
 
-const RSH = 4, RCH = 1 << RSH;
+const RSH = 3, RCH = 1 << RSH;
 class DrawList {
   constructor() { this.n = 0; this.quads = 0; this.cnt = new Int32Array(128); this.off = new Int32Array(128); }
   reset() { this.n = 0; this.quads = 0; }
@@ -45,7 +49,10 @@ class ChunkRegion {
     cap = (cap + 4095) & ~4095;
     const nb = gl.createBuffer();
     gl.bindBuffer(gl.COPY_WRITE_BUFFER, nb);
-    gl.bufferData(gl.COPY_WRITE_BUFFER, cap * 64, gl.DYNAMIC_DRAW);
+    // STATIC_DRAW even though sections are rewritten with bufferSubData: ANGLE's D3D11 backend (every browser's default
+    // on Windows) binds only static buffers directly and copies DYNAMIC ones into a streaming buffer on every draw.
+    // For the chunk arenas that copy cost four times the rest of the frame (High preset: ~215 fps -> ~1100 fps).
+    gl.bufferData(gl.COPY_WRITE_BUFFER, cap * 64, gl.STATIC_DRAW);
     if (old) {
       gl.bindBuffer(gl.COPY_READ_BUFFER, this.vbo);
       gl.copyBufferSubData(gl.COPY_READ_BUFFER, gl.COPY_WRITE_BUFFER, 0, 0, old * 64);
@@ -212,10 +219,13 @@ class Renderer {
     if (this.skinTex) gl.deleteTexture(this.skinTex);
     this.skinTex = this.texArray(S, n, data, new Uint8Array(n).fill(1), true);
   }
+  // the quad index buffer shared by every arena: it has to cover the largest one. It starts big enough for the
+  // usual 8x8-chunk region and doubles when one outgrows it, because rebuilding it (millions of indices) mid-game
+  // cost 100+ ms each time
   ensureIndices(quads) {
     if (quads <= this.iboQuads) return;
     const gl = this.gl;
-    const n = Math.max(quads, Math.ceil(this.iboQuads * 1.5), 1 << 15);
+    const n = Math.max(quads, this.iboQuads * 2, 1 << 19);
     const idx = new Uint32Array(n * 6);
     for (let q = 0, i = 0; q < n; q++) { const v = q * 4; idx[i++] = v; idx[i++] = v + 1; idx[i++] = v + 2; idx[i++] = v; idx[i++] = v + 2; idx[i++] = v + 3; }
     gl.bindVertexArray(null);
@@ -335,7 +345,7 @@ class Renderer {
     gl.bindTexture(gl.TEXTURE_2D, t);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
-    this.shadow = { tex: t, fbo: GLX.fbo(null, t), size, dist: [0, 48, 80, 112][q], frame: -1e9, valid: false, dirty: true, cx: 0, cy: 0, cz: 0, L: [0, 1, 0], mat: M4.create() };
+    this.shadow = { tex: t, fbo: GLX.fbo(null, t), size, dist: [0, 48, 80, 112][q], time: -1e9, valid: false, dirty: true, cx: 0, cy: 0, cz: 0, L: [0, 1, 0], mat: M4.create() };
   }
   // ------------------------------------------------------------------ section meshes (region arenas)
   regionFor(cx, cz) {
@@ -391,7 +401,11 @@ class Renderer {
     const g = this.game, pg = g.perf;
     return `Regions: ${n}  VRAM ${(cap * 64 / 1048576).toFixed(0)} MB  ${this.md ? 'multi-draw' : 'draw loop'}  shadow redraws ${this.stats.shadowFrames}\n` +
       `Render ${this.width}x${this.height} -> ${this.outW}x${this.outH}  ${pg ? pg.describe() : ''}\n` +
-      `Workers: ${g.jobs ? (g.jobs.fallback ? 'none (main-thread fallback)' : g.jobs.workers.length) : '-'}${GLX.software ? '  SOFTWARE RENDERING' : ''}`;
+      `Workers: ${g.jobs ? (g.jobs.fallback ? 'none (main-thread fallback)' : g.jobs.workers.length) : '-'}${GLX.software ? '  SOFTWARE RENDERING' : ''}  ${g.chunkCache ? g.chunkCache.describe() : ''}
+` +
+      (g.pacer ? g.pacer.describe() : '') +
+      (LAUNCH.desktop ? `
+Desktop launcher: ${LAUNCH.browser || 'browser'}${LAUNCH.angle ? ', ANGLE ' + LAUNCH.angle : ''}${LAUNCH.gpu ? ', GPU ' + LAUNCH.gpu : ''}${LAUNCH.heapMB ? ', JS heap ' + LAUNCH.heapMB + ' MB' : ''}${LAUNCH.uncapped ? ', frame limiter off' : ''}` : '');
   }
   // ------------------------------------------------------------------ camera / frustum
   setupCamera(cam) {
@@ -741,9 +755,10 @@ class Renderer {
     const mx = cam.x - sh.cx, my = cam.y - sh.cy, mz = cam.z - sh.cz;
     const dl = L[0] * sh.L[0] + L[1] * sh.L[1] + L[2] * sh.L[2];
     const lim = dist * 0.06;
-    const need = sh.dirty || !sh.valid || mx * mx + my * my + mz * mz > lim * lim || dl < 0.9999995 || this.frameNo - sh.frame > 120;
+    // also refreshed every 2 s regardless (by time: at 1000+ fps a frame count would mean many times a second)
+    const need = sh.dirty || !sh.valid || mx * mx + my * my + mz * mz > lim * lim || dl < 0.9999995 || this.time - sh.time > 2;
     if (need) {
-      sh.valid = true; sh.dirty = false; sh.frame = this.frameNo; this.stats.shadowFrames++;
+      sh.valid = true; sh.dirty = false; sh.time = this.time; this.stats.shadowFrames++;
       sh.cx = cam.x; sh.cy = cam.y; sh.cz = cam.z; sh.L[0] = L[0]; sh.L[1] = L[1]; sh.L[2] = L[2];
       const Rm = this.tmpM;
       M4.lookDir(Rm, -L[0], -L[1], -L[2], 0, 1, 0);

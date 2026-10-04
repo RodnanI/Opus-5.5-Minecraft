@@ -186,7 +186,8 @@ class Vehicle extends Entity {
     out[0] = c.x + d[0] * t; out[1] = c.y + d[1] * t; out[2] = c.z + d[2] * t;
     return out;
   }
-  sound(dt) { const g = this.game; if (g.audio && g.audio.engine) g.audio.engine(this, this.engineSpec()); }
+  // engine sound parameters change at the audio update rate (the game sets audioTick), not every frame
+  sound(dt) { const g = this.game; if (g.audio && g.audio.engine && g.audioTick !== false) g.audio.engine(this, this.engineSpec()); }
   engineSpec() { return null; }
   // chase / cockpit camera
   cameraUpdate(c, dt, p) {

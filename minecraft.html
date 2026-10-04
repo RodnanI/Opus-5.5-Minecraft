@@ -3922,6 +3922,30 @@ function transformPoint(m, x, y, z, out) {
   return out;
 }
 
+// ---------------------------------------------------------------- desktop launcher options
+// VoxelCraft.exe (the Windows launcher) opens this file in a private Chromium window and passes options in the
+// URL query: engine limits that are not regular settings, and set.<setting>=<value> overrides applied at startup.
+//   launcher=1    started by the launcher            uncapped=1   Chromium runs without its frame-rate limit
+//   hz=144        display refresh rate               workers=12   chunk worker threads
+//   rdmax=48      render distance slider maximum     lowlatency=1 desynchronized (low-latency) canvas
+//   bench=8       run the backend benchmark (71_bench.js) and report in the window title
+//   bootdelay=ms  wait before creating the WebGL context (the launcher's fix for a Chromium Vulkan startup race)
+//   heap, gpu, angle, browser: shown in the F3 screen
+const LAUNCH = (() => {
+  const o = { desktop: false, uncapped: false, set: {} };
+  let q;
+  try { q = new URLSearchParams(location.search); } catch (e) { return o; }
+  const num = (k, lo, hi) => { const v = parseFloat(q.get(k)); return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : undefined; };
+  o.desktop = q.get('launcher') === '1'; o.uncapped = q.get('uncapped') === '1'; o.lowLatency = q.get('lowlatency') === '1';
+  o.hz = num('hz', 20, 1000); o.workers = num('workers', 1, 32); o.rdMax = num('rdmax', 8, 64); o.heapMB = num('heap', 0, 1 << 20);
+  o.bench = num('bench', 1, 120); o.bootDelay = num('bootdelay', 0, 10000);
+  o.gpu = q.get('gpu') || ''; o.angle = q.get('angle') || ''; o.browser = q.get('browser') || '';
+  for (const [k, v] of q) if (k.startsWith('set.')) o.set[k.slice(4)] = v;
+  // the launcher waits for the title to change before it switches a window to fullscreen (see 99_boot.js)
+  if (o.desktop) document.title = 'VoxelCraft (starting)';
+  return o;
+})();
+
 // ---------------------------------------------------------------- settings
 // Every preset renders at the display's native pixel density; Auto Quality lowers the internal
 // resolution (with a sharpening upscale) and then individual effects only when the GPU can't keep up.
@@ -3937,8 +3961,14 @@ const DEFAULT_SETTINGS = Object.assign({
   fov: 70, brightness: 0.5, viewBob: true, sensitivity: 0.5, invertY: false, showFps: false,
   masterVol: 0.8, musicVol: 0.5, sfxVol: 0.8, ambientVol: 0.6,
   autoJump: IS_TOUCH, touchAim: IS_TOUCH ? 'touch' : 'crosshair', buttonSize: 1, buttonOpacity: 0.55, guiScale: 0,
-  autoQuality: true, sharpen: 0.25, fpsCap: 0, fog: true, tonemap: true, vignette: true, cloudHeight: 150, hudHidden: false, gamma: 1,
+  autoQuality: true, sharpen: 0.25, fog: true, tonemap: true, vignette: true, cloudHeight: 150, hudHidden: false, gamma: 1,
   cockpitFx: true, flightInvert: false,
+  // frame pacing: fpsCap -1 = VSync, 0 = unlimited, n = cap; menuVsync limits the title and pause screens to VSync;
+  // aqTarget is the frame rate Auto Quality keeps; hudHz caps how often the HUD and overlays redraw (0 = every frame);
+  // gpuQueue: frames in flight on the GPU, 0 = auto (see 69_pacer.js), -1 = the browser's own queueing
+  fpsCap: 0, menuVsync: true, aqTarget: 60, hudHz: 240, gpuQueue: 0,
+  // MB of recently unloaded chunks kept in memory, so returning to an area skips terrain generation
+  chunkCacheMB: 0,
 }, PRESETS[IS_MOBILE ? 'medium' : 'high']);
 const SETTINGS = (() => {
   let s = {};
@@ -3947,7 +3977,20 @@ const SETTINGS = (() => {
   if (s.maxDPR !== undefined && s.maxDPR < 2 && !s.v2) s.maxDPR = 2;
   if (s.dynRes !== undefined) { delete s.dynRes; }
   s.v2 = 1;
-  return Object.assign({}, DEFAULT_SETTINGS, s);
+  s = Object.assign({}, DEFAULT_SETTINGS, s);
+  // launcher overrides: a preset first, then single settings (typed like their defaults)
+  const L = LAUNCH.set;
+  if (L.preset && PRESETS[L.preset]) { Object.assign(s, PRESETS[L.preset]); s.preset = L.preset; }
+  for (const k in L) {
+    if (k === 'preset' || !(k in DEFAULT_SETTINGS)) continue;
+    const d = DEFAULT_SETTINGS[k], v = L[k];
+    if (typeof d === 'boolean') s[k] = v === '1' || v === 'true' || v === 'on';
+    else if (typeof d === 'number') { const n = parseFloat(v); if (isFinite(n)) s[k] = n; }
+    else s[k] = v;
+    if (k in PRESETS.high) s.preset = 'custom';
+  }
+  if (LAUNCH.rdMax) s.renderDist = Math.min(s.renderDist, LAUNCH.rdMax);
+  return s;
 })();
 function saveSettings() { try { localStorage.setItem('vc5_settings', JSON.stringify(SETTINGS)); } catch (e) { } refreshEff(); }
 function applyPreset(name) { if (PRESETS[name]) Object.assign(SETTINGS, PRESETS[name]); SETTINGS.preset = name; saveSettings(); }
@@ -5003,6 +5046,8 @@ const GLX = {
   gl: null, ext: {},
   init(canvas) {
     const attrs = { antialias: false, alpha: false, depth: true, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: false, premultipliedAlpha: false };
+    // launcher option: a desynchronized canvas can reach the screen without waiting for the page compositor
+    if (LAUNCH.lowLatency) attrs.desynchronized = true;
     // Ask for a hardware context first; if the browser can only offer a slow (software) one, still run,
     // but remember it so the game can start at the lowest settings and tell the player why.
     let gl = canvas.getContext('webgl2', Object.assign({ failIfMajorPerformanceCaveat: true }, attrs));
@@ -6553,7 +6598,8 @@ class Jobs {
     this.cbs = new Map();
     const shared = document.getElementById('shared-src').textContent;
     const wsrc = document.getElementById('worker-src').textContent;
-    const n = Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
+    // the desktop launcher can ask for more (or fewer) chunk workers than the browser default
+    const n = LAUNCH.workers || Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
     let ok = false;
     try {
       const url = URL.createObjectURL(new Blob([shared, '\n', wsrc], { type: 'application/javascript' }));
@@ -6623,6 +6669,24 @@ class Chunk {
     this.be = new Map();
     this.lastSeen = 0;
   }
+}
+// Recently unloaded chunks that were never modified, kept in memory (SETTINGS.chunkCacheMB) so that coming back to
+// an area skips terrain generation: only the lighting pass runs again. Modified chunks are saved instead, and
+// chunks holding persistent entities never come from here. Least recently unloaded go first.
+class ChunkCache {
+  constructor() { this.map = new Map(); this.bytes = 0; this.world = null; this.hits = 0; }
+  limit() { return Math.max(0, +SETTINGS.chunkCacheMB || 0) * 1048576; }
+  put(k, e) {
+    if (this.limit() <= 0) return;
+    this.drop(k);
+    this.map.set(k, e); this.bytes += e.bytes;
+    this.trim();
+  }
+  take(k) { const e = this.map.get(k); if (e) { this.drop(k); this.hits++; } return e || null; }
+  drop(k) { const e = this.map.get(k); if (e) { this.map.delete(k); this.bytes -= e.bytes; } }
+  trim() { const lim = this.limit(); for (const k of this.map.keys()) { if (this.bytes <= lim) break; this.drop(k); } }
+  clear() { this.map.clear(); this.bytes = 0; }
+  describe() { const lim = this.limit(); return lim > 0 ? `World cache: ${this.map.size} chunks, ${(this.bytes / 1048576).toFixed(0)} / ${(lim / 1048576).toFixed(0)} MB, ${this.hits} reloads from memory` : 'World cache: off'; }
 }
 class World {
   constructor(game, dim) {
@@ -6826,20 +6890,32 @@ class World {
   }
   update(px, pz, budgetMs) {
     const t0 = now();
-    const pcx = Math.floor(px / 16), pcz = Math.floor(pz / 16);
+    const pcx = Math.floor(px / 16), pcz = Math.floor(pz / 16), pcy = Math.floor(this.game.camera.y / 16);
     const R = EFF.renderDist, LR = R + 1;
-    // candidate lists (nearest first) that feed() hands to the workers, both here and whenever a job completes
-    const cc = this.chunkCands || (this.chunkCands = []); cc.length = 0; this.chunkCi = 0;
-    for (const [dx, dz] of this.spiral(LR)) {
-      const cx = pcx + dx, cz = pcz + dz, k = ckey(cx, cz);
-      if (this.chunks.has(k) || this.pending.has(k)) continue;
-      cc.push(cx, cz);
-      if (cc.length >= 64) break;
+    // candidate lists (nearest first) that feed() hands to the workers, both here and whenever a job completes.
+    // Rebuilt when the player changes chunk, a list runs out, or every 50 ms: at hundreds of frames per second
+    // walking the whole spiral and mesh queue every frame would cost more than the frame itself
+    const moved = pcx !== this.ccx || pcz !== this.ccz || pcy !== this.ccy || LR !== this.cLR;
+    const cc = this.chunkCands || (this.chunkCands = []);
+    if (moved || t0 - (this.ccT || 0) > 50 || (this.chunkCi >= cc.length && t0 - this.ccT > 8)) {
+      this.ccT = t0; cc.length = 0; this.chunkCi = 0;
+      for (const [dx, dz] of this.spiral(LR)) {
+        const cx = pcx + dx, cz = pcz + dz, k = ckey(cx, cz);
+        if (this.chunks.has(k) || this.pending.has(k)) continue;
+        cc.push(cx, cz);
+        if (cc.length >= 64) break;
+      }
     }
-    this.pickMeshes(pcx, pcz, Math.floor(this.game.camera.y / 16));
+    if (moved || t0 - (this.mcT || 0) > 16 || !this.meshCands || this.meshCi >= this.meshCands.length) { this.mcT = t0; this.pickMeshes(pcx, pcz, pcy); }
+    this.ccx = pcx; this.ccz = pcz; this.ccy = pcy; this.cLR = LR;
     this.feed();
+    // light integration gets a share of the frame rather than a fixed slice, so short frames stay short
+    // (at 60 fps this is the same 4 ms as before)
+    const P = this.game.pacer;
+    if (P && P.avgMs > 0 && this.game.state === 'playing') budgetMs = Math.min(budgetMs, Math.max(0.3, P.avgMs * 0.3));
     // unload far chunks
-    if ((this.game.frame & 15) === 0) {
+    if (t0 - (this.unloadT || 0) > 250) {
+      this.unloadT = t0;
       const UR = LR + 2;
       for (const c of this.chunks.values()) {
         const dx = c.cx - pcx, dz = c.cz - pcz;
@@ -6888,6 +6964,12 @@ class World {
   requestChunk(cx, cz, k) {
     this.pending.add(k);
     const dim = this.dim, jobs = this.game.jobs;
+    const hit = this.game.meta && !this.isMenu ? this.game.chunkCache.take(this.cacheKey(k)) : null;
+    if (hit) {
+      const blocks = hit.blocks.slice();
+      jobs.post({ t: 'light', dim, cx, cz, blocks, biomes: hit.biomes, tints: hit.tints }, [blocks.buffer], (d) => this.onChunkData(d, { tags: hit.tags, be: hit.be, ents: [] }));
+      return;
+    }
     if (this.savedKeys.has(k)) {
       this.game.save.loadChunk(dim, cx, cz).then(rec => {
         if (this.game.world !== this || !this.pending.has(k)) return;
@@ -6920,8 +7002,13 @@ class World {
       if (d.spawns && d.spawns.length) c.modified = true;
     }
   }
+  cacheKey(k) { return this.dim + '|' + k; }
   unloadChunk(c) {
     if (c.modified || this.chunkHasPersistentEntities(c)) this.game.save.saveChunk(this, c);
+    else if (this.game.meta && !this.isMenu) {
+      const t = c.tints, bytes = c.blocks.byteLength + c.biomes.byteLength + (t ? t.grass.byteLength + t.foliage.byteLength + t.water.byteLength : 0) + 2048;
+      this.game.chunkCache.put(this.cacheKey(c.key), { blocks: c.blocks, biomes: c.biomes, tints: t, tags: c.tags, be: [...c.be.values()], bytes });
+    }
     for (const sec of c.sections) { this.game.renderer.freeSection(sec); this.meshQueue.delete(sec); this.urgent.delete(sec); }
     for (const be of c.be.values()) this.activeBE.delete(be);
     // remove entities in chunk
@@ -9577,9 +9664,13 @@ class Player extends Entity {
 // ============================================================================
 //  Renderer: textures, chunk meshes, visibility, shadows, sky, post-processing
 //
-//  Chunk geometry lives in large per-region vertex arenas (16x16 chunks each).
+//  Chunk geometry lives in large per-region vertex arenas (8x8 chunks each).
 //  Every section is a sub-allocation, so a whole region is drawn with a single
 //  WEBGL_multi_draw call per layer instead of one draw call per 16^3 section.
+//  8x8 rather than 16x16: writing into an arena the GPU is drawing from is expensive in ANGLE, and the cost grows
+//  with the arena. While terrain streams in that happens hundreds of times a second, and arenas a quarter the size
+//  removed the 25-80 ms stalls 16x16 ones caused at high frame rates (measured on Direct3D 11 and OpenGL), for a
+//  few more (cheap) multi-draw calls.
 // ============================================================================
 const WEATHER_VS = GLSL_COMMON + `
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aUV; layout(location=2) in float aA;
@@ -9590,7 +9681,7 @@ uniform sampler2DArray uTexI; uniform vec3 uCol, uFogColor; uniform float uFar;
 in vec3 vUV; in float vA; in vec3 vPos; out vec4 o;
 void main() { vec4 t = texture(uTexI, vUV); if (t.a < 0.05) discard; float f = smoothstep(uFar * 0.6, uFar, length(vPos)); o = vec4(mix(t.rgb * uCol, uFogColor, f), t.a * vA * 0.75); }`;
 
-const RSH = 4, RCH = 1 << RSH;
+const RSH = 3, RCH = 1 << RSH;
 class DrawList {
   constructor() { this.n = 0; this.quads = 0; this.cnt = new Int32Array(128); this.off = new Int32Array(128); }
   reset() { this.n = 0; this.quads = 0; }
@@ -9621,7 +9712,10 @@ class ChunkRegion {
     cap = (cap + 4095) & ~4095;
     const nb = gl.createBuffer();
     gl.bindBuffer(gl.COPY_WRITE_BUFFER, nb);
-    gl.bufferData(gl.COPY_WRITE_BUFFER, cap * 64, gl.DYNAMIC_DRAW);
+    // STATIC_DRAW even though sections are rewritten with bufferSubData: ANGLE's D3D11 backend (every browser's default
+    // on Windows) binds only static buffers directly and copies DYNAMIC ones into a streaming buffer on every draw.
+    // For the chunk arenas that copy cost four times the rest of the frame (High preset: ~215 fps -> ~1100 fps).
+    gl.bufferData(gl.COPY_WRITE_BUFFER, cap * 64, gl.STATIC_DRAW);
     if (old) {
       gl.bindBuffer(gl.COPY_READ_BUFFER, this.vbo);
       gl.copyBufferSubData(gl.COPY_READ_BUFFER, gl.COPY_WRITE_BUFFER, 0, 0, old * 64);
@@ -9788,10 +9882,13 @@ class Renderer {
     if (this.skinTex) gl.deleteTexture(this.skinTex);
     this.skinTex = this.texArray(S, n, data, new Uint8Array(n).fill(1), true);
   }
+  // the quad index buffer shared by every arena: it has to cover the largest one. It starts big enough for the
+  // usual 8x8-chunk region and doubles when one outgrows it, because rebuilding it (millions of indices) mid-game
+  // cost 100+ ms each time
   ensureIndices(quads) {
     if (quads <= this.iboQuads) return;
     const gl = this.gl;
-    const n = Math.max(quads, Math.ceil(this.iboQuads * 1.5), 1 << 15);
+    const n = Math.max(quads, this.iboQuads * 2, 1 << 19);
     const idx = new Uint32Array(n * 6);
     for (let q = 0, i = 0; q < n; q++) { const v = q * 4; idx[i++] = v; idx[i++] = v + 1; idx[i++] = v + 2; idx[i++] = v; idx[i++] = v + 2; idx[i++] = v + 3; }
     gl.bindVertexArray(null);
@@ -9911,7 +10008,7 @@ class Renderer {
     gl.bindTexture(gl.TEXTURE_2D, t);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
-    this.shadow = { tex: t, fbo: GLX.fbo(null, t), size, dist: [0, 48, 80, 112][q], frame: -1e9, valid: false, dirty: true, cx: 0, cy: 0, cz: 0, L: [0, 1, 0], mat: M4.create() };
+    this.shadow = { tex: t, fbo: GLX.fbo(null, t), size, dist: [0, 48, 80, 112][q], time: -1e9, valid: false, dirty: true, cx: 0, cy: 0, cz: 0, L: [0, 1, 0], mat: M4.create() };
   }
   // ------------------------------------------------------------------ section meshes (region arenas)
   regionFor(cx, cz) {
@@ -9967,7 +10064,11 @@ class Renderer {
     const g = this.game, pg = g.perf;
     return `Regions: ${n}  VRAM ${(cap * 64 / 1048576).toFixed(0)} MB  ${this.md ? 'multi-draw' : 'draw loop'}  shadow redraws ${this.stats.shadowFrames}\n` +
       `Render ${this.width}x${this.height} -> ${this.outW}x${this.outH}  ${pg ? pg.describe() : ''}\n` +
-      `Workers: ${g.jobs ? (g.jobs.fallback ? 'none (main-thread fallback)' : g.jobs.workers.length) : '-'}${GLX.software ? '  SOFTWARE RENDERING' : ''}`;
+      `Workers: ${g.jobs ? (g.jobs.fallback ? 'none (main-thread fallback)' : g.jobs.workers.length) : '-'}${GLX.software ? '  SOFTWARE RENDERING' : ''}  ${g.chunkCache ? g.chunkCache.describe() : ''}
+` +
+      (g.pacer ? g.pacer.describe() : '') +
+      (LAUNCH.desktop ? `
+Desktop launcher: ${LAUNCH.browser || 'browser'}${LAUNCH.angle ? ', ANGLE ' + LAUNCH.angle : ''}${LAUNCH.gpu ? ', GPU ' + LAUNCH.gpu : ''}${LAUNCH.heapMB ? ', JS heap ' + LAUNCH.heapMB + ' MB' : ''}${LAUNCH.uncapped ? ', frame limiter off' : ''}` : '');
   }
   // ------------------------------------------------------------------ camera / frustum
   setupCamera(cam) {
@@ -10317,9 +10418,10 @@ class Renderer {
     const mx = cam.x - sh.cx, my = cam.y - sh.cy, mz = cam.z - sh.cz;
     const dl = L[0] * sh.L[0] + L[1] * sh.L[1] + L[2] * sh.L[2];
     const lim = dist * 0.06;
-    const need = sh.dirty || !sh.valid || mx * mx + my * my + mz * mz > lim * lim || dl < 0.9999995 || this.frameNo - sh.frame > 120;
+    // also refreshed every 2 s regardless (by time: at 1000+ fps a frame count would mean many times a second)
+    const need = sh.dirty || !sh.valid || mx * mx + my * my + mz * mz > lim * lim || dl < 0.9999995 || this.time - sh.time > 2;
     if (need) {
-      sh.valid = true; sh.dirty = false; sh.frame = this.frameNo; this.stats.shadowFrames++;
+      sh.valid = true; sh.dirty = false; sh.time = this.time; this.stats.shadowFrames++;
       sh.cx = cam.x; sh.cy = cam.y; sh.cz = cam.z; sh.L[0] = L[0]; sh.L[1] = L[1]; sh.L[2] = L[2];
       const Rm = this.tmpM;
       M4.lookDir(Rm, -L[0], -L[1], -L[2], 0, 1, 0);
@@ -11956,7 +12058,8 @@ class Vehicle extends Entity {
     out[0] = c.x + d[0] * t; out[1] = c.y + d[1] * t; out[2] = c.z + d[2] * t;
     return out;
   }
-  sound(dt) { const g = this.game; if (g.audio && g.audio.engine) g.audio.engine(this, this.engineSpec()); }
+  // engine sound parameters change at the audio update rate (the game sets audioTick), not every frame
+  sound(dt) { const g = this.game; if (g.audio && g.audio.engine && g.audioTick !== false) g.audio.engine(this, this.engineSpec()); }
   engineSpec() { return null; }
   // chase / cockpit camera
   cameraUpdate(c, dt, p) {
@@ -15227,10 +15330,14 @@ class CockpitRenderer {
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, CK_LEGEND.y, gl.RGBA, gl.UNSIGNED_BYTE, lg);
     return K;
   }
-  // redraw a couple of screens per frame (all of them when the cockpit first comes up) and upload them
-  screens(K, v, game) {
-    const gl = this.gl, list = K.disp, n = K.fresh ? list.length : Math.min(list.length, 2);
+  // redraw screens round robin, about 120 a second in total (all of them when the cockpit first comes up), and
+  // upload them. Counted in time, not frames: at 1000+ fps two per frame would redraw every screen constantly
+  screens(K, v, game, dt) {
+    K.acc = Math.min(4, (K.acc || 0) + dt * 120);
+    const gl = this.gl, list = K.disp, n = K.fresh ? list.length : Math.min(list.length, Math.floor(K.acc));
+    if (!K.fresh) K.acc -= n;
     K.fresh = false;
+    if (!n) return;
     gl.bindTexture(gl.TEXTURE_2D, K.tex);
     for (let k = 0; k < n; k++) {
       const d = list[K.next]; K.next = (K.next + 1) % list.length;
@@ -15254,7 +15361,7 @@ class CockpitRenderer {
     const t = R.time, dt = clamp(t - (this.last || t), 0, 0.1); this.last = t;
     if (this.kindNow !== v || game.frame - (this.frameSeen || 0) > 2) K.fresh = true;
     this.kindNow = v; this.frameSeen = game.frame;
-    this.screens(K, v, game);
+    this.screens(K, v, game, dt);
     // the sun (or moon) seen from the eye: is terrain in the way?
     const L = env.lightDir, hit = raycast(w, cam.x, cam.y, cam.z, L[0], L[1], L[2], 96, false);
     this.sunVis += ((hit ? 0 : 1) - this.sunVis) * Math.min(1, dt * 9);
@@ -16228,7 +16335,9 @@ class UI {
     }
     // compass / clock readouts replace the item name while held
     const held = ITEMS[p.heldId()], info = held && held.info;
-    if (info && (g.frame & 7) === 0) {
+    const tnow = now();
+    if (info && tnow - (this.infoT || 0) > 120) {
+      this.infoT = tnow;
       let txt;
       if (info === 'clock') {
         if (g.world.dim !== 'overworld') txt = 'Clock: the hands spin aimlessly';
@@ -16258,14 +16367,20 @@ class UI {
     this.cross.style.display = p.camMode === 0 && !SETTINGS.hudHidden ? 'block' : 'none';
     // debug / fps
     this.fps.style.display = SETTINGS.showFps && !this.debug ? 'block' : 'none';
-    if (SETTINGS.showFps) this.fps.textContent = Math.round(g.fpsSmooth) + ' FPS';
+    if (SETTINGS.showFps && tnow - (this.fpsT || 0) > 250) {
+      // in a normal tab Unlimited renders more frames than the browser can show: say so instead of implying them
+      this.fpsT = tnow;
+      const P = g.pacer, shown = P && !P.uncapped && P.shownHz > 0 && P.shownHz < P.fps * 0.8 ? ` (${Math.round(P.shownHz)} shown)` : '';
+      this.fps.textContent = Math.round(g.fpsSmooth) + ' FPS' + shown;
+    }
     this.dbg.style.display = this.debug ? 'block' : 'none';
-    if (this.debug && (g.frame & 7) === 0) {
+    if (this.debug && tnow - (this.dbgT || 0) > 100) {
+      this.dbgT = tnow;
       const w = g.world, R = g.renderer, bx = Math.floor(p.x), by = Math.floor(p.y), bz = Math.floor(p.z);
       const l = w.getLight(bx, by, bz), dirs = ['north (-Z)', 'east (+X)', 'south (+Z)', 'west (-X)'];
       const t = p.target;
       this.dbg.textContent = [
-        `VoxelCraft  ${Math.round(g.fpsSmooth)} fps  (${(g.frameMs || 0).toFixed(1)} ms)`,
+        `VoxelCraft  ${Math.round(g.fpsSmooth)} fps  (cpu ${(g.frameMs || 0).toFixed(2)} ms${R.tq && R.tq.valid ? ', gpu ' + R.tq.ms.toFixed(2) + ' ms' : ''})`,
         `Renderer: ${GLX.renderer}  ${R.width}x${R.height}${R.hdr ? ' HDR' : ''}`,
         `Draws: ${R.stats.draws}  Tris: ${(R.stats.tris / 1000).toFixed(0)}k  Sections: ${R.stats.sections}`,
         R.debugInfo(),
@@ -16329,16 +16444,18 @@ class UI {
         this.btn('Singleplayer', () => this.showWorlds()),
         this.btn('Settings', () => this.showSettings(() => this.showTitle())),
         this.btn('Controls & Help', () => this.showControls(() => this.showTitle()))),
-      h('div', { class: 'foot' }, h('span', null, 'VoxelCraft 1.0 — all art, sound & worlds are procedurally generated'), h('span', null, GLX.renderer || '')));
+      h('div', { class: 'foot' }, h('span', null, 'VoxelCraft 1.0 — all art, sound & worlds are procedurally generated' + (LAUNCH.desktop ? ' · desktop launcher' : '')), h('span', null, GLX.renderer || '')));
     if (GLX.software) this.screen.appendChild(h('div', { class: 'swwarn' }, 'Your browser is drawing this game without the graphics card (software rendering), so it will be slow. Turn on "Use graphics acceleration when available" in the browser settings and restart the browser.'));
   }
   async showWorlds() {
     const g = this.game;
     this.clearScreen(); this.screen.className = 'menu';
     this.backFn = () => this.showTitle();
-    const worlds = await g.save.listWorlds();
+    // the launcher's benchmark world is never listed (it deletes it again; this hides one left by an interrupted run)
+    const worlds = (await g.save.listWorlds()).filter(w => !w.bench);
     let sel = worlds[0] ? worlds[0].id : null;
     const list = h('div', { class: 'wlist' });
+    this.wStatus = h('div', { class: 'wsub', style: { margin: '6px 2px', minHeight: '1.3em' } });
     const draw = () => {
       list.innerHTML = '';
       if (!worlds.length) list.append(h('div', { class: 'empty' }, 'No worlds yet — create one!'));
@@ -16351,13 +16468,39 @@ class UI {
       }
     };
     draw();
-    this.screen.append(this.panel('Select World', list,
+    this.screen.append(this.panel('Select World', list, this.wStatus,
       h('div', { class: 'row' },
         this.btn('Play Selected', () => { const w = worlds.find(x => x.id === sel); if (w) g.playWorld(w); }, 'primary'),
         this.btn('Create New World', () => this.showCreate())),
       h('div', { class: 'row' },
+        this.btn('Export', () => this.exportWorld(worlds.find(x => x.id === sel))),
+        this.btn('Import', () => this.importWorld())),
+      h('div', { class: 'row' },
         this.btn('Delete', async () => { const w = worlds.find(x => x.id === sel); if (!w) return; if (!confirm(`Delete "${w.name}" forever?`)) return; await g.save.deleteWorld(w.id); this.showWorlds(); }, 'danger'),
         this.btn('Back', () => this.showTitle()))));
+  }
+  worldStatus(text, color) { if (this.wStatus) { this.wStatus.textContent = text; this.wStatus.style.color = color || ''; } }
+  // worlds travel as .vcworld.json files: export here, import in another browser or the desktop launcher
+  async exportWorld(w) {
+    if (!w) return;
+    try {
+      const data = await this.game.save.exportWorld(w.id);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+      a.download = (w.name.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'world') + '.vcworld.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      this.worldStatus(`Exported "${w.name}" (${data.chunks.length} saved chunks) to your downloads folder`, '#afa');
+    } catch (e) { this.worldStatus('Export failed: ' + e.message, '#f88'); }
+  }
+  importWorld() {
+    const inp = h('input', { type: 'file', accept: '.json,.vcworld' });
+    inp.onchange = async () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      try { const meta = await this.game.save.importWorld(JSON.parse(await f.text())); await this.showWorlds(); this.worldStatus(`Imported "${meta.name}"`, '#afa'); }
+      catch (e) { this.worldStatus('Import failed: ' + e.message, '#f88'); }
+    };
+    inp.click();
   }
   showCreate() {
     const g = this.game;
@@ -16463,7 +16606,7 @@ class UI {
       Video: [
         { k: 'preset', type: 'preset' },
         { k: 'autoQuality', l: 'Auto Quality (keeps FPS smooth)', type: 'bool' },
-        { k: 'renderDist', l: 'Render Distance', type: 'range', min: 2, max: 24, step: 1, f: v => v + ' chunks' },
+        { k: 'renderDist', l: 'Render Distance', type: 'range', min: 2, max: LAUNCH.rdMax || 24, step: 1, f: v => v + ' chunks' },
         { k: 'resScale', l: 'Resolution Scale', type: 'range', min: 0.3, max: 1, step: 0.05, f: pct },
         { k: 'maxDPR', l: 'Max Pixel Density', type: 'range', min: 0.5, max: 3, step: 0.25, f: v => v + 'x' },
         { k: 'sharpen', l: 'Sharpening', type: 'range', min: 0, max: 1, step: 0.05, f: v => v === 0 ? 'Off' : pct(v) },
@@ -16484,7 +16627,11 @@ class UI {
         { k: 'fov', l: 'Field of View', type: 'range', min: 50, max: 110, step: 1, f: v => v + '°' },
         { k: 'brightness', l: 'Brightness', type: 'range', min: 0, max: 1, step: 0.05, f: v => v === 0 ? 'Moody' : v === 1 ? 'Bright' : pct(v) },
         { k: 'viewBob', l: 'View Bobbing', type: 'bool' },
-        { k: 'fpsCap', l: 'Max FPS', type: 'select', o: ['Unlimited', '30', '60', '90', '120'], v: [0, 30, 60, 90, 120] },
+        { k: 'fpsCap', l: 'Max FPS', type: 'select', o: ['Unlimited', 'VSync (match display)', '30', '60', '75', '90', '120', '144', '165', '240', '360', '500', '1000'], v: [0, -1, 30, 60, 75, 90, 120, 144, 165, 240, 360, 500, 1000] },
+        { k: 'menuVsync', l: 'Limit FPS in Menus (VSync)', type: 'bool' },
+        { k: 'gpuQueue', l: 'GPU Queue (Frames in Flight)', type: 'select', o: ['Auto', 'Browser default', '1 (lowest latency)', '2', '3', '4'], v: [0, -1, 1, 2, 3, 4] },
+        { k: 'aqTarget', l: 'Auto Quality Target', type: 'select', o: ['30 FPS', '60 FPS', '90 FPS', '120 FPS', '144 FPS', '165 FPS', '240 FPS', '360 FPS'], v: [30, 60, 90, 120, 144, 165, 240, 360] },
+        { k: 'chunkCacheMB', l: 'World Memory Cache', type: 'select', o: ['Off', '256 MB', '512 MB', '1 GB', '2 GB', '4 GB', '8 GB'], v: [0, 256, 512, 1024, 2048, 4096, 8192] },
         { k: 'guiScale', l: 'GUI Scale', type: 'select', o: ['Auto', 'Small', 'Normal', 'Large'], v: [0, 0.8, 1, 1.2] },
         { k: 'showFps', l: 'Show FPS', type: 'bool' },
       ],
@@ -16515,6 +16662,7 @@ class UI {
       if (['buttonSize', 'buttonOpacity'].includes(k)) g.input.applyTouchLayout();
       if (k === 'guiScale') this.layout();
       if (k === 'renderDist' || k === 'preset') g.renderer.visDirty = true;
+      if (k === 'chunkCacheMB') g.chunkCache.trim();
       if (k !== 'preset' && schema.Video.some(x => x.k === k)) { SETTINGS.preset = 'custom'; }
     };
     const draw = () => {
@@ -16538,6 +16686,7 @@ class UI {
           ctl.onclick = () => { S[it.k] = !S[it.k]; ctl.className = 'toggle' + (S[it.k] ? ' on' : ''); ctl.textContent = S[it.k] ? 'ON' : 'OFF'; apply(it.k); };
         } else {
           ctl = h('select');
+          if (it.v && !it.v.includes(S[it.k]) && typeof S[it.k] === 'number') { it.v = it.v.concat([S[it.k]]); it.o = it.o.concat([String(S[it.k])]); }
           it.o.forEach((o, i) => ctl.appendChild(h('option', { value: i, selected: (it.v ? it.v[i] : i) === S[it.k] }, o)));
           ctl.onchange = () => { S[it.k] = it.v ? it.v[+ctl.value] : +ctl.value; apply(it.k); };
         }
@@ -17713,6 +17862,33 @@ class Save {
     c.modified = false;
     if (this.pending.size > 32) this.flush();
   }
+  // a world and all its saved chunks as one JSON file (chunk blocks as base64 of their RLE), to move worlds between
+  // browsers or into the desktop launcher's own profile
+  async exportWorld(id) {
+    await this.flush(); await this.open();
+    const meta = this.memory ? this.memory.worlds.get(id) : await this.req(this.tx('worlds', 'readonly').get(id));
+    if (!meta) throw new Error('World not found');
+    const recs = this.memory ? [...this.memory.chunks.values()].filter(r => r.w === id) : await this.req(this.tx('chunks', 'readonly').index('w').getAll(IDBKeyRange.only(id)));
+    const b64 = (a) => { const u8 = new Uint8Array(a.buffer, a.byteOffset, a.byteLength); let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+    return { format: 'voxelcraft-world', version: 1, meta, chunks: recs.map(r => ({ k: r.k.slice(id.length + 1), b: b64(r.b), be: r.be || [], e: r.e || [], tags: r.tags || 0 })) };
+  }
+  // imports under a new id, so importing the same file twice gives two worlds
+  async importWorld(data) {
+    if (!data || data.format !== 'voxelcraft-world' || !data.meta || !Array.isArray(data.chunks)) throw new Error('Not a VoxelCraft world file');
+    await this.open();
+    const id = 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+    const meta = Object.assign({}, data.meta, { id, lastPlayed: Date.now() });
+    const unb64 = (s) => { const bin = atob(s), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return new Uint16Array(u8.buffer); };
+    const recs = data.chunks.map(c => ({ k: id + '|' + c.k, w: id, b: unb64(c.b), be: c.be || [], e: c.e || [], tags: c.tags || 0 }));
+    if (this.memory) { this.memory.worlds.set(id, meta); for (const r of recs) this.memory.chunks.set(r.k, r); return meta; }
+    await new Promise((res, rej) => {
+      const t = this.db.transaction(['worlds', 'chunks'], 'readwrite');
+      t.objectStore('worlds').put(meta);
+      const s = t.objectStore('chunks'); for (const r of recs) s.put(r);
+      t.oncomplete = res; t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    });
+    return meta;
+  }
   async flush() {
     if (!this.pending.size) return;
     const recs = [...this.pending.values()]; this.pending.clear();
@@ -17763,7 +17939,8 @@ class PerfGovernor {
     const fr = this.frames.slice().sort((a, b) => a - b), cp = this.cpu.slice().sort((a, b) => a - b);
     this.frames.length = 0; this.cpu.length = 0;
     const medFrame = fr[fr.length >> 1], p80 = fr[Math.floor(fr.length * 0.8)], medCpu = cp[cp.length >> 1];
-    const budget = SETTINGS.fpsCap ? 1000 / SETTINGS.fpsCap : 1000 / 60;
+    // the frame time to hold: the Auto Quality target, no faster than the frame cap or (VSync) the display
+    const budget = this.g.pacer ? this.g.pacer.budgetMs() : 1000 / 60;
     const tq = this.g.renderer.tq, gpuOk = tq && tq.valid && t - tq.stamp < 1500;
     const gpu = gpuOk ? tq.ms : 0;
     this.stat = { frame: medFrame, cpu: medCpu, gpu: gpuOk ? gpu : -1, budget };
@@ -17819,6 +17996,186 @@ class PerfGovernor {
   }
 }
 
+// ===== main/69_pacer.js =====
+// ============================================================================
+//  Frame pacing: VSync, a frame cap, or Unlimited
+//
+//  requestAnimationFrame is tied to the display refresh, so a loop driven by it never renders faster than the
+//  monitor. How Unlimited (and caps above the refresh rate) get past that:
+//  - Desktop launcher: Chromium runs with --disable-frame-rate-limit (LAUNCH.uncapped), requestAnimationFrame
+//    fires back to back and every frame it renders is presented.
+//  - A normal browser tab still shows one frame per refresh. The presented frame is rendered from
+//    requestAnimationFrame, and extra frames run from a MessageChannel loop until just before the next refresh.
+//    Handing control back in time matters: a page that never yields gets to present only every 100 ms or so.
+//    A fence keeps those extra frames at most two ahead of the GPU, so the presented one is never queued
+//    behind a backlog.
+//  The GPU queue (SETTINGS.gpuQueue) limits frames in flight the same way in the launcher. Uncapped frames that
+//  pile up on the GPU make every buffer upload wait for the backlog: on OpenGL a still scene averaged 2000 fps that
+//  looked like 20, and on Direct3D 11 flying over new terrain stalled 87 times a minute. Three in flight (Auto)
+//  removed the stalls on every backend, for some peak fps on a still scene.
+//  Every path below schedules exactly one next wake-up (animation frame, message or timer).
+// ============================================================================
+class FramePacer {
+  constructor(game) {
+    this.g = game;
+    this.uncapped = !!LAUNCH.uncapped;
+    this.hz = LAUNCH.hz || 60;            // display refresh rate (measured from animation frames in a normal tab)
+    this.limit = 0;                       // limit applied to the latest frame: -1 VSync, 0 none, n fps
+    this.lastFrame = 0; this.lastRaf = 0; this.nextVsync = 0; this.idleFrom = 0; this.workMs = 1; this.due = 0; this.calT = 0; this.q = 0;
+    this.rafD = []; this.fences = []; this.fenceT = [];
+    this.rafPending = this.msgPending = this.timerPending = false;
+    this.onRaf = (t) => { this.rafPending = false; this.vsync(t); this.tick(true); };
+    this.onTimer = () => { this.timerPending = false; this.tick(false); };
+    if (typeof MessageChannel !== 'undefined') { this.mc = new MessageChannel(); this.mc.port1.onmessage = () => { this.msgPending = false; this.tick(false); }; }
+    // statistics over half-second windows
+    this.win = { t: now(), n: 0, shown: 0, sum: 0, max: 0 };
+    this.fps = 0; this.shownHz = 0; this.avgMs = 0; this.maxMs = 0;
+  }
+  start() { this.lastFrame = now(); this.raf(); }
+  raf() { if (!this.rafPending) { this.rafPending = true; requestAnimationFrame(this.onRaf); } }
+  post() { if (!this.mc) { this.timer(0); return; } if (!this.msgPending) { this.msgPending = true; this.mc.port2.postMessage(0); } }
+  timer(ms) { if (!this.timerPending) { this.timerPending = true; setTimeout(this.onTimer, Math.max(0, ms)); } }
+  // frames allowed on the GPU at once before the next one starts (0: the browser's own queueing)
+  queue(hybrid) {
+    const q = Math.round(+SETTINGS.gpuQueue || 0);
+    if (q > 0) return q;
+    if (q < 0) return 0;
+    if (hybrid) return 2;
+    return this.uncapped ? 3 : 0;
+  }
+  // -1 = VSync, 0 = no limit, n = frame cap
+  currentLimit() {
+    const st = this.g.state, S = SETTINGS;
+    if (S.menuVsync !== false && (st === 'menu' || st === 'paused' || st === 'loading' || st === 'dead')) return -1;
+    const c = +S.fpsCap || 0;
+    return c < 0 ? -1 : c > 0 ? Math.max(5, c) : 0;
+  }
+  tick(fromRaf) {
+    const t = now();
+    if (document.hidden) { this.raf(); return; }
+    let lim = this.currentLimit();
+    // animation frames are not tied to the display here, so VSync becomes a cap at its refresh rate
+    if (this.uncapped && lim < 0) lim = Math.round(this.hz);
+    this.limit = lim;
+    if (this.uncapped) {
+      this.q = this.queue(false);
+      // the queue is full: check again on the next animation frame (they come back to back here)
+      if (this.q && !this.fenceFree(this.q)) { this.raf(); return; }
+      if (fromRaf && (lim <= 0 || t >= this.due - 0.3)) { this.advance(lim, t); this.frame(t, true); }
+      const wait = lim > 0 ? this.due - now() : 0;
+      if (wait > 1.5) { this.idleFrom = this.idleFrom || now(); this.timer(wait - 1); } else this.raf();
+      return;
+    }
+    if (lim < 0 || (lim > 0 && lim <= this.hz * 1.1)) {
+      // VSync, or a cap the display can show: render on animation frames, skipping some to stay under the cap
+      this.q = 0;
+      if (fromRaf && (lim <= 0 || t >= this.due - 2)) { this.advance(lim, t); this.frame(t, true); }
+      this.raf();
+      return;
+    }
+    // Unlimited, or a cap above the refresh rate, in a normal tab
+    this.q = this.queue(true);
+    if (fromRaf) {
+      this.advance(lim, t); this.frame(t, true);
+      // once a second one refresh gets no extra frames, so the next interval measures the display honestly
+      if (t - this.calT > 1000) { this.calT = t; this.raf(); } else this.post();
+      return;
+    }
+    const margin = this.workMs * 1.5 + 1;
+    if (t + margin >= this.nextVsync) { this.idleFrom = this.idleFrom || t; this.raf(); return; }
+    if (lim > 0) {
+      const wait = this.due - t;
+      if (wait > 0) {
+        this.idleFrom = this.idleFrom || t;
+        // never sleep past the point where the browser must get its turn (timers can fire a millisecond late)
+        const room = this.nextVsync - margin - t;
+        if (wait > 3 && room > 3) this.timer(Math.min(wait, room) - 2); else this.post();
+        return;
+      }
+    }
+    if (this.q && !this.fenceFree(this.q)) { this.post(); return; }
+    this.advance(lim, t);
+    this.frame(t, false);
+    this.post();
+  }
+  // with a cap the next frame is due one interval after the previous due time (not after the previous frame), so
+  // timer and refresh jitter average out; after a stall it catches up by at most half an interval
+  advance(lim, t) { this.due = lim > 0 ? Math.max(this.due + 1000 / lim, t - 500 / lim) : t; }
+  frame(t, shown) {
+    const interval = t - this.lastFrame, idle = this.idleFrom && this.idleFrom < t ? t - this.idleFrom : 0;
+    this.lastFrame = t; this.idleFrom = 0;
+    this.g.runFrame(interval, Math.max(0.01, interval - idle));
+    const work = now() - t;
+    this.workMs += (work - this.workMs) * 0.15;
+    if (this.q) this.fence();
+    if (this.rec) this.rec.push(interval);
+    const W = this.win;
+    W.n++; if (shown) W.shown++; W.sum += interval; if (interval > W.max) W.max = interval;
+    if (t - W.t >= 500) {
+      const s = (t - W.t) / 1000;
+      this.fps = W.n / s; this.shownHz = W.shown / s; this.avgMs = W.sum / W.n; this.maxMs = W.max;
+      W.t = t; W.n = W.shown = 0; W.sum = W.max = 0;
+    }
+  }
+  // animation frame timestamps give the display's refresh interval (normal tab) and when the next refresh is due.
+  // A starved animation frame only ever comes late, so the shortest recent interval is the display's: a longer
+  // estimate would make the extra frames run longer and starve the browser further.
+  vsync(t) {
+    if (!this.uncapped && this.lastRaf) {
+      const d = t - this.lastRaf, D = this.rafD;
+      if (d > 1.5 && d < 100) { D.push(d); if (D.length > 60) D.shift(); }
+      if (D.length >= 4) {
+        let m = Infinity; for (let i = 0; i < D.length; i++) if (D[i] < m) m = D[i];
+        let s = 0, n = 0; for (let i = 0; i < D.length; i++) if (D[i] < m * 1.08) { s += D[i]; n++; }
+        this.hz = clamp(n * 1000 / s, 20, 500);
+      }
+    }
+    this.lastRaf = t;
+    this.nextVsync = t + 1000 / this.hz;
+  }
+  // GPU fences: frames the GPU has not finished yet (WebGL only updates their status between tasks)
+  fenceFree(limit) {
+    const gl = GLX.gl, F = this.fences, T = this.fenceT;
+    while (F.length && gl.getSyncParameter(F[0], gl.SYNC_STATUS) === gl.SIGNALED) { gl.deleteSync(F.shift()); T.shift(); }
+    // a fence that never signals (lost context) must not stall the loop
+    if (F.length && now() - T[0] > 250) { for (const s of F) gl.deleteSync(s); F.length = 0; T.length = 0; }
+    return F.length < (limit || 2);
+  }
+  fence() {
+    const gl = GLX.gl; if (!gl || !gl.fenceSync) return;
+    this.fenceFree();
+    const s = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    if (s) { this.fences.push(s); this.fenceT.push(now()); gl.flush(); }
+  }
+  // frame time Auto Quality aims for: its target rate, but never above the cap or (with VSync) the display
+  budgetMs() {
+    let fps = +SETTINGS.aqTarget || 60;
+    const lim = this.limit;
+    if (lim < 0) fps = Math.min(fps, this.hz); else if (lim > 0) fps = Math.min(fps, lim);
+    return 1000 / Math.max(10, fps);
+  }
+  describe() {
+    const lim = this.limit, mode = lim < 0 ? 'VSync' : lim > 0 ? 'cap ' + lim : 'unlimited';
+    let how;
+    if (this.uncapped) how = 'every frame presented (launcher)';
+    else if (lim < 0 || (lim > 0 && lim <= this.hz * 1.1)) how = 'on display refreshes';
+    else how = `${(this.fps / Math.max(1, this.shownHz)).toFixed(1)} frames per refresh, the browser shows ${Math.round(this.shownHz)}/s`;
+    return `Pacing: ${mode}, ${how}, ${this.q ? 'GPU queue ' + this.q + ', ' : ''}display ${Math.round(this.hz)} Hz, frame ${this.avgMs.toFixed(2)} ms (max ${this.maxMs.toFixed(1)})`;
+  }
+  // frame intervals between record() and stats(): the average rate, and the steady rate (the frame time the screen is
+  // at or below 90% of the time, so a few long stalls count by how long they last, not by how few they are)
+  record() { this.rec = []; }
+  stats() { const iv = this.rec || []; this.rec = null; return FramePacer.statsOf(iv); }
+  static statsOf(iv) {
+    if (!iv.length) return { fps: 0, steadyFps: 0, hitches: 0 };
+    let total = 0; for (const d of iv) total += d;
+    const s = iv.slice().sort((a, b) => b - a);
+    let acc = 0, tw = s[s.length - 1];
+    for (const d of s) { acc += d; if (acc >= total * 0.1) { tw = d; break; } }
+    return { fps: iv.length * 1000 / total, steadyFps: 1000 / Math.max(tw, 0.01), hitches: iv.filter(d => d > 50).length, p99Ms: s[Math.floor(s.length * 0.01)] };
+  }
+}
+
 // ===== main/70_game.js =====
 // ============================================================================
 //  Game: lifecycle, main loop, camera, entity rendering, block entities, portals
@@ -17839,11 +18196,12 @@ class Game {
     this.player = null; this.world = null; this.meta = null;
     this.matBuf = new Float32Array(24 * 16);
     this.boostFx = 0; this.shake = 0;
+    this.chunkCache = new ChunkCache();
   }
   async boot() {
     const gl = GLX.init(this.canvas);
     if (!gl) { $('#fatal').style.display = 'flex'; $('#fatal').innerHTML = '<div><h1>WebGL 2 is not available</h1><p>This game needs a browser with WebGL 2 support (Chrome, Edge, Firefox, Safari 15+).</p></div>'; return; }
-    this.canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); alert('Graphics context lost — please reload the page.'); });
+    this.canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.onContextLost(); });
     if (GLX.software && !SETTINGS.swApplied) { applyPreset('potato'); SETTINGS.swApplied = 1; saveSettings(); }
     this.renderer = new Renderer(this);
     this.perf = new PerfGovernor(this);
@@ -17869,11 +18227,26 @@ class Game {
     this.startMenuWorld();
     this.ui.showTitle();
     this.last = performance.now();
-    requestAnimationFrame((t) => this.loop(t));
+    this.pacer = new FramePacer(this);
+    this.pacer.start();
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.meta) { this.saveAll(); if (this.state === 'playing') this.pause(); } });
     window.addEventListener('beforeunload', () => { if (this.meta) this.saveAll(); });
     window.addEventListener('resize', () => this.renderer.resize());
     setInterval(() => { if (this.meta && (this.state === 'playing' || this.state === 'paused')) this.saveAll(); }, 60000);
+  }
+  // A lost context (driver reset, GPU process crash) cannot be recovered without rebuilding every GPU resource, so
+  // the world is saved and the page offers a reload. Not an alert(): that would freeze the page (and the launcher's
+  // benchmark, which reads the result from the window title) until someone clicks it.
+  onContextLost() {
+    if (this.ctxLost) return;
+    this.ctxLost = true;
+    if (LAUNCH.bench) document.title = 'VCBENCH:' + JSON.stringify({ ok: false, error: 'the graphics context was lost', renderer: GLX.renderer || '' });
+    if (this.meta && this.player) this.saveAll().catch(() => { });
+    const f = $('#fatal'); f.style.display = 'flex';
+    f.innerHTML = '<div><h1>The graphics driver stopped responding</h1><p>The WebGL context was lost: the GPU driver reset, or the browser\'s GPU process crashed.' + (this.meta ? ' Your world was saved.' : '') + '</p>' +
+      (LAUNCH.desktop ? '<p>If this keeps happening, pick another graphics backend in the launcher (Graphics &gt; Graphics backend).</p>' : '') +
+      '<p><button id="ctx-reload" style="font: inherit; padding: 8px 22px; cursor: pointer">Reload</button></p></div>';
+    $('#ctx-reload').onclick = () => location.reload();
   }
   // ---------------------------------------------------------------- menu panorama world
   startMenuWorld() {
@@ -17907,6 +18280,7 @@ class Game {
   }
   async playWorld(meta) {
     this.ui.clearScreen();
+    if (this.chunkCache.world !== meta.id) { this.chunkCache.clear(); this.chunkCache.world = meta.id; }
     this.meta = meta; this.save.worldId = meta.id;
     meta.lastPlayed = Date.now();
     this.jobs.broadcast({ t: 'init', seed: meta.seed, opts: { worldType: meta.type, structures: meta.structures !== false } });
@@ -17998,6 +18372,7 @@ class Game {
     await this.saveAll();
     await this.unloadWorld();
     this.disposeWorld(this.world);
+    this.chunkCache.clear(); this.chunkCache.world = null;
     this.ui.hideLoading();
     this.input.releaseLock();
     this.startMenuWorld();
@@ -18024,23 +18399,26 @@ class Game {
     };
   }
   // ---------------------------------------------------------------- main loop
-  loop(t) {
-    requestAnimationFrame((tt) => this.loop(tt));
-    const S = SETTINGS;
-    if (S.fpsCap && this.lastRender && t - this.lastRender < 1000 / S.fpsCap - 1.5) return;
-    const interval = t - this.last;
-    let dt = Math.min(0.1, interval / 1000);
-    this.last = t; this.lastRender = t;
+  // one frame, called by the frame pacer with the interval since the previous frame, and that interval minus any
+  // time the pacer spent deliberately waiting (what Auto Quality judges)
+  runFrame(intervalMs, busyMs) {
+    const dt = Math.min(0.1, Math.max(0, intervalMs) / 1000);
+    const t0 = this.last = this.lastRender = performance.now();
     this.frame++;
-    const t0 = performance.now();
-    this.fpsSmooth += (1 / Math.max(dt, 0.001) - this.fpsSmooth) * 0.05;
     try { this.frameUpdate(dt); } catch (e) { console.error(e); if (!this.errShown) { this.errShown = true; this.ui.message('Error: ' + e.message, '#f66'); } }
     const work = performance.now() - t0;
     this.frameMs += (work - this.frameMs) * 0.1;
-    if (this.perf) this.perf.update(interval, work);
+    if (this.pacer.fps) this.fpsSmooth = this.pacer.fps;
+    if (this.perf) this.perf.update(busyMs, work);
   }
   frameUpdate(dt) {
     const w = this.world, p = this.player;
+    // audio (and the vehicles' engine sounds) update at most 60 times a second, the HUD and overlays at most
+    // SETTINGS.hudHz: at hundreds of frames per second redrawing them every frame only costs time (the HUD keeps
+    // its last drawing in between)
+    this.audioAcc = (this.audioAcc || 0) + dt;
+    this.audioTick = this.audioAcc >= 1 / 60 - 1e-4;
+    const adt = this.audioAcc; if (this.audioTick) this.audioAcc = 0;
     if (this.state === 'loading') {
       w.update(this.loadTarget[0], this.loadTarget[1], 12);
       this.jobs.pump(this.frameMs);
@@ -18063,7 +18441,7 @@ class Game {
       this.renderer.render(this, dt);
       EFF.renderDist = R0;
       this.jobs.pump(this.frameMs);
-      this.audio.update(dt);
+      if (this.audioTick) this.audio.update(adt);
       return;
     }
     const playing = this.state === 'playing';
@@ -18088,11 +18466,16 @@ class Game {
     }
     this.renderer.render(this, dt);
     if (this.wantShot) { this.wantShot = false; this.canvas.toBlob((b) => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'voxelcraft_' + Date.now() + '.png'; a.click(); }); this.ui.message('Saved screenshot', '#afa'); }
-    this.ui.updateHUD(dt);
-    this.vhud.draw(dt);
-    this.ui.tickScreens();
+    const hz = +SETTINGS.hudHz || 0;
+    this.hudAcc = (this.hudAcc || 0) + dt;
+    if (!hz || this.hudAcc >= 1 / hz - 1e-4) {
+      const hdt = this.hudAcc; this.hudAcc = 0;
+      this.ui.updateHUD(hdt);
+      this.vhud.draw(hdt);
+      this.ui.tickScreens();
+    }
     if ((this.frame & 15) === 0) this.input.updateTouchVisibility();
-    this.audio.update(dt);
+    if (this.audioTick) this.audio.update(adt);
     if (p.sleeping) this.ui.showSleep(Math.min(1, p.sleeping / 80));
   }
   screenRay(sx, sy) {
@@ -18581,6 +18964,7 @@ class Game {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, R.skinTex); gl.uniform1i(ent.u.uSkin, 0);
     gl.uniform1f(ent.u.uAlphaMul, 1);
     const ED = SETTINGS.entityDist, t = R.time;
+    const fdt = this._entT === undefined ? 1 / 60 : clamp(t - this._entT, 0, 0.1); this._entT = t;
     const held = [];
     const Mm = this._Mm || (this._Mm = M4.create());
     const drawModel = (e, model, x, y, z, bodyYaw, scale, opts) => {
@@ -18631,7 +19015,7 @@ class Game {
       let flash = 0;
       if (e.type === 'boomcap' && e.fuse > 0) { const f = e.fuse / 30; scale *= 1 + f * 0.15 + Math.sin(e.fuse * 1.3) * 0.03; flash = Math.floor(e.fuse / 3) % 2 ? 0.55 : 0; }
       if (e.type === 'tnt') continue;
-      if (isP && !p.vehicle) { e.bodyYaw = e.bodyYaw === undefined ? e.yaw : e.bodyYaw + angleDiff(e.bodyYaw, e.yaw) * (Math.hypot(e.vx, e.vz) > 0.02 ? 0.3 : 0.08); e.headYaw = e.yaw; if (Math.abs(angleDiff(e.bodyYaw, e.yaw)) > 0.8) e.bodyYaw = e.yaw - Math.sign(angleDiff(e.bodyYaw, e.yaw)) * 0.8; }
+      if (isP && !p.vehicle) { e.bodyYaw = e.bodyYaw === undefined ? e.yaw : e.bodyYaw + angleDiff(e.bodyYaw, e.yaw) * (1 - Math.pow(Math.hypot(e.vx, e.vz) > 0.02 ? 0.7 : 0.92, fdt * 60)); e.headYaw = e.yaw; if (Math.abs(angleDiff(e.bodyYaw, e.yaw)) > 0.8) e.bodyYaw = e.yaw - Math.sign(angleDiff(e.bodyYaw, e.yaw)) * 0.8; }
       const by = (e.lyaw !== undefined && !isP) ? e.bodyYaw : e.bodyYaw;
       const mats = drawModel(e, model, x, y, z, by, scale, { flash, q: isP && p.vehicle ? p.vehicle.q : null });
       const hid = isP ? (p.vehicle ? 0 : e.heldId()) : (e.heldItem ? e.heldItem() : 0);
@@ -18828,7 +19212,8 @@ class Game {
     const p = this.player; if (!p || p.vehicle || p.camMode !== 0 || p.spectator || SETTINGS.hudHidden || p.dead || p.sleeping) return;
     const gl = R.gl, a = this.alpha, w = this.world;
     const held = p.heldStack(), d = held ? ITEMS[held.id] : null;
-    this.equipT = Math.min(1, (this.equipT === undefined ? 1 : this.equipT) + 0.12);
+    const hdt = this._handT === undefined ? 0 : clamp(R.time - this._handT, 0, 0.1); this._handT = R.time;
+    this.equipT = Math.min(1, (this.equipT === undefined ? 1 : this.equipT) + hdt * 7.2);
     const sw = p.swingAnim > 0 ? 1 - p.swingAnim : 0;
     const s1 = Math.sin(sw * Math.PI), s2 = Math.sin(Math.sqrt(sw) * Math.PI);
     const bob = p.lbob + (p.bob - p.lbob) * a, amt = SETTINGS.viewBob ? p.lbobAmt + (p.bobAmt - p.lbobAmt) * a : 0;
@@ -18946,18 +19331,81 @@ class Game {
   }
 }
 
+// ===== main/71_bench.js =====
+// ============================================================================
+//  Launcher benchmark (?bench=<seconds>): opens a fixed test world at the player's settings, lets the terrain
+//  load, times two phases of <seconds> each, deletes the world again and reports in the window title
+//  (VCBENCH:{json}), where the desktop launcher reads it. The launcher runs this once per graphics backend and
+//  ranks them by steady FPS over both phases. A still scene alone would mislead: Vulkan rendered one at 5000+ fps
+//  here but streamed new terrain at under 300.
+// ============================================================================
+async function runBenchmark(g, secs) {
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  // a lost context reports its own failure (Game.onContextLost); nothing measured after it means anything
+  const report = (o) => { if (!g.ctxLost) document.title = 'VCBENCH:' + JSON.stringify(o); };
+  document.title = 'VoxelCraft benchmark';
+  if (!GLX.gl) { report({ ok: false, error: 'WebGL 2 is not available with this backend' }); return; }
+  try {
+    // time what the hardware can do: no frame cap, no Auto Quality (none of this is saved)
+    SETTINGS.fpsCap = 0; SETTINGS.menuVsync = false; SETTINGS.autoQuality = false; refreshEff();
+    for (const w of await g.save.listWorlds()) if (w.bench) await g.save.deleteWorld(w.id);
+    await g.createWorld({ name: 'Launcher benchmark', seed: 12345, seedText: '12345', mode: 'creative', difficulty: 0, type: 'default', structures: true, cheats: true, bonus: false, bench: true });
+    const t0 = now();
+    while (g.state !== 'playing') { if (now() - t0 > 90000) throw new Error('the test world did not load'); await sleep(100); }
+    const id = g.meta.id, p = g.player, w = g.world;
+    g.gameRules.doDaylightCycle = false; g.time = 6000;
+    g.weather = { rain: false, thunder: false, timer: 1e9 }; g.rainLevel = g.thunderLevel = 0;
+    p.flying = true; p.yaw = 0.7; p.pitch = -0.15;
+    p.y = Math.max(p.y, w.heightAt(Math.floor(p.x), Math.floor(p.z)) + 6); p.savePrev();
+    // terrain streams in and shaders compile before the timing starts
+    const t1 = now();
+    while (now() - t1 < 30000 && (w.pending.size || w.meshQueue.size || now() - t1 < 3000)) await sleep(200);
+    await sleep(1500);
+    // looking around on the spot, then flying a circle over new terrain at about 35 blocks a second
+    const R = g.renderer, gpu = [], x0 = p.x, z0 = p.z, y0 = p.y, yaw0 = p.yaw;
+    g.pacer.record();
+    let t2 = now();
+    while (now() - t2 < secs * 1000) { p.yaw = yaw0 + (now() - t2) / 1000 * 0.4; await sleep(30); if (R.tq && R.tq.valid) gpu.push(R.tq.ms); }
+    const split = g.pacer.rec.length;
+    t2 = now();
+    while (now() - t2 < secs * 1000) {
+      const a = (now() - t2) / 1000 * 0.12;
+      p.x = x0 + Math.sin(a) * 280; p.z = z0 + (1 - Math.cos(a)) * 280; p.y = y0 + 30; p.yaw = a + Math.PI / 2; p.pitch = -0.2; p.savePrev();
+      await sleep(30);
+    }
+    // steady FPS ranks the backends: the average alone hides stalls (see FramePacer.statsOf)
+    const iv = g.pacer.rec; g.pacer.rec = null;
+    const st = FramePacer.statsOf(iv), still = FramePacer.statsOf(iv.slice(0, split)), fly = FramePacer.statsOf(iv.slice(split));
+    gpu.sort((a, b) => a - b);
+    const res = {
+      ok: true, fps: Math.round(st.fps * 10) / 10, steadyFps: Math.round(st.steadyFps * 10) / 10, hitches: st.hitches, queue: g.pacer.q,
+      stillFps: Math.round(still.fps), flyFps: Math.round(fly.fps), flySteadyFps: Math.round(fly.steadyFps),
+      gpuMs: gpu.length ? Math.round(gpu[gpu.length >> 1] * 1000) / 1000 : -1,
+      cpuMs: Math.round(g.frameMs * 1000) / 1000, renderer: GLX.renderer || '', software: !!GLX.software,
+      res: R.outW + 'x' + R.outH, preset: SETTINGS.preset, chunks: w.chunks.size,
+    };
+    await g.quitToTitle();
+    await g.save.deleteWorld(id);
+    report(res);
+  } catch (e) { report({ ok: false, error: String(e && e.message || e), renderer: GLX.renderer || '' }); }
+}
+
 // ===== main/99_boot.js =====
 // ============================================================================
 //  Boot
 // ============================================================================
 window.addEventListener('load', () => {
   const g = window.GAME = new Game();
-  setTimeout(() => g.boot().catch((e) => {
+  setTimeout(() => g.boot().then(() => {
+    if (LAUNCH.desktop && document.title === 'VoxelCraft (starting)') document.title = 'VoxelCraft';
+    if (LAUNCH.bench) runBenchmark(g, LAUNCH.bench);
+  }).catch((e) => {
     console.error(e);
+    if (g.ctxLost) return;   // its own message is already up (a lost context makes the boot fail too)
     const f = $('#fatal'); f.style.display = 'flex';
     f.innerHTML = '<div><h1>Failed to start</h1><pre></pre></div>';
     f.querySelector('pre').textContent = String(e && e.stack || e);
-  }), 30);
+  }), LAUNCH.bootDelay || 30);
 });
 </script>
 </body>

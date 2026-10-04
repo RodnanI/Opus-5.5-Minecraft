@@ -34,7 +34,8 @@ class PerfGovernor {
     const fr = this.frames.slice().sort((a, b) => a - b), cp = this.cpu.slice().sort((a, b) => a - b);
     this.frames.length = 0; this.cpu.length = 0;
     const medFrame = fr[fr.length >> 1], p80 = fr[Math.floor(fr.length * 0.8)], medCpu = cp[cp.length >> 1];
-    const budget = SETTINGS.fpsCap ? 1000 / SETTINGS.fpsCap : 1000 / 60;
+    // the frame time to hold: the Auto Quality target, no faster than the frame cap or (VSync) the display
+    const budget = this.g.pacer ? this.g.pacer.budgetMs() : 1000 / 60;
     const tq = this.g.renderer.tq, gpuOk = tq && tq.valid && t - tq.stamp < 1500;
     const gpu = gpuOk ? tq.ms : 0;
     this.stat = { frame: medFrame, cpu: medCpu, gpu: gpuOk ? gpu : -1, budget };

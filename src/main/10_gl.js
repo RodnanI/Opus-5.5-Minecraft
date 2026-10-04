@@ -5,6 +5,8 @@ const GLX = {
   gl: null, ext: {},
   init(canvas) {
     const attrs = { antialias: false, alpha: false, depth: true, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: false, premultipliedAlpha: false };
+    // launcher option: a desynchronized canvas can reach the screen without waiting for the page compositor
+    if (LAUNCH.lowLatency) attrs.desynchronized = true;
     // Ask for a hardware context first; if the browser can only offer a slow (software) one, still run,
     // but remember it so the game can start at the lowest settings and tell the player why.
     let gl = canvas.getContext('webgl2', Object.assign({ failIfMajorPerformanceCaveat: true }, attrs));

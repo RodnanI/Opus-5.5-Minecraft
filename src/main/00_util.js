@@ -93,6 +93,30 @@ function transformPoint(m, x, y, z, out) {
   return out;
 }
 
+// ---------------------------------------------------------------- desktop launcher options
+// VoxelCraft.exe (the Windows launcher) opens this file in a private Chromium window and passes options in the
+// URL query: engine limits that are not regular settings, and set.<setting>=<value> overrides applied at startup.
+//   launcher=1    started by the launcher            uncapped=1   Chromium runs without its frame-rate limit
+//   hz=144        display refresh rate               workers=12   chunk worker threads
+//   rdmax=48      render distance slider maximum     lowlatency=1 desynchronized (low-latency) canvas
+//   bench=8       run the backend benchmark (71_bench.js) and report in the window title
+//   bootdelay=ms  wait before creating the WebGL context (the launcher's fix for a Chromium Vulkan startup race)
+//   heap, gpu, angle, browser: shown in the F3 screen
+const LAUNCH = (() => {
+  const o = { desktop: false, uncapped: false, set: {} };
+  let q;
+  try { q = new URLSearchParams(location.search); } catch (e) { return o; }
+  const num = (k, lo, hi) => { const v = parseFloat(q.get(k)); return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : undefined; };
+  o.desktop = q.get('launcher') === '1'; o.uncapped = q.get('uncapped') === '1'; o.lowLatency = q.get('lowlatency') === '1';
+  o.hz = num('hz', 20, 1000); o.workers = num('workers', 1, 32); o.rdMax = num('rdmax', 8, 64); o.heapMB = num('heap', 0, 1 << 20);
+  o.bench = num('bench', 1, 120); o.bootDelay = num('bootdelay', 0, 10000);
+  o.gpu = q.get('gpu') || ''; o.angle = q.get('angle') || ''; o.browser = q.get('browser') || '';
+  for (const [k, v] of q) if (k.startsWith('set.')) o.set[k.slice(4)] = v;
+  // the launcher waits for the title to change before it switches a window to fullscreen (see 99_boot.js)
+  if (o.desktop) document.title = 'VoxelCraft (starting)';
+  return o;
+})();
+
 // ---------------------------------------------------------------- settings
 // Every preset renders at the display's native pixel density; Auto Quality lowers the internal
 // resolution (with a sharpening upscale) and then individual effects only when the GPU can't keep up.
@@ -108,8 +132,14 @@ const DEFAULT_SETTINGS = Object.assign({
   fov: 70, brightness: 0.5, viewBob: true, sensitivity: 0.5, invertY: false, showFps: false,
   masterVol: 0.8, musicVol: 0.5, sfxVol: 0.8, ambientVol: 0.6,
   autoJump: IS_TOUCH, touchAim: IS_TOUCH ? 'touch' : 'crosshair', buttonSize: 1, buttonOpacity: 0.55, guiScale: 0,
-  autoQuality: true, sharpen: 0.25, fpsCap: 0, fog: true, tonemap: true, vignette: true, cloudHeight: 150, hudHidden: false, gamma: 1,
+  autoQuality: true, sharpen: 0.25, fog: true, tonemap: true, vignette: true, cloudHeight: 150, hudHidden: false, gamma: 1,
   cockpitFx: true, flightInvert: false,
+  // frame pacing: fpsCap -1 = VSync, 0 = unlimited, n = cap; menuVsync limits the title and pause screens to VSync;
+  // aqTarget is the frame rate Auto Quality keeps; hudHz caps how often the HUD and overlays redraw (0 = every frame);
+  // gpuQueue: frames in flight on the GPU, 0 = auto (see 69_pacer.js), -1 = the browser's own queueing
+  fpsCap: 0, menuVsync: true, aqTarget: 60, hudHz: 240, gpuQueue: 0,
+  // MB of recently unloaded chunks kept in memory, so returning to an area skips terrain generation
+  chunkCacheMB: 0,
 }, PRESETS[IS_MOBILE ? 'medium' : 'high']);
 const SETTINGS = (() => {
   let s = {};
@@ -118,7 +148,20 @@ const SETTINGS = (() => {
   if (s.maxDPR !== undefined && s.maxDPR < 2 && !s.v2) s.maxDPR = 2;
   if (s.dynRes !== undefined) { delete s.dynRes; }
   s.v2 = 1;
-  return Object.assign({}, DEFAULT_SETTINGS, s);
+  s = Object.assign({}, DEFAULT_SETTINGS, s);
+  // launcher overrides: a preset first, then single settings (typed like their defaults)
+  const L = LAUNCH.set;
+  if (L.preset && PRESETS[L.preset]) { Object.assign(s, PRESETS[L.preset]); s.preset = L.preset; }
+  for (const k in L) {
+    if (k === 'preset' || !(k in DEFAULT_SETTINGS)) continue;
+    const d = DEFAULT_SETTINGS[k], v = L[k];
+    if (typeof d === 'boolean') s[k] = v === '1' || v === 'true' || v === 'on';
+    else if (typeof d === 'number') { const n = parseFloat(v); if (isFinite(n)) s[k] = n; }
+    else s[k] = v;
+    if (k in PRESETS.high) s.preset = 'custom';
+  }
+  if (LAUNCH.rdMax) s.renderDist = Math.min(s.renderDist, LAUNCH.rdMax);
+  return s;
 })();
 function saveSettings() { try { localStorage.setItem('vc5_settings', JSON.stringify(SETTINGS)); } catch (e) { } refreshEff(); }
 function applyPreset(name) { if (PRESETS[name]) Object.assign(SETTINGS, PRESETS[name]); SETTINGS.preset = name; saveSettings(); }

@@ -690,10 +690,14 @@ class CockpitRenderer {
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, CK_LEGEND.y, gl.RGBA, gl.UNSIGNED_BYTE, lg);
     return K;
   }
-  // redraw a couple of screens per frame (all of them when the cockpit first comes up) and upload them
-  screens(K, v, game) {
-    const gl = this.gl, list = K.disp, n = K.fresh ? list.length : Math.min(list.length, 2);
+  // redraw screens round robin, about 120 a second in total (all of them when the cockpit first comes up), and
+  // upload them. Counted in time, not frames: at 1000+ fps two per frame would redraw every screen constantly
+  screens(K, v, game, dt) {
+    K.acc = Math.min(4, (K.acc || 0) + dt * 120);
+    const gl = this.gl, list = K.disp, n = K.fresh ? list.length : Math.min(list.length, Math.floor(K.acc));
+    if (!K.fresh) K.acc -= n;
     K.fresh = false;
+    if (!n) return;
     gl.bindTexture(gl.TEXTURE_2D, K.tex);
     for (let k = 0; k < n; k++) {
       const d = list[K.next]; K.next = (K.next + 1) % list.length;
@@ -717,7 +721,7 @@ class CockpitRenderer {
     const t = R.time, dt = clamp(t - (this.last || t), 0, 0.1); this.last = t;
     if (this.kindNow !== v || game.frame - (this.frameSeen || 0) > 2) K.fresh = true;
     this.kindNow = v; this.frameSeen = game.frame;
-    this.screens(K, v, game);
+    this.screens(K, v, game, dt);
     // the sun (or moon) seen from the eye: is terrain in the way?
     const L = env.lightDir, hit = raycast(w, cam.x, cam.y, cam.z, L[0], L[1], L[2], 96, false);
     this.sunVis += ((hit ? 0 : 1) - this.sunVis) * Math.min(1, dt * 9);

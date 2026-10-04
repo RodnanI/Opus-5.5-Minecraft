@@ -177,7 +177,9 @@ class UI {
     }
     // compass / clock readouts replace the item name while held
     const held = ITEMS[p.heldId()], info = held && held.info;
-    if (info && (g.frame & 7) === 0) {
+    const tnow = now();
+    if (info && tnow - (this.infoT || 0) > 120) {
+      this.infoT = tnow;
       let txt;
       if (info === 'clock') {
         if (g.world.dim !== 'overworld') txt = 'Clock: the hands spin aimlessly';
@@ -207,14 +209,20 @@ class UI {
     this.cross.style.display = p.camMode === 0 && !SETTINGS.hudHidden ? 'block' : 'none';
     // debug / fps
     this.fps.style.display = SETTINGS.showFps && !this.debug ? 'block' : 'none';
-    if (SETTINGS.showFps) this.fps.textContent = Math.round(g.fpsSmooth) + ' FPS';
+    if (SETTINGS.showFps && tnow - (this.fpsT || 0) > 250) {
+      // in a normal tab Unlimited renders more frames than the browser can show: say so instead of implying them
+      this.fpsT = tnow;
+      const P = g.pacer, shown = P && !P.uncapped && P.shownHz > 0 && P.shownHz < P.fps * 0.8 ? ` (${Math.round(P.shownHz)} shown)` : '';
+      this.fps.textContent = Math.round(g.fpsSmooth) + ' FPS' + shown;
+    }
     this.dbg.style.display = this.debug ? 'block' : 'none';
-    if (this.debug && (g.frame & 7) === 0) {
+    if (this.debug && tnow - (this.dbgT || 0) > 100) {
+      this.dbgT = tnow;
       const w = g.world, R = g.renderer, bx = Math.floor(p.x), by = Math.floor(p.y), bz = Math.floor(p.z);
       const l = w.getLight(bx, by, bz), dirs = ['north (-Z)', 'east (+X)', 'south (+Z)', 'west (-X)'];
       const t = p.target;
       this.dbg.textContent = [
-        `VoxelCraft  ${Math.round(g.fpsSmooth)} fps  (${(g.frameMs || 0).toFixed(1)} ms)`,
+        `VoxelCraft  ${Math.round(g.fpsSmooth)} fps  (cpu ${(g.frameMs || 0).toFixed(2)} ms${R.tq && R.tq.valid ? ', gpu ' + R.tq.ms.toFixed(2) + ' ms' : ''})`,
         `Renderer: ${GLX.renderer}  ${R.width}x${R.height}${R.hdr ? ' HDR' : ''}`,
         `Draws: ${R.stats.draws}  Tris: ${(R.stats.tris / 1000).toFixed(0)}k  Sections: ${R.stats.sections}`,
         R.debugInfo(),
@@ -278,16 +286,18 @@ class UI {
         this.btn('Singleplayer', () => this.showWorlds()),
         this.btn('Settings', () => this.showSettings(() => this.showTitle())),
         this.btn('Controls & Help', () => this.showControls(() => this.showTitle()))),
-      h('div', { class: 'foot' }, h('span', null, 'VoxelCraft 1.0 — all art, sound & worlds are procedurally generated'), h('span', null, GLX.renderer || '')));
+      h('div', { class: 'foot' }, h('span', null, 'VoxelCraft 1.0 — all art, sound & worlds are procedurally generated' + (LAUNCH.desktop ? ' · desktop launcher' : '')), h('span', null, GLX.renderer || '')));
     if (GLX.software) this.screen.appendChild(h('div', { class: 'swwarn' }, 'Your browser is drawing this game without the graphics card (software rendering), so it will be slow. Turn on "Use graphics acceleration when available" in the browser settings and restart the browser.'));
   }
   async showWorlds() {
     const g = this.game;
     this.clearScreen(); this.screen.className = 'menu';
     this.backFn = () => this.showTitle();
-    const worlds = await g.save.listWorlds();
+    // the launcher's benchmark world is never listed (it deletes it again; this hides one left by an interrupted run)
+    const worlds = (await g.save.listWorlds()).filter(w => !w.bench);
     let sel = worlds[0] ? worlds[0].id : null;
     const list = h('div', { class: 'wlist' });
+    this.wStatus = h('div', { class: 'wsub', style: { margin: '6px 2px', minHeight: '1.3em' } });
     const draw = () => {
       list.innerHTML = '';
       if (!worlds.length) list.append(h('div', { class: 'empty' }, 'No worlds yet — create one!'));
@@ -300,13 +310,39 @@ class UI {
       }
     };
     draw();
-    this.screen.append(this.panel('Select World', list,
+    this.screen.append(this.panel('Select World', list, this.wStatus,
       h('div', { class: 'row' },
         this.btn('Play Selected', () => { const w = worlds.find(x => x.id === sel); if (w) g.playWorld(w); }, 'primary'),
         this.btn('Create New World', () => this.showCreate())),
       h('div', { class: 'row' },
+        this.btn('Export', () => this.exportWorld(worlds.find(x => x.id === sel))),
+        this.btn('Import', () => this.importWorld())),
+      h('div', { class: 'row' },
         this.btn('Delete', async () => { const w = worlds.find(x => x.id === sel); if (!w) return; if (!confirm(`Delete "${w.name}" forever?`)) return; await g.save.deleteWorld(w.id); this.showWorlds(); }, 'danger'),
         this.btn('Back', () => this.showTitle()))));
+  }
+  worldStatus(text, color) { if (this.wStatus) { this.wStatus.textContent = text; this.wStatus.style.color = color || ''; } }
+  // worlds travel as .vcworld.json files: export here, import in another browser or the desktop launcher
+  async exportWorld(w) {
+    if (!w) return;
+    try {
+      const data = await this.game.save.exportWorld(w.id);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+      a.download = (w.name.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'world') + '.vcworld.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      this.worldStatus(`Exported "${w.name}" (${data.chunks.length} saved chunks) to your downloads folder`, '#afa');
+    } catch (e) { this.worldStatus('Export failed: ' + e.message, '#f88'); }
+  }
+  importWorld() {
+    const inp = h('input', { type: 'file', accept: '.json,.vcworld' });
+    inp.onchange = async () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      try { const meta = await this.game.save.importWorld(JSON.parse(await f.text())); await this.showWorlds(); this.worldStatus(`Imported "${meta.name}"`, '#afa'); }
+      catch (e) { this.worldStatus('Import failed: ' + e.message, '#f88'); }
+    };
+    inp.click();
   }
   showCreate() {
     const g = this.game;
@@ -412,7 +448,7 @@ class UI {
       Video: [
         { k: 'preset', type: 'preset' },
         { k: 'autoQuality', l: 'Auto Quality (keeps FPS smooth)', type: 'bool' },
-        { k: 'renderDist', l: 'Render Distance', type: 'range', min: 2, max: 24, step: 1, f: v => v + ' chunks' },
+        { k: 'renderDist', l: 'Render Distance', type: 'range', min: 2, max: LAUNCH.rdMax || 24, step: 1, f: v => v + ' chunks' },
         { k: 'resScale', l: 'Resolution Scale', type: 'range', min: 0.3, max: 1, step: 0.05, f: pct },
         { k: 'maxDPR', l: 'Max Pixel Density', type: 'range', min: 0.5, max: 3, step: 0.25, f: v => v + 'x' },
         { k: 'sharpen', l: 'Sharpening', type: 'range', min: 0, max: 1, step: 0.05, f: v => v === 0 ? 'Off' : pct(v) },
@@ -433,7 +469,11 @@ class UI {
         { k: 'fov', l: 'Field of View', type: 'range', min: 50, max: 110, step: 1, f: v => v + '°' },
         { k: 'brightness', l: 'Brightness', type: 'range', min: 0, max: 1, step: 0.05, f: v => v === 0 ? 'Moody' : v === 1 ? 'Bright' : pct(v) },
         { k: 'viewBob', l: 'View Bobbing', type: 'bool' },
-        { k: 'fpsCap', l: 'Max FPS', type: 'select', o: ['Unlimited', '30', '60', '90', '120'], v: [0, 30, 60, 90, 120] },
+        { k: 'fpsCap', l: 'Max FPS', type: 'select', o: ['Unlimited', 'VSync (match display)', '30', '60', '75', '90', '120', '144', '165', '240', '360', '500', '1000'], v: [0, -1, 30, 60, 75, 90, 120, 144, 165, 240, 360, 500, 1000] },
+        { k: 'menuVsync', l: 'Limit FPS in Menus (VSync)', type: 'bool' },
+        { k: 'gpuQueue', l: 'GPU Queue (Frames in Flight)', type: 'select', o: ['Auto', 'Browser default', '1 (lowest latency)', '2', '3', '4'], v: [0, -1, 1, 2, 3, 4] },
+        { k: 'aqTarget', l: 'Auto Quality Target', type: 'select', o: ['30 FPS', '60 FPS', '90 FPS', '120 FPS', '144 FPS', '165 FPS', '240 FPS', '360 FPS'], v: [30, 60, 90, 120, 144, 165, 240, 360] },
+        { k: 'chunkCacheMB', l: 'World Memory Cache', type: 'select', o: ['Off', '256 MB', '512 MB', '1 GB', '2 GB', '4 GB', '8 GB'], v: [0, 256, 512, 1024, 2048, 4096, 8192] },
         { k: 'guiScale', l: 'GUI Scale', type: 'select', o: ['Auto', 'Small', 'Normal', 'Large'], v: [0, 0.8, 1, 1.2] },
         { k: 'showFps', l: 'Show FPS', type: 'bool' },
       ],
@@ -464,6 +504,7 @@ class UI {
       if (['buttonSize', 'buttonOpacity'].includes(k)) g.input.applyTouchLayout();
       if (k === 'guiScale') this.layout();
       if (k === 'renderDist' || k === 'preset') g.renderer.visDirty = true;
+      if (k === 'chunkCacheMB') g.chunkCache.trim();
       if (k !== 'preset' && schema.Video.some(x => x.k === k)) { SETTINGS.preset = 'custom'; }
     };
     const draw = () => {
@@ -487,6 +528,7 @@ class UI {
           ctl.onclick = () => { S[it.k] = !S[it.k]; ctl.className = 'toggle' + (S[it.k] ? ' on' : ''); ctl.textContent = S[it.k] ? 'ON' : 'OFF'; apply(it.k); };
         } else {
           ctl = h('select');
+          if (it.v && !it.v.includes(S[it.k]) && typeof S[it.k] === 'number') { it.v = it.v.concat([S[it.k]]); it.o = it.o.concat([String(S[it.k])]); }
           it.o.forEach((o, i) => ctl.appendChild(h('option', { value: i, selected: (it.v ? it.v[i] : i) === S[it.k] }, o)));
           ctl.onchange = () => { S[it.k] = it.v ? it.v[+ctl.value] : +ctl.value; apply(it.k); };
         }
