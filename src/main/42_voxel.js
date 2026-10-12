@@ -501,4 +501,4 @@ function buildTankModel(gl) {
   b.box(Math.round(cxv) - 1, 13, 4, Math.round(cxv), 15, 5, BM);
   return voxModel(gl, 'tank', { body: { grid: g, origin }, turret: { grid: t, origin, pivot: [0, 1.5, 0] }, barrel: { grid: b, origin, pivot: [0, 1.5625, -1.0] } });
 }
-function buildVehicleModels(gl) { buildJetModel(gl); buildGunshipModel(gl); buildBikeModel(gl); buildBomberModel(gl); buildTankModel(gl); buildMoreVehicleModels(gl); }
+function buildVehicleModels(gl) { buildJetModel(gl); buildGunshipModel(gl); buildBikeModel(gl); buildBomberModel(gl); buildTankModel(gl); buildMoreVehicleModels(gl); buildFighterModel(gl); }

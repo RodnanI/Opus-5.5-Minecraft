@@ -18,9 +18,15 @@ function raycastSolid(w, x, y, z, dx, dy, dz, maxD) {
   return null;
 }
 class Munitions {
-  constructor(game) { this.game = game; this.list = []; this.flashes = []; this.beams = []; this.burn = new Map(); this.t = 0; }
+  // list: projectiles in flight (custom kinds carry their own handler in m.cls: step / draw / light), streaks:
+  // fading ion trails, events: long-lived effects with their own update and drawing (the Eclipse's singularities)
+  constructor(game) { this.game = game; this.list = []; this.flashes = []; this.beams = []; this.burn = new Map(); this.t = 0; this.streaks = []; this.events = []; }
   get world() { return this.game.world; }
   beginFrame() { this.beams.length = 0; }
+  add(m) { this.list.push(m); return m; }
+  // the events' black geometry (drawn with the vehicles) and particles (drawn with the particle system)
+  drawSolid(R) { for (const e of this.events) if (e.drawSolid) e.drawSolid(R); }
+  particleExtras(out) { for (const e of this.events) if (e.extras) e.extras(out); }
   bolt(owner, x, y, z, dx, dy, dz, speed, o) {
     this.list.push({ kind: 'bolt', owner, x, y, z, dx, dy, dz, speed, life: o.life || 1.5, age: 0, dmg: o.dmg, color: o.color, size: o.size, len: o.len, power: o.power || 0 });
     this.game.audio.play(o.sound || 'plasma', { x, y, z, range: 48, vol: 0.55 });
@@ -104,6 +110,7 @@ class Munitions {
     for (let i = 0; i < L.length; i++) {
       const m = L[i];
       m.age += dt;
+      if (m.cls) { if (m.cls.step(this, m, dt)) L[j++] = m; continue; }
       if (m.age > m.life) { if (m.kind !== 'bolt') this.detonate(m, m.x, m.y, m.z); continue; }
       if (m.kind === 'missile') this.guide(m, dt);
       if (m.kind === 'torpedo') m.speed = Math.min(58, m.speed + 30 * dt);
@@ -149,6 +156,12 @@ class Munitions {
     for (const f of this.flashes) { f.age += dt; if (f.age < f.life) this.flashes[k++] = f; }
     this.flashes.length = k;
     if (this.burn.size) for (const [key, b] of this.burn) if (this.t - b.last > 0.6) this.burn.delete(key);
+    k = 0;
+    for (const s of this.streaks) { s.age += dt; if (s.age < s.life) this.streaks[k++] = s; }
+    this.streaks.length = k;
+    k = 0;
+    for (const e of this.events) if (e.update(dt)) this.events[k++] = e;
+    this.events.length = k;
   }
   guide(m, dt) {
     m.speed = Math.min(m.speed + 190 * dt, 205);
@@ -189,7 +202,11 @@ class Munitions {
   }
   // ------------------------------------------------------------ rendering
   drawFX(R) {
+    this.game.lensOn = false;
+    for (const s of this.streaks) { const a = 1 - s.age / s.life; R.fxBeam(s.ax, s.ay, s.az, s.bx, s.by, s.bz, s.w * (1 + s.age * 4), s.c[0], s.c[1], s.c[2], s.a * a * a); }
+    for (const e of this.events) e.drawFX(R);
     for (const m of this.list) {
+      if (m.cls) { m.cls.draw(R, m); continue; }
       if (m.kind === 'bolt') {
         const c = m.color, l = Math.min(m.len, m.age * m.speed + 0.3);
         R.fxBeam(m.x - m.dx * l, m.y - m.dy * l, m.z - m.dz * l, m.x, m.y, m.z, m.size, c[0], c[1], c[2], 2.2);
@@ -228,9 +245,11 @@ class Munitions {
   }
   addLights(R) {
     for (const f of this.flashes) { const a = 1 - f.age / f.life; R.addLight(f.x, f.y, f.z, f.boom ? 14 + f.boom * 8 : 5, f.c[0], f.c[1], f.c[2], (f.boom ? 5 : 2) * a * a); }
+    for (const e of this.events) e.lights(R);
     let n = 0;
     for (const m of this.list) {
       if (n++ > 24) break;
+      if (m.cls) { if (m.cls.light) m.cls.light(R, m); continue; }
       if (m.kind === 'bolt') R.addLight(m.x, m.y, m.z, 5 + m.size * 6, m.color[0], m.color[1], m.color[2], 1.4);
       else R.addLight(m.x, m.y, m.z, 7, 1.0, 0.6, 0.25, 1.6);
     }

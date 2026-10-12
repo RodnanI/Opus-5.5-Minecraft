@@ -89,7 +89,7 @@ class Player extends Entity {
     if (V && src) {
       const t = src.type;
       if (t === 'explosion' && src.source && (src.source === V || src.source === this)) return false;
-      if (V.def.enclosed && (t === 'mob' || t === 'arrow' || t === 'fireball' || t === 'thrown' || t === 'plasma' || t === 'laser' || t === 'breath')) return V.hurt(amount, src);
+      if (V.def.enclosed && (t === 'mob' || t === 'arrow' || t === 'fireball' || t === 'thrown' || t === 'plasma' || t === 'laser' || t === 'breath' || t === 'rail' || t === 'singularity')) return V.hurt(amount, src);
       if (V.def.enclosed && t === 'explosion') { V.hurt(amount * 0.5, src); return false; }
       if (t === 'fall' || t === 'suffocate' || t === 'drown') return false;
     }
@@ -131,7 +131,7 @@ class Player extends Entity {
     this.dead = true; this.health = 0;
     const cause = src ? src.type : 'unknown';
     const who = src && src.source && src.source.def ? 'a ' + titleCase(src.source.type) : null;
-    const msgs = { fall: 'fell from a high place', lava: 'tried to swim in lava', fire: 'went up in flames', drown: 'drowned', starve: 'starved to death', void: 'fell out of the world', explosion: 'blew up', mob: 'were slain by ' + (who || 'a monster'), arrow: 'were shot by ' + (who || 'an arrow'), fireball: 'were fireballed by ' + (who || 'an Ember Imp'), cactus: 'were pricked to death', suffocate: 'suffocated in a wall', thrown: 'were hexed by a Witch', kill: 'died', dragon: 'were slain by the Ender Dragon', breath: "were withered by the dragon's breath", kinetic: 'experienced kinetic energy' };
+    const msgs = { fall: 'fell from a high place', lava: 'tried to swim in lava', fire: 'went up in flames', drown: 'drowned', starve: 'starved to death', void: 'fell out of the world', explosion: 'blew up', mob: 'were slain by ' + (who || 'a monster'), arrow: 'were shot by ' + (who || 'an arrow'), fireball: 'were fireballed by ' + (who || 'an Ember Imp'), cactus: 'were pricked to death', suffocate: 'suffocated in a wall', thrown: 'were hexed by a Witch', kill: 'died', dragon: 'were slain by the Ender Dragon', breath: "were withered by the dragon's breath", kinetic: 'experienced kinetic energy', rail: 'were shredded by a rail slug', singularity: 'were swallowed by a singularity' };
     this.deathMsg = 'You ' + (msgs[cause] || 'died');
     if (!g.gameRules.keepInventory) {
       for (let i = 0; i < 41; i++) { const s = this.inv.get(i); if (s) { g.dropItem(this.world, this.x, this.y + 1, this.z, s, true); this.inv.set(i, null); } }

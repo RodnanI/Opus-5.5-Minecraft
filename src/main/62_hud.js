@@ -39,7 +39,7 @@ class VehicleHUD {
     c.clearRect(0, 0, this.w, this.h);
     c.lineCap = 'round'; c.lineJoin = 'round';
     this.fs = clamp(Math.round(this.h / 58), 11, 17);
-    if (v.kind === 'jet' || v.kind === 'bomber') this.jet(c, v, dt);
+    if (v.kind === 'jet' || v.kind === 'bomber' || v.kind === 'fighter') this.jet(c, v, dt);
     else if (v.kind === 'gunship') this.gunship(c, v, dt);
     else if (v.kind === 'tank') this.tank(c, v, dt);
     else if (v.kind === 'mech') this.mech(c, v, dt);
@@ -173,7 +173,8 @@ class VehicleHUD {
         if (!locked) { const r = b * (2.4 - lockT * 1.6); this.poly([s[0], s[1] - r, s[0] + r, s[1], s[0], s[1] + r, s[0] - r, s[1]], true); }
         else if (this.flash(4)) this.text('LOCK', s[0], s[1] - b - fs, 'center', fs, '#FFD23F');
         this.text(Math.round(d) + 'm', s[0] + b + 6, s[1] + b, 'left', fs * 0.8);
-        const nm = e.isMob ? titleCase(e.type) : e.def.name.split(' ')[0].toUpperCase();
+        // mobs by type, vehicles by name; the dragon has neither a mob def nor a vehicle def
+        const nm = e.isMob || !(e.def && e.def.name) ? titleCase(e.type || '') : e.def.name.split(' ')[0];
         this.text(nm.toUpperCase(), s[0] + b + 6, s[1] - b, 'left', fs * 0.8);
         this.col = old;
       }
@@ -233,7 +234,7 @@ class VehicleHUD {
   jet(c, v, dt) {
     if (v.simMode && v.simMode()) { this.hmd(c, v, dt); return; }
     const cx = this.w / 2, cy = this.h / 2;
-    this.col = '#A8FF52';
+    this.col = v.kind === 'fighter' ? '#8CF6FF' : '#A8FF52';
     const cen = v.center([0, 0, 0]), f = v.fwd;
     // aim ring (where the mouse points)
     this.circle(cx, cy, 9); this.line(cx - 16, cy, cx - 11, cy); this.line(cx + 11, cy, cx + 16, cy); this.line(cx, cy - 16, cx, cy - 11);
@@ -286,15 +287,18 @@ class VehicleHUD {
     this.bar(tx, ty, fs * 0.9, fs * 7, v.throttle, v.boosting ? '#FFB23D' : this.col);
     this.bar(tx + fs * 1.4, ty, fs * 0.5, fs * 7, v.boost, '#FFB23D');
     this.text('THR ' + Math.round(v.throttle * 100), tx + fs * 2.4, ty + fs * 0.4, 'left', fs * 0.85);
-    if (v.boosting) this.text('AFTERBURNER', tx + fs * 2.4, ty + fs * 1.7, 'left', fs * 0.85, '#FFB23D');
-    if (v.gear > 0.5) this.text('GEAR DN', tx + fs * 2.4, ty + fs * 3.0, 'left', fs * 0.85);
+    if (v.boosting) this.text(v.kind === 'fighter' ? 'HYPERDRIVE' : 'AFTERBURNER', tx + fs * 2.4, ty + fs * 1.7, 'left', fs * 0.85, '#FFB23D');
+    if (v.hov > 0.3) this.text('GRAV LIFT', tx + fs * 2.4, ty + fs * 3.0, 'left', fs * 0.85, '#D8B4FF');
+    else if (v.gear > 0.5) this.text('GEAR DN', tx + fs * 2.4, ty + fs * 3.0, 'left', fs * 0.85);
     if (v.onGround) this.text('TAXI', tx + fs * 2.4, ty + fs * 4.3, 'left', fs * 0.85);
     // targets + lock
-    this.targets(v, 320, v.lock, v.lockT, true);
+    this.targets(v, v.kind === 'fighter' ? 450 : 320, v.lock, v.lockT, true);
     // weapons
     const wx = cx + Math.min(W * 0.3, 330) - fs * 6, wy = H - fs * 7.5;
-    this.weaponLine(wx, wy, 'PLASMA', v.heat, v.overheat > 0);
-    if (v.kind === 'bomber') {
+    if (v.kind === 'fighter') this.eclipseWeapons(v, wx, wy);
+    else this.weaponLine(wx, wy, 'PLASMA', v.heat, v.overheat > 0);
+    if (v.kind === 'fighter') { this.designator(v); this.sngTimer(v); }
+    else if (v.kind === 'bomber') {
       this.text('BOMBS', wx, wy + fs * 1.8, 'left', fs * 0.9);
       this.pips(wx + fs * 5.2, wy + fs * 1.3, v.bombs, 12);
       this.text(v.bay > 0.5 ? 'BAY OPEN' : 'BAY SAFE', wx, wy + fs * 3.6, 'left', fs * 0.9, v.bay > 0.5 ? '#FFD23F' : this.col);
@@ -307,7 +311,7 @@ class VehicleHUD {
     }
     if (v.overheat > 0 && this.flash(5)) this.text('OVERHEAT', cx, cy + fs * 4, 'center', fs * 1.1, '#FF5A2E');
     this.hullBar(fs * 1.5, fs * 1.6, v);
-    this.text(v.kind === 'bomber' ? 'WRAITH // B-9' : 'STORMCROW // IX-7', fs * 1.5, fs * 3.2, 'left', fs * 0.8);
+    this.text(v.kind === 'bomber' ? 'WRAITH // B-9' : v.kind === 'fighter' ? 'ECLIPSE // HX-9' : 'STORMCROW // IX-7', fs * 1.5, fs * 3.2, 'left', fs * 0.8);
     this.radar(fs * 1.5 + 70, H - 90, 62, v, 260);
     this.lockAudio(v);
     this.warnings(v);
@@ -327,7 +331,7 @@ class VehicleHUD {
   // displays carry the radar, stores and systems). Head-fixed, so it turns with free look like a real HMD.
   hmd(c, v, dt) {
     const W = this.w, H = this.h, cx = W / 2, cy = H * 0.4, fs = this.fs, sp = v.speed, f = v.fwd;
-    this.col = '#A8FF52';
+    this.col = v.kind === 'fighter' ? '#8CF6FF' : '#A8FF52';
     const cen = v.center([0, 0, 0]);
     // gun cross on the cannon line, flight path marker, world-referenced ladder
     const b = this.proj(cen[0] + f[0] * 600, cen[1] + f[1] * 600, cen[2] + f[2] * 600);
@@ -349,7 +353,7 @@ class VehicleHUD {
     this.tape(cx + tx, cy, tapeH, v.y, 5, 4, true, (s) => String(Math.round(s)), 'ALT');
     const gz = v.gz === undefined ? 1 : v.gz, agl = v.agl !== undefined && v.agl < 200 ? Math.round(v.agl) : '---';
     this.text('G ' + (Math.abs(gz) < 0.05 ? 0 : gz).toFixed(1), cx - tx - fs * 5, cy + tapeH / 2 + fs, 'left', fs * 0.9, gz > 7 ? '#FFB23D' : this.col);
-    this.text('THR ' + Math.round(v.throttle * 100) + (v.boosting ? ' A/B' : ''), cx - tx - fs * 5, cy + tapeH / 2 + fs * 2.2, 'left', fs * 0.85, v.boosting ? '#FFB23D' : this.col);
+    this.text('THR ' + Math.round(v.throttle * 100) + (v.boosting ? (v.kind === 'fighter' ? ' HYPER' : ' A/B') : ''), cx - tx - fs * 5, cy + tapeH / 2 + fs * 2.2, 'left', fs * 0.85, v.boosting ? '#FFB23D' : this.col);
     this.text('R ' + agl, cx + tx + 6, cy + tapeH / 2 + fs, 'left', fs * 0.9, typeof agl === 'number' && agl < 15 && !v.onGround ? '#FFB23D' : this.col);
     this.text((v.vel[1] >= 0 ? '+' : '') + v.vel[1].toFixed(0) + ' VS', cx + tx + 6, cy + tapeH / 2 + fs * 2.2, 'left', fs * 0.85);
     this.headingTape(cx, fs * 3.2, Math.min(W * 0.34, 380), v.heading());
@@ -358,15 +362,56 @@ class VehicleHUD {
     if (v.kind === 'bomber') {
       this.text((v.bay > 0.5 ? 'BAY OPEN' : 'BAY SAFE') + '   BOMBS ' + v.bombs, cx, wy, 'center', fs * 0.9, v.bay > 0.5 ? '#FFD23F' : this.col);
       this.ccipMark(v);
+    } else if (v.kind === 'fighter') {
+      const msg = v.sngMsgT > 0 ? v.sngMsg : v.lock && v.lockT >= 1 ? 'SNG ' + v.sng + ' LOCK' : 'SNG ' + v.sng;
+      this.text('RAIL ' + (v.overheat > 0 ? 'OVHT' : Math.round(v.heat * 100) + '%') + '   ' + msg, cx, wy, 'center', fs * 0.9, v.sngMsgT > 0 && v.sngMsg !== 'AWAY' ? '#FF5A2E' : v.lock && v.lockT >= 1 ? '#FFD23F' : this.col);
+      if (v.hov > 0.3) this.text('GRAV LIFT', cx, wy + fs * 2.6, 'center', fs * 0.85, '#D8B4FF');
+      this.designator(v); this.sngTimer(v);
     } else {
       const ls = v.lock ? (v.lockT >= 1 ? 'LOCK' : 'LOCKING') : 'SEEK';
       this.text('HYDRA ' + v.missiles + '  ' + ls, cx, wy, 'center', fs * 0.9, v.lock && v.lockT >= 1 ? '#FFD23F' : this.col);
     }
     if (v.overheat > 0 && this.flash(5)) this.text('GUN OVERHEAT', cx, wy + fs * 1.3, 'center', fs * 0.9, '#FF5A2E');
     if (v.onGround) this.text('TAXI', cx, wy - fs * 1.3, 'center', fs * 0.9);
-    this.targets(v, 320, v.lock, v.lockT, true);
+    this.targets(v, v.kind === 'fighter' ? 450 : 320, v.lock, v.lockT, true);
     this.lockAudio(v);
     this.warnings(v);
+  }
+  // ------------------------------------------------------------ ECLIPSE
+  // rail heat, the warheads (with the reload of the next one) and what the warhead system is saying
+  eclipseWeapons(v, x, y) {
+    const fs = this.fs, ready = v.sng > 0;
+    this.weaponLine(x, y, 'RAIL', v.heat, v.overheat > 0);
+    this.text('SNG', x, y + fs * 1.8, 'left', fs * 0.9, ready ? '#D8B4FF' : this.col);
+    this.pips(x + fs * 5.2, y + fs * 1.3, v.sng, SNG.max, '#D8B4FF');
+    if (v.sng < SNG.max) this.bar(x + fs * 7.4, y + fs * 1.45, fs * 4.8, fs * 0.7, 1 - v.sReload / SNG.reload, '#B48CFF');
+    const D = v.desig, bad = v.sngMsgT > 0 && v.sngMsg !== 'AWAY';
+    const msg = v.sngMsgT > 0 ? v.sngMsg : v.lock && v.lockT >= 1 ? 'TGT LOCKED' : v.lock ? 'LOCKING ' + Math.round(v.lockT * 100) + '%' : !ready ? 'RELOADING' : !D ? '' : D.far ? 'OUT OF RANGE' : D.hit ? 'TGT ' + Math.round(D.dist) + 'm' : 'AIRBURST';
+    this.text(msg, x, y + fs * 3.6, 'left', fs * 0.9, bad ? '#FF5A2E' : v.lock && v.lockT >= 1 ? '#FFD23F' : this.col);
+  }
+  // where a warhead would strike: a diamond on the ground with the crater's outline around it
+  designator(v) {
+    const D = v.desig; if (!D || v.sng <= 0) return;
+    const fs = this.fs, close = D.dist < SNG.safe || D.far, old = this.col;
+    this.col = close ? '#FF5A2E' : '#D8B4FF';
+    if (!D.ent && D.hit) {
+      const pts = [], R = SNG.crH;
+      for (let i = 0; i <= 36; i++) { const a = i / 36 * TAU, p = this.proj(D.x + Math.cos(a) * R, D.y + 0.4, D.z + Math.sin(a) * R); if (!p) { pts.length = 0; break; } pts.push(p[0], p[1]); }
+      if (pts.length) this.poly(pts);
+    }
+    const s = this.proj(D.x, D.y, D.z);
+    if (s) {
+      const q = 10 + Math.sin(this.t * 6) * 2;
+      this.poly([s[0], s[1] - q, s[0] + q, s[1], s[0], s[1] + q, s[0] - q, s[1]], true); this.circle(s[0], s[1], 2);
+      this.text(D.far ? 'OUT OF RANGE' : (close ? 'TOO CLOSE  ' : D.hit ? '' : 'AIRBURST  ') + Math.round(D.dist) + 'm', s[0] + q + 6, s[1] - 2, 'left', fs * 0.8, this.col);
+    }
+    this.col = old;
+  }
+  // a live singularity of yours: the countdown to its burst
+  sngTimer(v) {
+    const E = v.sngEvent; if (!E || E.burst) return;
+    const left = Math.max(0, SNG.burst - E.t);
+    if (this.flash(left < 1.2 ? 7 : 2.5)) this.text('SINGULARITY  T-' + left.toFixed(1), this.w / 2, this.h * 0.2, 'center', this.fs * 1.3, '#D8B4FF');
   }
   // ------------------------------------------------------------ BASTION
   tank(c, v, dt) {

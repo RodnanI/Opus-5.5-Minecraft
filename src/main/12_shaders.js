@@ -941,15 +941,29 @@ void main() {
   o = vec4(acc / float(GR_SAMPLES) * uStrength * fall * 3.0, 1.0);
 }`;
 const COMPOSITE_FS = GLSL_COMMON + `
-uniform sampler2D uScene, uBloom, uRays;
-uniform float uBloomAmt, uRaysAmt, uTonemap, uVignette, uUnderwater, uLava, uNausea, uHurtFx, uTime, uExposure, uSat, uUseBloom, uUseRays, uGammaOut, uBoost, uWarm, uGLoad, uRedout;
+uniform sampler2D uScene, uBloom, uRays, uDepthC;
+uniform float uBloomAmt, uRaysAmt, uTonemap, uVignette, uUnderwater, uLava, uNausea, uHurtFx, uTime, uExposure, uSat, uUseBloom, uUseRays, uGammaOut, uBoost, uWarm, uGLoad, uRedout, uAspect, uLensZ;
 uniform vec3 uRayColor;
+uniform vec4 uLens;
 in vec2 vUv; out vec4 o;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 void main() {
   vec2 uv = vUv;
   if (uUnderwater > 0.5) uv += vec2(sin(uv.y * 30.0 + uTime * 2.0), cos(uv.x * 25.0 + uTime * 1.7)) * 0.0022;
   if (uNausea > 0.0) { vec2 c = uv - 0.5; float a = uNausea * 0.25 * sin(uTime * 1.5 + length(c) * 6.0); uv = 0.5 + mat2(cos(a), -sin(a), sin(a), cos(a)) * c * (1.0 - uNausea * 0.08 * sin(uTime * 2.0)); }
+  if (uLens.w > 0.001) {
+    // a singularity bends the light around it: each pixel near its shadow shows the scene from where the hole
+    // deflected its ray (lens equation: beta = theta - thetaE^2 / theta), never from inside the shadow, so the
+    // light just outside it is smeared into a bright Einstein ring. Only what lies behind the hole is bent: a hill,
+    // the jet or the cockpit in front of it stay put (uLensZ: the hole's depth)
+    vec2 d = (uv - uLens.xy) * vec2(uAspect, 1.0);
+    float th = length(d), rs = uLens.z, fall = 1.0 - smoothstep(rs * 3.0, rs * 8.0, th);
+    if (th > rs && fall > 0.0 && texture(uDepthC, vUv).r > uLensZ) {
+      float te = rs * 0.62, b = max(th - te * te / th * fall * uLens.w, rs * 1.01);
+      vec2 luv = uLens.xy + d / th * b / vec2(uAspect, 1.0);
+      if (texture(uDepthC, luv).r > uLensZ) uv = luv;
+    }
+  }
   vec3 c;
   if (uBoost > 0.001) {
     // speed boost: radial chromatic smear toward the edges

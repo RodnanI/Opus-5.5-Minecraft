@@ -76,7 +76,7 @@ class Vehicle extends Entity {
   mount(p) {
     const g = this.game;
     this.rider = p; p.vehicle = this; p.vcam = p.vcam || 0; p.sneaking = false; p.sprinting = false; p.flying = false;
-    p.yaw = this.heading(); p.pitch = this.kind === 'jet' ? Math.asin(clamp(this.fwd[1], -1, 1)) : -0.12;
+    p.yaw = this.heading(); p.pitch = this.kind === 'jet' || this.kind === 'fighter' ? Math.asin(clamp(this.fwd[1], -1, 1)) : -0.12;
     this.syncRider(p);
     g.audio.play('veh_enter', {});
     this.mountT = 9;
@@ -344,12 +344,14 @@ class Jet extends Vehicle {
     if (ctl) this.throttle = clamp(this.throttle + inp.f * dt * 0.7, 0, 1);
     else this.throttle = Math.max(0, this.throttle - dt * 0.5);
     this.boosting = ctl && inp.boost && this.boost > 0.02 && this.throttle > 0.2;
-    if (this.boosting) this.boost = Math.max(0, this.boost - dt * 0.14);
+    if (this.boosting) this.boost = Math.max(0, this.boost - dt * (this.fp.abDrain || 0.14));
     const FP = this.fp, thrust = this.throttle * FP.thrust + (this.boosting ? FP.ab : 0);
     this.engine += ((this.throttle + (this.boosting ? 0.6 : 0)) - this.engine) * Math.min(1, dt * 3);
     // ------------------------------------------------ ground roll
     if (this.onGround) {
       this.agl = 0;
+      // grav-lift (the Eclipse): straight up off the ground, no takeoff run needed
+      if (FP.grav && ctl && inp.up) { this.onGround = false; this.liftT = this.t; this.hov = 1; v[1] = Math.max(v[1], 4); this.y += 0.06; this.game.audio.play('grav_lift', { x: this.x, y: this.y, z: this.z, vol: 0.8 }); return; }
       const vf = v[0] * f[0] + v[2] * f[2];
       let nv = vf + thrust * dt;
       nv -= Math.sign(nv) * Math.min(Math.abs(nv), (ctl && inp.down ? 30 : 3 + Math.abs(nv) * 0.05) * dt) + nv * Math.abs(nv) * FP.drag * dt;
@@ -400,9 +402,16 @@ class Jet extends Vehicle {
       nT = clamp(cg * cphi / Math.max(cphi * cphi, 0.25), FP.nMin, FP.nMax);
     }
     const lift = g * clamp((sp - FP.lift0) / FP.liftR, 0, sim ? 1 : 1.05) * nT;
-    v[0] += u[0] * lift * dt; v[1] += (u[1] * lift - g) * dt; v[2] += u[2] * lift * dt;
-    this.stall = sp < FP.stall;
-    const auth = clamp(sp / 34, 0.3, 1.0);
+    // grav-lift (the Eclipse): below flying speed the gravity drive carries the weight; Space climbs, Shift sinks,
+    // and with the throttle back it brakes to a hover. Thrusters give full control authority while it hovers
+    const hov = FP.grav ? this.hover(dt, ctl, inp, sp) : 0;
+    v[0] += u[0] * lift * dt; v[1] += (u[1] * lift - g * (1 - hov)) * dt; v[2] += u[2] * lift * dt;
+    if (hov > 0.001) {
+      v[1] += ((ctl && inp.up ? 9 : 0) - (ctl && inp.down ? 7 : 0) - v[1]) * Math.min(1, dt * 2.6) * hov;
+      const kh = Math.exp(-dt * 1.1 * hov * (1 - this.throttle)); v[0] *= kh; v[2] *= kh;
+    }
+    this.stall = sp < FP.stall && hov < 0.3;
+    const auth = Math.max(clamp(sp / 34, 0.3, 1.0), hov);
     if (sim) {
       // ------------------------------------------------ direct flight controller
       // the mouse queues a body-frame rotation that is flown out within the rate and G limits. Nothing levels the
@@ -416,9 +425,9 @@ class Jet extends Vehicle {
       // weathervane: the nose follows the flight path wherever gravity and the trim lift bend it
       let fp = 0, fy = 0;
       if (sp > 4) {
-        const ax = u[0] * lift, ay = u[1] * lift - g, az = u[2] * lift, d = Math.max(sp * sp, 400);
+        const ax = u[0] * lift, ay = u[1] * lift - g * (1 - hov), az = u[2] * lift, d = Math.max(sp * sp, 400);
         const wb = Q.inv(this.q, (v[1] * az - v[2] * ay) / d, (v[2] * ax - v[0] * az) / d, (v[0] * ay - v[1] * ax) / d, _v5);
-        fp = clamp(wb[0], -1.2, 1.2); fy = clamp(-wb[1], -1.2, 1.2);
+        fp = clamp(wb[0], -1.2, 1.2) * (1 - hov); fy = clamp(-wb[1], -1.2, 1.2) * (1 - hov);
       }
       this.av[0] = A[0] + fp; this.av[1] = A[1] + fy; this.av[2] = A[2];
     } else {
@@ -496,7 +505,7 @@ class Jet extends Vehicle {
     this.warn = '';
     if (this.rider) {
       const tti = v[1] < -1 ? agl / -v[1] : 99;
-      if (tti < 2.6 && agl < 60 && !(u[1] > 0.9 && sp < FP.landMax && v[1] > -9)) this.warn = 'PULL UP';
+      if (tti < 2.6 && agl < 60 && hov < 0.5 && !(u[1] > 0.9 && sp < FP.landMax && v[1] > -9)) this.warn = 'PULL UP';
       else if (this.stall && agl > 3) this.warn = 'STALL';
     }
   }
@@ -554,7 +563,8 @@ class Jet extends Vehicle {
     const gz = this.gz;
     this.gPeak = Math.max(this.gPeak, gz);
     // sustained high G drains the colour and closes in the view; hard negative G reds it out
-    this.gLoad = gz > 5.2 ? Math.min(1.25, this.gLoad + (gz - 5.2) * dt * 0.24) : Math.max(0, this.gLoad - dt * (gz < 3 ? 0.45 : 0.18));
+    const gb = FP.gBlack || 5.2;
+    this.gLoad = gz > gb ? Math.min(1.25, this.gLoad + (gz - gb) * dt * 0.24) : Math.max(0, this.gLoad - dt * (gz < 3 ? 0.45 : 0.18));
     this.redout = gz < -2.2 ? Math.min(1, this.redout + (-gz - 2.2) * dt * 0.5) : Math.max(0, this.redout - dt * 0.6);
     // terrain rushing past: the nearest surface below the belly and off either wing
     const c = this.center(_v3), w = this.world, cx = c[0], cy = c[1], cz = c[2];
@@ -639,6 +649,19 @@ class Jet extends Vehicle {
       R.fxBeam(m[0], m[1], m[2], m[0] + wx, m[1] + wy, m[2] + wz, 0.012 + d * 0.0014, cw, cw * 1.02, 1, a * (1 - d / 60));
     }
   }
+  // missile lock: the target closest to the nose within a cone, kept while it stays inside a wider cone
+  // (hysteresis); it locks after 0.8 s on target
+  trackLock(dt, M, range) {
+    const cur = this.lock;
+    let tgt = null;
+    if (cur && !cur.dead && !cur.removed) {
+      const c = this.center(_v4), dx = cur.x - c[0], dy = cur.y + cur.h * 0.5 - c[1], dz = cur.z - c[2], d = Math.hypot(dx, dy, dz) || 1;
+      if (d < range * 1.125 && (dx * this.fwd[0] + dy * this.fwd[1] + dz * this.fwd[2]) / d > Math.cos(0.33)) tgt = cur;
+    }
+    if (!tgt) tgt = M.findTarget(this, this.fwd, 0.22, range);
+    if (tgt && tgt === this.lock) this.lockT = Math.min(1, this.lockT + dt / 0.8);
+    else { this.lock = tgt; this.lockT = 0; }
+  }
   weapons(dt, inp) {
     const M = this.game.munitions; if (!M || !inp) return;
     // plasma cannons from alternating wing-root muzzles
@@ -651,18 +674,8 @@ class Jet extends Vehicle {
       this.addHeat(0.028);
       this.muzzle = 0.06;
     }
-    // missile lock: target closest to the nose within a cone
     if (this.mReload > 0) { this.mReload -= dt; if (this.mReload <= 0 && this.missiles < 8) { this.missiles++; this.mReload = this.missiles < 8 ? 2.4 : 0; } }
-    // keep the current lock while it stays inside a wider cone (hysteresis)
-    const cur = this.lock;
-    let tgt = null;
-    if (cur && !cur.dead && !cur.removed) {
-      const c = this.center(_v4), dx = cur.x - c[0], dy = cur.y + cur.h * 0.5 - c[1], dz = cur.z - c[2], d = Math.hypot(dx, dy, dz) || 1;
-      if (d < 360 && (dx * this.fwd[0] + dy * this.fwd[1] + dz * this.fwd[2]) / d > Math.cos(0.33)) tgt = cur;
-    }
-    if (!tgt) tgt = M.findTarget(this, this.fwd, 0.22, 320);
-    if (tgt && tgt === this.lock) this.lockT = Math.min(1, this.lockT + dt / 0.8);
-    else { this.lock = tgt; this.lockT = 0; }
+    this.trackLock(dt, M, 320);
     if (inp.fire2 && this.cd2 <= 0 && this.missiles > 0) {
       this.cd2 = 0.45; this.missiles--; if (this.mReload <= 0) this.mReload = 2.4;
       const slot = this.missiles % 4, xs = [-1.75, 1.75, -1.25, 1.25][slot];

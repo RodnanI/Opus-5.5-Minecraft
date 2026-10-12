@@ -4,6 +4,34 @@ Open `minecraft.html` in Chrome, Edge or Firefox. It is a single standalone file
 
 On Windows 10 and 11 there is also a desktop edition: `dist/VoxelCraft-Windows/VoxelCraft.exe` (built by `node build.js`, see Update 5), which runs the same game without the browser's frame-rate limit and with every engine setting under your control.
 
+## Update 6: the Eclipse hypersonic fighter
+
+A third jet. It flies like the Stormcrow and the Wraith (mouse-aim chase cameras, and the simulator cockpit on F5), only faster and sharper, and its weapons come from a century or two ahead. Get it with `/vehicle fighter`, from the Vehicles tab, or craft it from diamonds, an end crystal, netherite ingots, an eye of ender, iron and glass.
+
+**The airframe**
+- A needle-nosed black lifting body with cyan light lines along its knife-edge chines and a gold visor canopy. Its forward-swept wings swing back as the speed builds. A gold "halo" ring around the tail is the fusion drive, and it glows with the throttle.
+- **Grav-lift (Space).** The gravity drive lifts the jet straight off the ground. Below flying speed it carries the jet's weight, so it hovers: Space climbs, Shift sinks and W/S moves it along. Throttle up and it flies normally; slow down and it hovers again. It never stalls and can land anywhere.
+- **Hyperdrive (Ctrl).** Up to about 690 km/h. The wings sweep fully back, a vapour cone forms at the sound barrier, and punching through it sets off a sonic boom.
+- It rolls and pitches faster than the Stormcrow and pulls up to 11 G. Inertial dampers hold off the grey-out until about 7.5 G.
+- The cockpit is deliberately simple: a frameless gold-tinted canopy, one panoramic display (flight, map and weapons pages) framed by light, the caution lamps, the stick and the throttle.
+
+**LMB: hypervelocity rail cannon**
+- Twin magnetic rails fire slugs at about 1000 blocks/s, 12 a second, alternating rails. The slugs converge on whatever the nose points at.
+- A slug punches through up to three mobs and knocks them flying. Where it lands it blasts a small crater, so strafing runs gouge trenches. Each shot leaves a fading ion trail.
+- The rails heat up: about five seconds of continuous fire before they have to cool.
+
+**RMB: singularity warhead**
+- **Aiming.** Point at the ground and click. A diamond and the crater's outline on the HUD show where it will strike. Hold the nose on a mob or the dragon to lock on, and the warhead homes on it.
+- **Ammo and safety.** You carry two, and each reloads in 20 seconds. It refuses to launch at anything closer than 48 blocks or past the loaded terrain, and fails safe as a dud if it strikes something right after leaving the bay.
+- **The black hole.** Where the warhead lands, a micro black hole forms: a black sphere with an accretion disk and a photon ring. With post-processing on, the scene behind it bends around it.
+- **The pull.** For about five seconds it feeds, tearing the ground apart around it and pulling in everything nearby. Mobs within about 20 blocks are lifted off their feet and swallowed. Vehicles are dragged too, yours included if you hover too close. The HUD counts down to the burst.
+- **The burst.** It collapses and evaporates in a blinding white flash, with a fireball and a condensation shell. A shock front rolls across the land, buffets your jet, and its boom arrives with it.
+- **The aftermath.** A crater about 42 blocks wide and 13 deep, lined with glassed sand, blackstone, basalt and glowing magma. Around it, a scorched blast zone with stripped trees and fires, under a mushroom cloud that climbs about 70 blocks and lingers.
+- **Damage.** Nothing survives within 26 blocks, and the blast reaches 72. The Ender Dragon loses at most half its health to one burst.
+
+**Fixes**
+- A jet's HUD no longer breaks when its lock box is on the Ender Dragon.
+
 ## Update 5: no frame-rate cap, a Windows launcher, faster rendering
 
 **No frame-rate cap**

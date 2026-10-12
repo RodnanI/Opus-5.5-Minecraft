@@ -1141,6 +1141,10 @@ Desktop launcher: ${LAUNCH.browser || 'browser'}${LAUNCH.angle ? ', ANGLE ' + LA
     gl.uniform1f(u.uBoost, game.boostFx || 0);
     const pv = game.player && game.player.vehicle, gfx = pv && game.player.vcam === 1 && pv.gLoad !== undefined && SETTINGS.cockpitFx !== false;
     gl.uniform1f(u.uGLoad, gfx ? Math.min(1, pv.gLoad) : 0); gl.uniform1f(u.uRedout, gfx ? pv.redout : 0);
+    // gravitational lensing around a singularity on screen (49_eclipse.js)
+    const L = game.lensOn && game.lens;
+    gl.uniform4f(u.uLens, L ? L[0] : 0, L ? L[1] : 0, L ? L[2] : 0, L ? L[3] : 0); gl.uniform1f(u.uAspect, this.width / this.height); gl.uniform1f(u.uLensZ, L ? L[4] : 1);
+    this.bindTex(3, p.depth, u.uDepthC);
     gl.uniform1f(u.uWarm, env.nether || env.end ? 0 : env.day);
     if (p.ldrF) {
       this.fsq(pr, p.ldrF, this.width, this.height);

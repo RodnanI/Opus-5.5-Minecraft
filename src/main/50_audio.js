@@ -232,14 +232,40 @@ class Audio {
       case 'torpedo': { const s = this.noise(dst, t, 1.2, 'lowpass', 700, 1, 0.6, 0.02, true); s.frequency.exponentialRampToValueAtTime(260, t + 1.1); this.tone(dst, t, 'sine', 140, 70, 0.5, 0.35); for (let i = 0; i < 6; i++) this.tone(dst, t + 0.05 + i * 0.07, 'sine', 900 + r() * 700, 500, 0.06, 0.05); break; }
       case 'sonar': { this.tone(dst, t, 'sine', 1480, 1470, 1.4, 0.16, 0.01); this.tone(dst, t + 0.25, 'sine', 1480, 1470, 1.0, 0.05, 0.01); break; }
       case 'glide_boost': { const s = this.noise(dst, t, 1.2, 'bandpass', 700, 0.8, 0.45, 0.02); s.frequency.exponentialRampToValueAtTime(1800, t + 0.4); break; }
+      // ---- the Eclipse: rail cannon, sound barrier, gravity drive, singularity warhead
+      case 'railgun': this.tone(dst, t, 'sawtooth', 2600 * p * (0.95 + r() * 0.1), 260, 0.09, 0.12); this.noise(dst, t, 0.05, 'highpass', 4800, 0.7, 0.32); this.tone(dst, t, 'sine', 170, 42, 0.15, 0.5); this.tone(dst, t + 0.004, 'square', 5400, 3800, 0.035, 0.035); break;
+      case 'rail_hit': { const s = this.noise(dst, t, 0.35, 'lowpass', 1500, 0.8, 0.6, 0.004, true); s.frequency.exponentialRampToValueAtTime(220, t + 0.3); this.tone(dst, t, 'sine', 130, 38, 0.22, 0.45); for (let i = 0; i < 4; i++) this.noise(dst, t + 0.03 + r() * 0.12, 0.03, 'highpass', 3500, 1, 0.14); break; }
+      case 'sonic_boom': for (const d of [0, 0.11]) { const s = this.noise(dst, t + d, 0.5, 'lowpass', 2600, 0.7, 0.95, 0.002, true); s.frequency.exponentialRampToValueAtTime(140, t + d + 0.45); this.tone(dst, t + d, 'sine', 95, 32, 0.4, 0.6); } break;
+      case 'grav_lift': { this.tone(dst, t, 'sine', 55, 110, 0.7, 0.35, 0.08); const s = this.noise(dst, t, 0.8, 'bandpass', 300, 2, 0.25, 0.1, true); s.frequency.exponentialRampToValueAtTime(900, t + 0.7); break; }
+      case 'sng_launch': this.tone(dst, t, 'sine', 80, 30, 0.6, 0.7); this.noise(dst, t, 0.25, 'lowpass', 900, 1, 0.6, 0.005, true); this.tone(dst, t + 0.05, 'sawtooth', 140, 720, 0.9, 0.06, 0.2); break;
+      case 'sng_motor': { const s = this.noise(dst, t, 1.6, 'bandpass', 500, 0.8, 0.7, 0.02); s.frequency.exponentialRampToValueAtTime(2600, t + 1.2); this.tone(dst, t, 'sine', 70, 140, 1.2, 0.3, 0.05); this.tone(dst, t, 'triangle', 420, 1300, 1.0, 0.05, 0.1); break; }
+      case 'sng_form': {
+        // space folding in on itself: a reversed rush, a sub-bass drop and a long glassy ring
+        const s = this.noise(dst, t, 0.9, 'bandpass', 4000, 1.2, 0.6, 0.6); s.frequency.exponentialRampToValueAtTime(160, t + 0.85);
+        this.tone(dst, t + 0.55, 'sine', 140, 26, 1.6, 0.9, 0.02); this.tone(dst, t + 0.6, 'sine', 1900, 1880, 2.2, 0.06, 0.02); this.tone(dst, t + 0.62, 'sine', 2851, 2840, 1.8, 0.03, 0.02);
+        break;
+      }
+      case 'sng_collapse': { this.tone(dst, t, 'sine', 180, 2600, 0.6, 0.25, 0.4); const s = this.noise(dst, t, 0.62, 'highpass', 900, 0.8, 0.45, 0.55); s.frequency.exponentialRampToValueAtTime(7000, t + 0.6); break; }
+      case 'sng_burst': this.noise(dst, t, 0.6, 'highpass', 2500, 0.6, 0.9, 0.002); this.noise(dst, t, 1.2, 'lowpass', 5000, 0.5, 0.6, 0.002); this.tone(dst, t, 'sine', 3000, 400, 0.3, 0.2); break;
+      case 'sng_boom': {
+        // the shock front arriving: a long, deep, rolling boom with crackles and the land echoing it back
+        const s = this.noise(dst, t, 6.5, 'lowpass', 1400, 0.7, 1.0, 0.004, true); s.frequency.exponentialRampToValueAtTime(45, t + 6);
+        this.tone(dst, t, 'sine', 55, 20, 4.5, 1.0, 0.01); this.tone(dst, t + 0.02, 'sine', 38, 18, 5, 0.8, 0.05);
+        this.noise(dst, t, 0.35, 'bandpass', 1800, 0.5, 0.8, 0.003);
+        for (let i = 0; i < 14; i++) this.noise(dst, t + 0.2 + r() * 3.5, 0.06 + r() * 0.1, 'lowpass', 900 + r() * 1400, 1, 0.25 + r() * 0.2, 0.005, true);
+        if (this.verb) { const g2 = this.ctx.createGain(); g2.gain.value = 0.8; g2.connect(this.verb); const s2 = this.noise(g2, t + 0.1, 5, 'lowpass', 700, 0.7, 0.8, 0.02, true); s2.frequency.exponentialRampToValueAtTime(60, t + 4.5); }
+        break;
+      }
+      case 'sng_ready': this.tone(dst, t, 'sine', 660, 660, 0.12, 0.12); this.tone(dst, t + 0.12, 'sine', 990, 990, 0.2, 0.12); this.tone(dst, t + 0.12, 'triangle', 1980, 1980, 0.15, 0.03); break;
+      case 'deny': this.tone(dst, t, 'square', 210, 200, 0.12, 0.09); this.tone(dst, t + 0.15, 'square', 210, 200, 0.12, 0.09); break;
     }
   }
   // ---------------------------------------------------------------- continuous loops (engines, lasers, lock tone)
-  panFor(x, y, z) {
+  panFor(x, y, z, range) {
     const p = this.game.player, cam = this.game.camera;
     if (!p || x === undefined) return [1, 0];
     const dx = x - cam.x, dy = y - cam.y, dz = z - cam.z, d = Math.hypot(dx, dy, dz);
-    return [Math.max(0, 1 - d / 70), clamp(camRightDot(cam, dx, dy, dz) / Math.max(d, 1), -0.8, 0.8)];
+    return [Math.max(0, 1 - d / (range || 70)), clamp(camRightDot(cam, dx, dy, dz) / Math.max(d, 1), -0.8, 0.8)];
   }
   loopNode(build) {
     const ctx = this.ctx, g = ctx.createGain(); g.gain.value = 0;
@@ -253,7 +279,7 @@ class Audio {
   noiseSrc(n, brown, dst) { const s = this.ctx.createBufferSource(); s.buffer = brown ? this.brownBuf : this.noiseBuf; s.loop = true; s.connect(dst); s.start(0, Math.random() * 1.5); n.src.push(s); return s; }
   filt(type, f, q, dst) { const b = this.ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q || 1; b.connect(dst); return b; }
   gainN(v, dst) { const g = this.ctx.createGain(); g.gain.value = v; g.connect(dst); return g; }
-  loop(name, key, vol, x, y, z) {
+  loop(name, key, vol, x, y, z, range) {
     if (!this.ok) return;
     const L = this.loops || (this.loops = new Map());
     const k = name + ':' + (key.id || (key.__lid || (key.__lid = Math.floor(Math.random() * 1e9))));
@@ -261,13 +287,18 @@ class Audio {
     if (vol <= 0) { if (n) n.target = 0; return; }
     if (!n) {
       n = this.loopNode((n, g) => {
-        if (name === 'drill') { const f = this.filt('bandpass', 900, 1.2, g); this.noiseSrc(n, false, this.gainN(0.8, f)); const lp = this.filt('lowpass', 420, 1, g); this.osc(n, 'sawtooth', 46, this.gainN(0.35, lp)); const q = this.osc(n, 'square', 23, this.gainN(0.25, lp)); void q; const lfo = this.osc(n, 'sine', 9, this.gainN(300, f.frequency)); void lfo; }
+        if (name === 'singularity') {
+          // a black hole feeding: a sub-bass drone, a churning rumble that pulses, and a thin eerie whine
+          this.osc(n, 'sine', 36, this.gainN(0.6, g)); this.osc(n, 'sawtooth', 54, this.gainN(0.18, this.filt('lowpass', 260, 1.2, g)));
+          const bp = this.filt('bandpass', 180, 3, g); this.noiseSrc(n, true, this.gainN(1.2, bp)); this.osc(n, 'sine', 0.7, this.gainN(90, bp.frequency));
+          const wo = this.osc(n, 'sine', 1240, this.gainN(0.035, g)); this.osc(n, 'sine', 5.5, this.gainN(18, wo.frequency));
+        } else if (name === 'drill') { const f = this.filt('bandpass', 900, 1.2, g); this.noiseSrc(n, false, this.gainN(0.8, f)); const lp = this.filt('lowpass', 420, 1, g); this.osc(n, 'sawtooth', 46, this.gainN(0.35, lp)); const q = this.osc(n, 'square', 23, this.gainN(0.25, lp)); void q; const lfo = this.osc(n, 'sine', 9, this.gainN(300, f.frequency)); void lfo; }
         else if (name === 'laser') { const f = this.filt('bandpass', 1400, 2.5, g); this.osc(n, 'sawtooth', 118, f); this.osc(n, 'square', 237, f); const lfo = this.osc(n, 'sine', 13, this.gainN(500, f.frequency)); void lfo; this.noiseSrc(n, false, this.gainN(0.25, this.filt('highpass', 3000, 0.7, g))); }
         else { this.osc(n, 'square', 1250, this.gainN(0.5, g)); }
       });
       L.set(k, n);
     }
-    n.target = vol; n.seen = performance.now(); n.x = x; n.y = y; n.z = z;
+    n.target = vol; n.seen = performance.now(); n.x = x; n.y = y; n.z = z; n.range = range;
   }
   engine(v, spec) {
     if (!this.ok || !spec) return;
@@ -284,6 +315,12 @@ class Audio {
           // air rushing over the canopy, and the roar of ground or canyon walls flashing past close by
           n.windF = this.filt('bandpass', 600, 0.55, g); n.windG = this.gainN(0, n.windF); this.noiseSrc(n, false, n.windG);
           n.rushF = this.filt('lowpass', 700, 0.8, g); n.rushG = this.gainN(0, n.rushF); this.noiseSrc(n, true, n.rushG);
+          if (spec.fusion) {
+            // the Eclipse: a fusion drive's electric hum over the turbine, and the gravity drive's throb while it hovers
+            n.fusG = this.gainN(0, eg); const bp = this.filt('bandpass', 420, 2.5, n.fusG);
+            n.fus1 = this.osc(n, 'sawtooth', 90, bp); n.fus2 = this.osc(n, 'sine', 180.6, n.fusG);
+            n.gravG = this.gainN(0, g); const trem = this.gainN(0.7, n.gravG); n.grav = this.osc(n, 'sine', 46, trem); this.osc(n, 'sine', 3.2, this.gainN(0.3, trem.gain));
+          }
         } else if (spec.kind === 'gunship') {
           n.turb = this.osc(n, 'triangle', 320, this.gainN(0.08, g));
           const lp = this.filt('lowpass', 650, 0.9, g); n.chopG = this.gainN(0.6, lp); this.noiseSrc(n, true, n.chopG);
@@ -316,6 +353,10 @@ class Audio {
       set(n.hum.frequency, 60 + thr * 110); set(n.abG.gain, spec.ab * 1.6);
       set(n.windG.gain, wind / n.target * 2.4); set(n.windF.frequency, (ck ? 900 : 500) + spec.speed * 5);
       set(n.rushG.gain, rush / n.target * 2.6); set(n.rushF.frequency, 350 + (spec.prox || 0) * 900);
+      if (n.fusG) {
+        set(n.fusG.gain, 0.05 + thr * 0.09 + spec.ab * 0.12); set(n.fus1.frequency, 70 + thr * 90 + spec.speed * 0.4); set(n.fus2.frequency, 140 + thr * 180 + spec.speed * 0.8);
+        set(n.gravG.gain, (spec.hov || 0) * 0.2 / n.target);
+      }
       if (v.removed || (!v.rider && thr < 0.01 && v.engine < 0.03)) n.target = 0;
     } else if (spec.kind === 'gunship') {
       n.target = Math.min(0.7, thr * 0.7 + spec.boost * 0.15);
@@ -339,7 +380,7 @@ class Audio {
       if (!M) continue;
       for (const [k, n] of M) {
         if (tnow - n.seen > 150) n.target = 0;
-        const [att, pan] = this.panFor(n.x, n.y, n.z);
+        const [att, pan] = this.panFor(n.x, n.y, n.z, n.range);
         n.cur += (n.target * att - n.cur) * Math.min(1, dt * 10);
         n.g.gain.value = n.cur;
         if (n.pan) n.pan.pan.value = pan;

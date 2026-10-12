@@ -711,6 +711,7 @@ class CockpitRenderer {
       else if (d.id === 'bomb') ckPageBomb(c, d.w, d.h, v, game, K.bombK || (K.bombK = {}));
       else if (d.id === 'eng') ckPageEng(c, d.w, d.h, v);
       else if (d.id === 'cnt') ckPageCount(c, d.w, d.h, v);
+      else if (d.id === 'wpn') ckPageEclipse(c, d.w, d.h, v);
       c.restore();
       if (d.id !== 'cnt' && d.id !== 'stby') { c.strokeStyle = '#000'; c.lineWidth = 4; c.strokeRect(0, 0, d.w, d.h); }
       gl.texSubImage2D(gl.TEXTURE_2D, 0, d.x, d.y, gl.RGBA, gl.UNSIGNED_BYTE, d.cv);
@@ -734,6 +735,10 @@ class CockpitRenderer {
     if (v.kind === 'jet') {
       lp[0] = v.warn || v.hull < v.def.hull * 0.3 ? blink : 0; lp[1] = v.warn === 'PULL UP' ? blink : 0; lp[2] = v.gear > 0.5 ? 1 : 0;
       lp[3] = v.boosting ? 1 : 0; lp[4] = v.lock && v.lockT >= 1 ? 1 : 0; lp[5] = v.heat > 0.8 || v.overheat > 0 ? 1 : 0;
+    } else if (v.kind === 'fighter') {
+      lp[0] = v.warn || v.hull < v.def.hull * 0.3 ? blink : 0; lp[1] = v.warn === 'PULL UP' ? blink : 0; lp[2] = v.gear > 0.5 ? 1 : 0;
+      lp[3] = v.boosting ? 1 : 0; lp[4] = v.lock && v.lockT >= 1 ? 1 : 0; lp[5] = v.heat > 0.8 || v.overheat > 0 ? 1 : 0;
+      lp[6] = v.hov > 0.3 ? 1 : 0; lp[7] = v.sng > 0 ? (v.sngEvent && !v.sngEvent.burst ? blink : 1) : 0;
     } else {
       lp[0] = v.bay > 0.5 ? 1 : 0; lp[1] = v.gear > 0.5 ? 1 : 0; lp[2] = v.boosting ? 1 : 0; lp[3] = v.heat > 0.8 || v.overheat > 0 ? 1 : 0;
       lp[4] = v.stall && !v.onGround ? blink : 0; lp[5] = v.warn === 'PULL UP' ? blink : 0; lp[6] = v.hull < v.def.hull * 0.3 ? blink : 0; lp[7] = v.warn ? blink : 0;

@@ -5036,6 +5036,23 @@ IP('veh_drill', (t) => vicon(t, [
   '', '', '', '', '         kk     ', '        kbbk    ', '        kbbkyy  ', '  s   yyyyyyyyy ',
   ' sds yyyyyyyyyyy', 'sdsdmyyyyyyyyyyy', ' sds yyyyyyyyyyy', '  s  ttttttttttt', '     tmttmttmttt', '      ttttttttt ', '', '',
 ].map(r => r.padEnd(16).slice(0, 16)), { s: 0xB9BEC6, d: 0x5E636B, y: 0xD9A524, k: 0x2E3136, b: 0x3F6F80, t: 0x2A2A2C, m: 0x7A7F86 }));
+// ECLIPSE fighter (seen from above: needle nose, forward-swept wings, the halo ring at the tail)
+IP('veh_fighter', (t) => vicon(t, [
+  '       cc       ', '       kk       ', '      kggk      ', '      kggk      ', '      kkkk      ', ' v    kkkk    v ', ' ce   kkkk   ec ', '  ce  kkkk  ec  ',
+  '   eeckkkkcee   ', '    eekkkkee    ', '     ekkkke     ', '    v kkkk v    ', '   hhhkkkkhhh   ', '   h  kkkk  h   ', '   hhh oo hhh   ', '',
+].map(r => r.padEnd(16).slice(0, 16)), { k: 0x1C1E25, g: 0xD9A441, e: 0x4A5262, c: 0x55EEFF, v: 0xA36CFF, h: 0xFFE3B5, o: 0x9FE0FF }));
+// a soft, lumpy cloud puff for the singularity's mushroom cloud (lit from the top left)
+IP('p_cloud', (t, r) => {
+  t.clear();
+  const lumps = [[8, 8, 5.2], [5.5, 6.5, 3.4], [10.5, 6, 3.6], [6, 10.5, 3.3], [10.5, 10.2, 3.4], [8, 4.6, 3.0]];
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    let d = 9;
+    for (const [cx, cy, rr] of lumps) d = Math.min(d, Math.hypot(x + 0.5 - cx, y + 0.5 - cy) / rr);
+    if (d > 1) continue;
+    const c = Math.round(clamp(210 * (1.05 - (x + y - 15) * 0.02 - d * 0.18 + (r.next() - 0.5) * 0.08), 0, 255));
+    t.px(x, y, (c << 16) | (c << 8) | c, Math.round(250 - d * d * 120));
+  }
+});
 for (const n of Object.keys(ITEM_PAINT)) itx(n);
 
 // ===== main/10_gl.js =====
@@ -6061,15 +6078,29 @@ void main() {
   o = vec4(acc / float(GR_SAMPLES) * uStrength * fall * 3.0, 1.0);
 }`;
 const COMPOSITE_FS = GLSL_COMMON + `
-uniform sampler2D uScene, uBloom, uRays;
-uniform float uBloomAmt, uRaysAmt, uTonemap, uVignette, uUnderwater, uLava, uNausea, uHurtFx, uTime, uExposure, uSat, uUseBloom, uUseRays, uGammaOut, uBoost, uWarm, uGLoad, uRedout;
+uniform sampler2D uScene, uBloom, uRays, uDepthC;
+uniform float uBloomAmt, uRaysAmt, uTonemap, uVignette, uUnderwater, uLava, uNausea, uHurtFx, uTime, uExposure, uSat, uUseBloom, uUseRays, uGammaOut, uBoost, uWarm, uGLoad, uRedout, uAspect, uLensZ;
 uniform vec3 uRayColor;
+uniform vec4 uLens;
 in vec2 vUv; out vec4 o;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 void main() {
   vec2 uv = vUv;
   if (uUnderwater > 0.5) uv += vec2(sin(uv.y * 30.0 + uTime * 2.0), cos(uv.x * 25.0 + uTime * 1.7)) * 0.0022;
   if (uNausea > 0.0) { vec2 c = uv - 0.5; float a = uNausea * 0.25 * sin(uTime * 1.5 + length(c) * 6.0); uv = 0.5 + mat2(cos(a), -sin(a), sin(a), cos(a)) * c * (1.0 - uNausea * 0.08 * sin(uTime * 2.0)); }
+  if (uLens.w > 0.001) {
+    // a singularity bends the light around it: each pixel near its shadow shows the scene from where the hole
+    // deflected its ray (lens equation: beta = theta - thetaE^2 / theta), never from inside the shadow, so the
+    // light just outside it is smeared into a bright Einstein ring. Only what lies behind the hole is bent: a hill,
+    // the jet or the cockpit in front of it stay put (uLensZ: the hole's depth)
+    vec2 d = (uv - uLens.xy) * vec2(uAspect, 1.0);
+    float th = length(d), rs = uLens.z, fall = 1.0 - smoothstep(rs * 3.0, rs * 8.0, th);
+    if (th > rs && fall > 0.0 && texture(uDepthC, vUv).r > uLensZ) {
+      float te = rs * 0.62, b = max(th - te * te / th * fall * uLens.w, rs * 1.01);
+      vec2 luv = uLens.xy + d / th * b / vec2(uAspect, 1.0);
+      if (texture(uDepthC, luv).r > uLensZ) uv = luv;
+    }
+  }
   vec3 c;
   if (uBoost > 0.001) {
     // speed boost: radial chromatic smear toward the edges
@@ -6234,6 +6265,7 @@ defItem('spawn_egg_enderman', { tex: 'spawn_egg', tint: 0x161616, tint2: 0x9A3AE
 defItem('titan_mech', { stack: 1, use: 'vehicle', vehicle: 'mech', disp: 'Titan Assault Mech', tex: 'veh_mech' });
 defItem('nautilus_sub', { stack: 1, use: 'vehicle', vehicle: 'sub', disp: 'Nautilus Submarine', tex: 'veh_sub' });
 defItem('mole_drill', { stack: 1, use: 'vehicle', vehicle: 'drill', disp: 'Mole Tunnel Borer', tex: 'veh_drill' });
+defItem('eclipse_fighter', { stack: 1, use: 'vehicle', vehicle: 'fighter', disp: 'Eclipse Hypersonic Fighter', tex: 'veh_fighter' });
 ITEMS[B.end_rod].flat = 'i:end_rod_item';
 // a carved pumpkin can be worn: endermen cannot meet your eyes through it
 ITEMS[B.carved_pumpkin].armor = { slot: 0, def: 0, tough: 0, mat: 'pumpkin' };
@@ -6381,6 +6413,7 @@ function shapeless(out, n, ings) {
   shaped('titan_mech', 1, ['GDG', 'IRI', 'PIP'], { G: 'glowstone_dust', D: 'diamond', I: 'iron_ingot', R: 'redstone', P: 'gunpowder' });
   shaped('nautilus_sub', 1, ['IGI', 'IDI', 'KRK'], { I: 'iron_ingot', G: 'glass', D: 'diamond', K: 'kelp', R: 'redstone' });
   shaped('mole_drill', 1, ['DI ', 'IRI', 'III'], { D: 'diamond', I: 'iron_ingot', R: 'redstone' });
+  shaped('eclipse_fighter', 1, ['DCD', 'NEN', 'IGI'], { D: 'diamond', C: 'end_crystal', N: 'netherite_ingot', E: 'eye_of_ender', I: 'iron_ingot', G: 'glass' });
   for (const [n, base] of SLABS) shaped(n, 6, ['MMM'], { M: base });
   for (const [n, base] of STAIRS) shaped(n, 4, ['M  ', 'MM ', 'MMM'], { M: base });
 })();
@@ -8954,7 +8987,7 @@ class Player extends Entity {
     if (V && src) {
       const t = src.type;
       if (t === 'explosion' && src.source && (src.source === V || src.source === this)) return false;
-      if (V.def.enclosed && (t === 'mob' || t === 'arrow' || t === 'fireball' || t === 'thrown' || t === 'plasma' || t === 'laser' || t === 'breath')) return V.hurt(amount, src);
+      if (V.def.enclosed && (t === 'mob' || t === 'arrow' || t === 'fireball' || t === 'thrown' || t === 'plasma' || t === 'laser' || t === 'breath' || t === 'rail' || t === 'singularity')) return V.hurt(amount, src);
       if (V.def.enclosed && t === 'explosion') { V.hurt(amount * 0.5, src); return false; }
       if (t === 'fall' || t === 'suffocate' || t === 'drown') return false;
     }
@@ -8996,7 +9029,7 @@ class Player extends Entity {
     this.dead = true; this.health = 0;
     const cause = src ? src.type : 'unknown';
     const who = src && src.source && src.source.def ? 'a ' + titleCase(src.source.type) : null;
-    const msgs = { fall: 'fell from a high place', lava: 'tried to swim in lava', fire: 'went up in flames', drown: 'drowned', starve: 'starved to death', void: 'fell out of the world', explosion: 'blew up', mob: 'were slain by ' + (who || 'a monster'), arrow: 'were shot by ' + (who || 'an arrow'), fireball: 'were fireballed by ' + (who || 'an Ember Imp'), cactus: 'were pricked to death', suffocate: 'suffocated in a wall', thrown: 'were hexed by a Witch', kill: 'died', dragon: 'were slain by the Ender Dragon', breath: "were withered by the dragon's breath", kinetic: 'experienced kinetic energy' };
+    const msgs = { fall: 'fell from a high place', lava: 'tried to swim in lava', fire: 'went up in flames', drown: 'drowned', starve: 'starved to death', void: 'fell out of the world', explosion: 'blew up', mob: 'were slain by ' + (who || 'a monster'), arrow: 'were shot by ' + (who || 'an arrow'), fireball: 'were fireballed by ' + (who || 'an Ember Imp'), cactus: 'were pricked to death', suffocate: 'suffocated in a wall', thrown: 'were hexed by a Witch', kill: 'died', dragon: 'were slain by the Ender Dragon', breath: "were withered by the dragon's breath", kinetic: 'experienced kinetic energy', rail: 'were shredded by a rail slug', singularity: 'were swallowed by a singularity' };
     this.deathMsg = 'You ' + (msgs[cause] || 'died');
     if (!g.gameRules.keepInventory) {
       for (let i = 0; i < 41; i++) { const s = this.inv.get(i); if (s) { g.dropItem(this.world, this.x, this.y + 1, this.z, s, true); this.inv.set(i, null); } }
@@ -10804,6 +10837,10 @@ Desktop launcher: ${LAUNCH.browser || 'browser'}${LAUNCH.angle ? ', ANGLE ' + LA
     gl.uniform1f(u.uBoost, game.boostFx || 0);
     const pv = game.player && game.player.vehicle, gfx = pv && game.player.vcam === 1 && pv.gLoad !== undefined && SETTINGS.cockpitFx !== false;
     gl.uniform1f(u.uGLoad, gfx ? Math.min(1, pv.gLoad) : 0); gl.uniform1f(u.uRedout, gfx ? pv.redout : 0);
+    // gravitational lensing around a singularity on screen (49_eclipse.js)
+    const L = game.lensOn && game.lens;
+    gl.uniform4f(u.uLens, L ? L[0] : 0, L ? L[1] : 0, L ? L[2] : 0, L ? L[3] : 0); gl.uniform1f(u.uAspect, this.width / this.height); gl.uniform1f(u.uLensZ, L ? L[4] : 1);
+    this.bindTex(3, p.depth, u.uDepthC);
     gl.uniform1f(u.uWarm, env.nether || env.end ? 0 : env.day);
     if (p.ldrF) {
       this.fsq(pr, p.ldrF, this.width, this.height);
@@ -11867,7 +11904,7 @@ function buildTankModel(gl) {
   b.box(Math.round(cxv) - 1, 13, 4, Math.round(cxv), 15, 5, BM);
   return voxModel(gl, 'tank', { body: { grid: g, origin }, turret: { grid: t, origin, pivot: [0, 1.5, 0] }, barrel: { grid: b, origin, pivot: [0, 1.5625, -1.0] } });
 }
-function buildVehicleModels(gl) { buildJetModel(gl); buildGunshipModel(gl); buildBikeModel(gl); buildBomberModel(gl); buildTankModel(gl); buildMoreVehicleModels(gl); }
+function buildVehicleModels(gl) { buildJetModel(gl); buildGunshipModel(gl); buildBikeModel(gl); buildBomberModel(gl); buildTankModel(gl); buildMoreVehicleModels(gl); buildFighterModel(gl); }
 
 // ===== main/43_vehicles.js =====
 // ============================================================================
@@ -11948,7 +11985,7 @@ class Vehicle extends Entity {
   mount(p) {
     const g = this.game;
     this.rider = p; p.vehicle = this; p.vcam = p.vcam || 0; p.sneaking = false; p.sprinting = false; p.flying = false;
-    p.yaw = this.heading(); p.pitch = this.kind === 'jet' ? Math.asin(clamp(this.fwd[1], -1, 1)) : -0.12;
+    p.yaw = this.heading(); p.pitch = this.kind === 'jet' || this.kind === 'fighter' ? Math.asin(clamp(this.fwd[1], -1, 1)) : -0.12;
     this.syncRider(p);
     g.audio.play('veh_enter', {});
     this.mountT = 9;
@@ -12216,12 +12253,14 @@ class Jet extends Vehicle {
     if (ctl) this.throttle = clamp(this.throttle + inp.f * dt * 0.7, 0, 1);
     else this.throttle = Math.max(0, this.throttle - dt * 0.5);
     this.boosting = ctl && inp.boost && this.boost > 0.02 && this.throttle > 0.2;
-    if (this.boosting) this.boost = Math.max(0, this.boost - dt * 0.14);
+    if (this.boosting) this.boost = Math.max(0, this.boost - dt * (this.fp.abDrain || 0.14));
     const FP = this.fp, thrust = this.throttle * FP.thrust + (this.boosting ? FP.ab : 0);
     this.engine += ((this.throttle + (this.boosting ? 0.6 : 0)) - this.engine) * Math.min(1, dt * 3);
     // ------------------------------------------------ ground roll
     if (this.onGround) {
       this.agl = 0;
+      // grav-lift (the Eclipse): straight up off the ground, no takeoff run needed
+      if (FP.grav && ctl && inp.up) { this.onGround = false; this.liftT = this.t; this.hov = 1; v[1] = Math.max(v[1], 4); this.y += 0.06; this.game.audio.play('grav_lift', { x: this.x, y: this.y, z: this.z, vol: 0.8 }); return; }
       const vf = v[0] * f[0] + v[2] * f[2];
       let nv = vf + thrust * dt;
       nv -= Math.sign(nv) * Math.min(Math.abs(nv), (ctl && inp.down ? 30 : 3 + Math.abs(nv) * 0.05) * dt) + nv * Math.abs(nv) * FP.drag * dt;
@@ -12272,9 +12311,16 @@ class Jet extends Vehicle {
       nT = clamp(cg * cphi / Math.max(cphi * cphi, 0.25), FP.nMin, FP.nMax);
     }
     const lift = g * clamp((sp - FP.lift0) / FP.liftR, 0, sim ? 1 : 1.05) * nT;
-    v[0] += u[0] * lift * dt; v[1] += (u[1] * lift - g) * dt; v[2] += u[2] * lift * dt;
-    this.stall = sp < FP.stall;
-    const auth = clamp(sp / 34, 0.3, 1.0);
+    // grav-lift (the Eclipse): below flying speed the gravity drive carries the weight; Space climbs, Shift sinks,
+    // and with the throttle back it brakes to a hover. Thrusters give full control authority while it hovers
+    const hov = FP.grav ? this.hover(dt, ctl, inp, sp) : 0;
+    v[0] += u[0] * lift * dt; v[1] += (u[1] * lift - g * (1 - hov)) * dt; v[2] += u[2] * lift * dt;
+    if (hov > 0.001) {
+      v[1] += ((ctl && inp.up ? 9 : 0) - (ctl && inp.down ? 7 : 0) - v[1]) * Math.min(1, dt * 2.6) * hov;
+      const kh = Math.exp(-dt * 1.1 * hov * (1 - this.throttle)); v[0] *= kh; v[2] *= kh;
+    }
+    this.stall = sp < FP.stall && hov < 0.3;
+    const auth = Math.max(clamp(sp / 34, 0.3, 1.0), hov);
     if (sim) {
       // ------------------------------------------------ direct flight controller
       // the mouse queues a body-frame rotation that is flown out within the rate and G limits. Nothing levels the
@@ -12288,9 +12334,9 @@ class Jet extends Vehicle {
       // weathervane: the nose follows the flight path wherever gravity and the trim lift bend it
       let fp = 0, fy = 0;
       if (sp > 4) {
-        const ax = u[0] * lift, ay = u[1] * lift - g, az = u[2] * lift, d = Math.max(sp * sp, 400);
+        const ax = u[0] * lift, ay = u[1] * lift - g * (1 - hov), az = u[2] * lift, d = Math.max(sp * sp, 400);
         const wb = Q.inv(this.q, (v[1] * az - v[2] * ay) / d, (v[2] * ax - v[0] * az) / d, (v[0] * ay - v[1] * ax) / d, _v5);
-        fp = clamp(wb[0], -1.2, 1.2); fy = clamp(-wb[1], -1.2, 1.2);
+        fp = clamp(wb[0], -1.2, 1.2) * (1 - hov); fy = clamp(-wb[1], -1.2, 1.2) * (1 - hov);
       }
       this.av[0] = A[0] + fp; this.av[1] = A[1] + fy; this.av[2] = A[2];
     } else {
@@ -12368,7 +12414,7 @@ class Jet extends Vehicle {
     this.warn = '';
     if (this.rider) {
       const tti = v[1] < -1 ? agl / -v[1] : 99;
-      if (tti < 2.6 && agl < 60 && !(u[1] > 0.9 && sp < FP.landMax && v[1] > -9)) this.warn = 'PULL UP';
+      if (tti < 2.6 && agl < 60 && hov < 0.5 && !(u[1] > 0.9 && sp < FP.landMax && v[1] > -9)) this.warn = 'PULL UP';
       else if (this.stall && agl > 3) this.warn = 'STALL';
     }
   }
@@ -12426,7 +12472,8 @@ class Jet extends Vehicle {
     const gz = this.gz;
     this.gPeak = Math.max(this.gPeak, gz);
     // sustained high G drains the colour and closes in the view; hard negative G reds it out
-    this.gLoad = gz > 5.2 ? Math.min(1.25, this.gLoad + (gz - 5.2) * dt * 0.24) : Math.max(0, this.gLoad - dt * (gz < 3 ? 0.45 : 0.18));
+    const gb = FP.gBlack || 5.2;
+    this.gLoad = gz > gb ? Math.min(1.25, this.gLoad + (gz - gb) * dt * 0.24) : Math.max(0, this.gLoad - dt * (gz < 3 ? 0.45 : 0.18));
     this.redout = gz < -2.2 ? Math.min(1, this.redout + (-gz - 2.2) * dt * 0.5) : Math.max(0, this.redout - dt * 0.6);
     // terrain rushing past: the nearest surface below the belly and off either wing
     const c = this.center(_v3), w = this.world, cx = c[0], cy = c[1], cz = c[2];
@@ -12511,6 +12558,19 @@ class Jet extends Vehicle {
       R.fxBeam(m[0], m[1], m[2], m[0] + wx, m[1] + wy, m[2] + wz, 0.012 + d * 0.0014, cw, cw * 1.02, 1, a * (1 - d / 60));
     }
   }
+  // missile lock: the target closest to the nose within a cone, kept while it stays inside a wider cone
+  // (hysteresis); it locks after 0.8 s on target
+  trackLock(dt, M, range) {
+    const cur = this.lock;
+    let tgt = null;
+    if (cur && !cur.dead && !cur.removed) {
+      const c = this.center(_v4), dx = cur.x - c[0], dy = cur.y + cur.h * 0.5 - c[1], dz = cur.z - c[2], d = Math.hypot(dx, dy, dz) || 1;
+      if (d < range * 1.125 && (dx * this.fwd[0] + dy * this.fwd[1] + dz * this.fwd[2]) / d > Math.cos(0.33)) tgt = cur;
+    }
+    if (!tgt) tgt = M.findTarget(this, this.fwd, 0.22, range);
+    if (tgt && tgt === this.lock) this.lockT = Math.min(1, this.lockT + dt / 0.8);
+    else { this.lock = tgt; this.lockT = 0; }
+  }
   weapons(dt, inp) {
     const M = this.game.munitions; if (!M || !inp) return;
     // plasma cannons from alternating wing-root muzzles
@@ -12523,18 +12583,8 @@ class Jet extends Vehicle {
       this.addHeat(0.028);
       this.muzzle = 0.06;
     }
-    // missile lock: target closest to the nose within a cone
     if (this.mReload > 0) { this.mReload -= dt; if (this.mReload <= 0 && this.missiles < 8) { this.missiles++; this.mReload = this.missiles < 8 ? 2.4 : 0; } }
-    // keep the current lock while it stays inside a wider cone (hysteresis)
-    const cur = this.lock;
-    let tgt = null;
-    if (cur && !cur.dead && !cur.removed) {
-      const c = this.center(_v4), dx = cur.x - c[0], dy = cur.y + cur.h * 0.5 - c[1], dz = cur.z - c[2], d = Math.hypot(dx, dy, dz) || 1;
-      if (d < 360 && (dx * this.fwd[0] + dy * this.fwd[1] + dz * this.fwd[2]) / d > Math.cos(0.33)) tgt = cur;
-    }
-    if (!tgt) tgt = M.findTarget(this, this.fwd, 0.22, 320);
-    if (tgt && tgt === this.lock) this.lockT = Math.min(1, this.lockT + dt / 0.8);
-    else { this.lock = tgt; this.lockT = 0; }
+    this.trackLock(dt, M, 320);
     if (inp.fire2 && this.cd2 <= 0 && this.missiles > 0) {
       this.cd2 = 0.45; this.missiles--; if (this.mReload <= 0) this.mReload = 2.4;
       const slot = this.missiles % 4, xs = [-1.75, 1.75, -1.25, 1.25][slot];
@@ -12950,9 +13000,15 @@ function raycastSolid(w, x, y, z, dx, dy, dz, maxD) {
   return null;
 }
 class Munitions {
-  constructor(game) { this.game = game; this.list = []; this.flashes = []; this.beams = []; this.burn = new Map(); this.t = 0; }
+  // list: projectiles in flight (custom kinds carry their own handler in m.cls: step / draw / light), streaks:
+  // fading ion trails, events: long-lived effects with their own update and drawing (the Eclipse's singularities)
+  constructor(game) { this.game = game; this.list = []; this.flashes = []; this.beams = []; this.burn = new Map(); this.t = 0; this.streaks = []; this.events = []; }
   get world() { return this.game.world; }
   beginFrame() { this.beams.length = 0; }
+  add(m) { this.list.push(m); return m; }
+  // the events' black geometry (drawn with the vehicles) and particles (drawn with the particle system)
+  drawSolid(R) { for (const e of this.events) if (e.drawSolid) e.drawSolid(R); }
+  particleExtras(out) { for (const e of this.events) if (e.extras) e.extras(out); }
   bolt(owner, x, y, z, dx, dy, dz, speed, o) {
     this.list.push({ kind: 'bolt', owner, x, y, z, dx, dy, dz, speed, life: o.life || 1.5, age: 0, dmg: o.dmg, color: o.color, size: o.size, len: o.len, power: o.power || 0 });
     this.game.audio.play(o.sound || 'plasma', { x, y, z, range: 48, vol: 0.55 });
@@ -13036,6 +13092,7 @@ class Munitions {
     for (let i = 0; i < L.length; i++) {
       const m = L[i];
       m.age += dt;
+      if (m.cls) { if (m.cls.step(this, m, dt)) L[j++] = m; continue; }
       if (m.age > m.life) { if (m.kind !== 'bolt') this.detonate(m, m.x, m.y, m.z); continue; }
       if (m.kind === 'missile') this.guide(m, dt);
       if (m.kind === 'torpedo') m.speed = Math.min(58, m.speed + 30 * dt);
@@ -13081,6 +13138,12 @@ class Munitions {
     for (const f of this.flashes) { f.age += dt; if (f.age < f.life) this.flashes[k++] = f; }
     this.flashes.length = k;
     if (this.burn.size) for (const [key, b] of this.burn) if (this.t - b.last > 0.6) this.burn.delete(key);
+    k = 0;
+    for (const s of this.streaks) { s.age += dt; if (s.age < s.life) this.streaks[k++] = s; }
+    this.streaks.length = k;
+    k = 0;
+    for (const e of this.events) if (e.update(dt)) this.events[k++] = e;
+    this.events.length = k;
   }
   guide(m, dt) {
     m.speed = Math.min(m.speed + 190 * dt, 205);
@@ -13121,7 +13184,11 @@ class Munitions {
   }
   // ------------------------------------------------------------ rendering
   drawFX(R) {
+    this.game.lensOn = false;
+    for (const s of this.streaks) { const a = 1 - s.age / s.life; R.fxBeam(s.ax, s.ay, s.az, s.bx, s.by, s.bz, s.w * (1 + s.age * 4), s.c[0], s.c[1], s.c[2], s.a * a * a); }
+    for (const e of this.events) e.drawFX(R);
     for (const m of this.list) {
+      if (m.cls) { m.cls.draw(R, m); continue; }
       if (m.kind === 'bolt') {
         const c = m.color, l = Math.min(m.len, m.age * m.speed + 0.3);
         R.fxBeam(m.x - m.dx * l, m.y - m.dy * l, m.z - m.dz * l, m.x, m.y, m.z, m.size, c[0], c[1], c[2], 2.2);
@@ -13160,9 +13227,11 @@ class Munitions {
   }
   addLights(R) {
     for (const f of this.flashes) { const a = 1 - f.age / f.life; R.addLight(f.x, f.y, f.z, f.boom ? 14 + f.boom * 8 : 5, f.c[0], f.c[1], f.c[2], (f.boom ? 5 : 2) * a * a); }
+    for (const e of this.events) e.lights(R);
     let n = 0;
     for (const m of this.list) {
       if (n++ > 24) break;
+      if (m.cls) { if (m.cls.light) m.cls.light(R, m); continue; }
       if (m.kind === 'bolt') R.addLight(m.x, m.y, m.z, 5 + m.size * 6, m.color[0], m.color[1], m.color[2], 1.4);
       else R.addLight(m.x, m.y, m.z, 7, 1.0, 0.6, 0.25, 1.6);
     }
@@ -15351,6 +15420,7 @@ class CockpitRenderer {
       else if (d.id === 'bomb') ckPageBomb(c, d.w, d.h, v, game, K.bombK || (K.bombK = {}));
       else if (d.id === 'eng') ckPageEng(c, d.w, d.h, v);
       else if (d.id === 'cnt') ckPageCount(c, d.w, d.h, v);
+      else if (d.id === 'wpn') ckPageEclipse(c, d.w, d.h, v);
       c.restore();
       if (d.id !== 'cnt' && d.id !== 'stby') { c.strokeStyle = '#000'; c.lineWidth = 4; c.strokeRect(0, 0, d.w, d.h); }
       gl.texSubImage2D(gl.TEXTURE_2D, 0, d.x, d.y, gl.RGBA, gl.UNSIGNED_BYTE, d.cv);
@@ -15374,6 +15444,10 @@ class CockpitRenderer {
     if (v.kind === 'jet') {
       lp[0] = v.warn || v.hull < v.def.hull * 0.3 ? blink : 0; lp[1] = v.warn === 'PULL UP' ? blink : 0; lp[2] = v.gear > 0.5 ? 1 : 0;
       lp[3] = v.boosting ? 1 : 0; lp[4] = v.lock && v.lockT >= 1 ? 1 : 0; lp[5] = v.heat > 0.8 || v.overheat > 0 ? 1 : 0;
+    } else if (v.kind === 'fighter') {
+      lp[0] = v.warn || v.hull < v.def.hull * 0.3 ? blink : 0; lp[1] = v.warn === 'PULL UP' ? blink : 0; lp[2] = v.gear > 0.5 ? 1 : 0;
+      lp[3] = v.boosting ? 1 : 0; lp[4] = v.lock && v.lockT >= 1 ? 1 : 0; lp[5] = v.heat > 0.8 || v.overheat > 0 ? 1 : 0;
+      lp[6] = v.hov > 0.3 ? 1 : 0; lp[7] = v.sng > 0 ? (v.sngEvent && !v.sngEvent.burst ? blink : 1) : 0;
     } else {
       lp[0] = v.bay > 0.5 ? 1 : 0; lp[1] = v.gear > 0.5 ? 1 : 0; lp[2] = v.boosting ? 1 : 0; lp[3] = v.heat > 0.8 || v.overheat > 0 ? 1 : 0;
       lp[4] = v.stall && !v.onGround ? blink : 0; lp[5] = v.warn === 'PULL UP' ? blink : 0; lp[6] = v.hull < v.def.hull * 0.3 ? blink : 0; lp[7] = v.warn ? blink : 0;
@@ -15423,6 +15497,979 @@ class CockpitRenderer {
     gl.bindVertexArray(null);
   }
 }
+
+// ===== main/49_eclipse.js =====
+// ============================================================================
+//  ECLIPSE hypersonic fighter: a needle-nosed black airframe whose forward-swept wings swing back as it speeds
+//  up, a fusion halo-ring drive, and a gravity drive (it lifts straight off the ground and hovers below flying
+//  speed). LMB: twin hypervelocity rail cannons. RMB: the singularity warhead, a micro black hole that eats the
+//  ground and everything around it, then evaporates in one blast.
+//  Same conventions as the other vehicles: model space forward -Z, up +Y, right +X, velocities in blocks/s.
+// ============================================================================
+Object.assign(VEH_DEFS, {
+  fighter: { name: 'Eclipse Hypersonic Fighter', item: 'eclipse_fighter', model: 'fighter', w: 4.6, h: 2.2, yoff: 1.1875, hull: 190, enclosed: true, cockpit: [0, 0.6875, -2.0], camDist: 15, camH: 3.6, radius: 3.8 },
+});
+Object.assign(VEH_HELP, {
+  fighter: [['MOUSE', 'steer'], ['W/S', 'throttle'], ['CTRL', 'hyperdrive'], ['SPACE', 'grav-lift'], ['SHIFT', 'brake / sink'], ['A/D', 'roll'], ['LMB', 'rail cannon'], ['RMB', 'singularity'], ['F', 'exit'], ['F5', 'camera']],
+});
+Object.assign(VEH_HELP_SIM, {
+  fighter: [['MOUSE', 'pitch + roll'], ['A/D', 'rudder'], ['W/S', 'throttle'], ['CTRL', 'hyperdrive'], ['SPACE', 'grav-lift'], ['SHIFT', 'brake / sink'], ['C / MMB', 'look around'], ['LMB', 'rail cannon'], ['RMB', 'singularity'], ['F5', 'camera']],
+});
+// faster and more agile than the Stormcrow; gBlack: the G where the view starts to grey out (inertial dampers);
+// grav: the gravity drive (VTOL, hover below flying speed); abDrain: hyperdrive reserve used per second
+const FIGHTER_FP = { thrust: 56, ab: 118, abDrain: 0.15, drag: 0.0048, pMax: 1.75, pMin: -1.2, yMax: 0.85, rMax: 5.4, lift0: 14, liftR: 20, stall: 18, takeoff: 46, landMax: 60,
+  kP: 7.5, kR: 8, pendP: 0.8, pendR: 2.6, gMax: 11, gNeg: 3.5, nMin: -1.3, nMax: 2.4, resp: 9, gBlack: 7.5, grav: true,
+  // nose, left and right wingtip (moved with the sweep), tail, belly, fins, halo ring
+  pts: [[0, 0, -4.55], [-3.75, -0.06, -0.31], [3.75, -0.06, -0.31], [0, 0, 4.7], [0, -1.12, 0.3], [0, 1.0, 3.3], [0, -0.9, 3.6]] };
+// the singularity warhead: rounds carried, reload (s each), the closest a launch is allowed (blocks), designator
+// range; the event timeline (s), horizon radius growing r0 -> r1, pull radius, blocks ripped per second, crater
+// half-width / depth, the radius where nothing survives and the edge of the blast, how long the cloud lingers
+const SNG = { max: 2, reload: 20, safe: 48, range: 900, form: 0.55, collapse: 5.1, burst: 5.7, r0: 2.3, r1: 3.4, pull: 46, rip: 95, crH: 21, crV: 13, kill: 26, blast: 72, life: 44 };
+const _ec1 = [0, 0, 0], _ec2 = [0, 0, 0], _ec3 = [0, 0, 0];
+// raycast() walks at most 256 cells; this one keeps going for long sight lines (the warhead designator). It stops
+// where the loaded world ends (unloaded chunks read as air): longRaycast.edge is that distance, or -1
+function longRaycast(w, x, y, z, dx, dy, dz, maxD, fluids) {
+  let lim = maxD;
+  for (let t = 0; t < maxD; t += 6) if (!w.isLoaded(Math.floor(x + dx * t), Math.floor(z + dz * t))) { lim = t; break; }
+  longRaycast.edge = lim < maxD ? lim : -1;
+  let t0 = 0;
+  while (t0 < lim) {
+    const seg = Math.min(110, lim - t0);
+    const hit = raycast(w, x + dx * t0, y + dy * t0, z + dz * t0, dx, dy, dz, seg, fluids);
+    if (hit) { hit.t += t0; hit.hx = x + dx * hit.t; hit.hy = y + dy * hit.t; hit.hz = z + dz * hit.t; return hit; }
+    t0 += seg;
+    const yy = y + dy * t0; if (yy < -2 || yy > CH + 2) return null;
+  }
+  return null;
+}
+// a white-out over the whole screen (a DOM layer, so it works with or without post-processing), fading by itself
+function screenFlash(a, dur) {
+  if (!(a > 0.01)) return;
+  let el = document.getElementById('ecflash');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'ecflash';
+    el.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:3;opacity:0;background:radial-gradient(circle at 50% 45%, #ffffff 0%, #fffaf2 45%, #efe6ff 100%)';
+    document.body.insertBefore(el, document.getElementById('ui'));
+  }
+  for (const an of el.getAnimations ? el.getAnimations() : []) an.cancel();
+  if (el.animate) el.animate([{ opacity: Math.min(0.97, a) }, { opacity: Math.min(0.97, a) * 0.9, offset: 0.08 }, { opacity: 0 }], { duration: dur * 1000, easing: 'ease-out', fill: 'forwards' });
+}
+// ---------------------------------------------------------------- model
+function buildFighterModel(gl) {
+  const W = 64, H = 22, L = 76, S = 1 / 8, origin = [32, 9.5, 37];
+  const g = new VoxGrid(W, H, L, S), C = (rgb, m) => g.c(rgb, m);
+  // matte black skin (it hardly catches the sun), satin panels, gold accents and the drive's light
+  const HULL = C(0x15171C, MAT_MATTE), HULL2 = C(0x22252D, MAT_PAINT), SEAM = C(0x0B0C0F, MAT_MATTE), EDGE = C(0x3A404C, MAT_PAINT), BELLY = C(0x101114, MAT_MATTE);
+  const CHROME = C(0xA4ACB8, MAT_METAL), GUN = C(0x3A4049, MAT_METAL), DARK = C(0x07080A, MAT_MATTE), GOLD = C(0xE0962A, MAT_GLASS), CORONA = C(0xD8A84A, MAT_METAL);
+  const CYAN = C(0x4FE6F6, MAT_GLOW), VIOLET = C(0xA36CFF, MAT_GLOW), HALO = C(0xFFE3B5, MAT_ENGINE), JETC = C(0x9FE0FF, MAT_ENGINE);
+  const cxv = 31.5;
+  // fuselage stations: [z, half width, centre y, height above, depth below]
+  const st = [[0, 0.8, 9.5, 0.8, 0.8], [5, 1.6, 9.5, 1.15, 1.05], [12, 2.9, 9.6, 1.6, 1.6], [20, 4.2, 9.8, 2.3, 2.2], [30, 5.3, 9.8, 2.9, 2.6], [42, 6.0, 9.7, 2.8, 2.8], [54, 5.6, 9.6, 2.6, 2.6], [64, 4.0, 9.5, 2.2, 2.2], [72, 2.9, 9.5, 1.9, 1.9], [75, 2.7, 9.5, 1.8, 1.8]];
+  const body = (k) => profile(st, k);
+  // a blade-edged lifting body: knife chines along the sides, a rounded spine
+  const inBody = (x, y, z) => { const [bw, yc, ht, hb] = body(z), dx = Math.abs(x - cxv), dy = y - yc; return Math.pow(dx / bw, 1.5) + Math.pow(Math.abs(dy) / (dy > 0 ? ht : hb), 2.4) <= 1; };
+  g.each((x, y, z) => {
+    if (!inBody(x, y, z)) return 0;
+    const [bw, yc, ht, hb] = body(z), dx = Math.abs(x - cxv), dy = y - yc;
+    if (z < 3) return CHROME;
+    if (Math.round(dy) === 0 && dx > bw - 0.9 && z > 6 && z < 70) return CYAN;
+    if (dy < -hb * 0.4) return BELLY;
+    if (z % 11 === 0 && z > 8) return SEAM;
+    return dy > ht * 0.45 && z > 28 ? HULL2 : HULL;
+  });
+  // a low frameless canopy in gold visor glass
+  g.each((x, y, z) => {
+    if (z < 11 || z > 30) return 0;
+    const [, yc, ht] = body(z), t = (z - 11) / 19;
+    const ch = 2.6 * Math.sin(Math.PI * Math.pow(t, 0.7)), cw = 3.0 * Math.sin(Math.PI * Math.min(1, t * 1.1 + 0.08)) + 0.4;
+    const dy = y - (yc + ht - 0.7), dx = Math.abs(x - cxv);
+    if (dy <= 0 || dy > ch || dx > cw * Math.sqrt(Math.max(0, 1 - (dy / ch) ** 2))) return 0;
+    return GOLD;
+  });
+  // knife-edge strakes blending the wing roots into the body
+  g.each((x, y, z) => {
+    if (z < 22 || z > 50) return 0;
+    const [bw, yc] = body(z), dx = Math.abs(x - cxv), span = bw + (z - 22) * 0.3;
+    if (dx < bw - 1 || dx > span || y !== Math.round(yc - 0.6)) return 0;
+    return dx > span - 1 ? EDGE : HULL;
+  });
+  // dorsal spine with running lights behind the canopy
+  for (let z = 28; z <= 62; z++) { const [, yc, ht] = body(z), y = Math.round(yc + ht - 0.3); g.set(32, y, z, z % 4 === 0 ? CYAN : EDGE); }
+  // violet heat vents on the back
+  for (let z = 33; z <= 43; z++) for (const x of [34, 35]) { let y = H - 1; while (y > 0 && !g.get(x, y, z)) y--; if (y > 0) g.set(x, y, z, z % 2 ? VIOLET : DARK); }
+  // rail cannons along the lower chines: a dark rail, a charged rail and a chrome muzzle
+  for (let z = 15; z <= 40; z++) {
+    if (z === 15) { g.set(35, 8, z, CHROME); g.set(35, 7, z, CYAN); continue; }
+    g.set(35, 8, z, GUN); if (z < 34) g.set(35, 7, z, z % 3 === 0 ? CYAN : DARK);
+  }
+  // twin canted fins floating on a line of light above the tail
+  for (let j = 0; j < 8; j++) {
+    const k0 = Math.round(55 + j * 1.5), k1 = Math.round(70 - j * 0.6), fx = Math.round(34 + j * 0.62);
+    for (let z = k0; z <= k1; z++) { const [, yc, ht] = body(z), y = Math.round(yc + ht) + j; g.set(fx, y, z, j === 0 ? CYAN : j >= 6 ? VIOLET : z === k0 ? EDGE : HULL); }
+  }
+  // the halo drive: a ring around the tail on four struts, glowing on its inner face
+  const RZ = 66, RR = 7.6;
+  g.each((x, y, z) => {
+    const dz = z - RZ; if (Math.abs(dz) > 2.4) return 0;
+    const q = Math.hypot(x - cxv, y - 9.5) - RR;
+    if (q * q + (dz * dz) / 2.9 > 1) return 0;
+    return q < -0.3 ? HALO : Math.abs(dz) > 1.2 ? EDGE : CORONA;
+  });
+  for (const [sx, sy] of [[1, 1], [1, -1]]) for (let r = 2.5; r <= RR - 1; r += 0.5) { const x = cxv + sx * r * 0.7071, y = 9.5 + sy * r * 0.7071; if (!g.get(Math.round(x), Math.round(y), RZ)) g.set(x, y, RZ, EDGE); }
+  // fusion nozzle
+  g.each((x, y, z) => {
+    if (z < 71) return 0;
+    const r = Math.hypot(x - cxv, (y - 9.5) * 1.05);
+    if (r > 2.7) return 0;
+    if (z >= 74) return r < 1.9 ? JETC : CORONA;
+    return r < 1.6 ? DARK : GUN;
+  });
+  g.mirror();
+  // weapons bay: doors (a separate part, hidden while open) over a dark cavity
+  const bay = new VoxGrid(W, H, L, S), BD = bay.c(0x1C1E25, MAT_PAINT), BL = bay.c(0xA36CFF, MAT_GLOW);
+  for (let z = 32; z <= 46; z++) for (let x = 29; x <= 34; x++) {
+    let y = 0; while (y < H && !g.get(x, y, z)) y++;
+    if (y >= H - 1) continue;
+    bay.set(x, y, z, z === 32 || z === 46 || x === 29 || x === 34 ? BL : BD);
+    g.set(x, y, z, 0); g.set(x, y + 1, z, DARK);
+  }
+  // wings: forward-swept, pivoting at the root so they can sweep back at speed
+  const wing = (sd) => {
+    const wg = new VoxGrid(W, H, L, S), WH = wg.c(0x15171C, MAT_MATTE), WE = wg.c(0x3A404C, MAT_PAINT), WB = wg.c(0x101114, MAT_MATTE), WK = wg.c(0x22252D, MAT_PAINT), WG = wg.c(0xD8A84A, MAT_METAL);
+    const WC = wg.c(0x4FE6F6, MAT_GLOW), WV = wg.c(0xA36CFF, MAT_GLOW), WN = wg.c(sd < 0 ? 0xFF2418 : 0x3CFF62, MAT_GLOW);
+    const le = (dx) => 46 - (dx - 5) * 0.6, te = (dx) => 60 - (dx - 5) * 0.85;
+    wg.each((x, y, z) => {
+      const dx = (x - cxv) * sd; if (dx < 4.5 || dx > 30.5) return 0;
+      const a = le(dx), b = te(dx); if (z < a || z > b) return 0;
+      const th = dx < 15 ? 1 : 0;
+      if (y < 9 - th || y > 9) return 0;
+      if (y < 9) return WB;
+      if (z - a < 1.2) return WE;
+      if (z - a < 2.4 && dx > 7 && dx < 28) return WC;
+      if (dx > 29.5) return WV;
+      if (b - z < 1 && dx > 9) return WG;
+      return Math.floor(dx) % 7 === 0 ? WK : WH;
+    });
+    // anhedral blade at the tip, with the navigation light
+    const tx = Math.round(cxv + sd * 30.5);
+    for (let z = Math.ceil(le(30)) + 1; z <= Math.floor(te(30)) - 1; z++) for (let y = 6; y <= 8; y++) wg.set(tx, y, z, y === 6 ? WV : WE);
+    wg.set(tx, 9, Math.ceil(le(30)), WN);
+    return { grid: wg, origin, pivot: [sd * 5.5 * S, -0.5 * S, (52 - 37) * S] };
+  };
+  // landing gear with grav-lift emitter rings
+  const gg = new VoxGrid(W, H, L, S), GS = gg.c(0x8A919C, MAT_METAL), GT = gg.c(0x121314, MAT_MATTE), GL = gg.c(0xA36CFF, MAT_GLOW);
+  for (const [gx, gz, top] of [[31, 16, 8], [32, 16, 8], [38, 47, 7], [25, 47, 7]]) {
+    for (let y = 0; y <= top; y++) gg.set(gx, y, gz, y <= 1 ? GT : y === 3 ? GL : GS);
+    for (const dz of [-1, 1]) { gg.set(gx, 0, gz + dz, GT); gg.set(gx, 1, gz + dz, GT); }
+  }
+  // cockpit view: the canopy becomes hull; the pilot-scale interior (buildEclipseCockpit) is drawn over it
+  const cabin = cockpitGrid(g, { glass: [GOLD], hull: (x, y, z) => inBody(x, y, z) ? HULL : 0 });
+  return voxModel(gl, 'fighter', { body: { grid: g, origin, view: 'ext' }, cabin: { grid: cabin, origin, view: 'int' }, wingL: wing(-1), wingR: wing(1), gear: { grid: gg, origin }, bay: { grid: bay, origin } });
+}
+// ---------------------------------------------------------------- ECLIPSE
+class Eclipse extends Jet {
+  constructor(x, y, z, yaw) {
+    super(x, y, z, yaw, 'fighter');
+    // a private copy of the flight data: the wingtip probes move with the sweep
+    this.fp = Object.assign({}, FIGHTER_FP, { pts: FIGHTER_FP.pts.map(p => p.slice()) });
+    this.missiles = 0; this.sng = SNG.max; this.sReload = 0; this.bayT = 0; this.sweep = 0; this.hov = 0; this.cone = 0;
+    this.supersonic = false; this.boomT = -9; this.f2was = false; this.sngMsg = ''; this.sngMsgT = 0; this.desig = null; this.sngEvent = null; this.recoil = 0;
+    this.pv5 = { gear: {}, bay: {}, wingL: { y: 0 }, wingR: { y: 0 }, out: {} };
+  }
+  engineSpec() { const s = super.engineSpec(); s.fusion = 1; s.hov = this.rider ? this.hov : 0; return s; }
+  // the crater plan is built once, off the critical moment of a burst
+  mount(p) { super.mount(p); setTimeout(() => craterPlan(SNG.crH, SNG.crV), 30); }
+  // gravity drive: below flying speed it carries the jet's weight (Jet.step adds the climb / sink control);
+  // holding Space at speed still helps it up
+  hover(dt, ctl, inp, sp) {
+    const FP = this.fp, want = ctl ? Math.max(1 - smoothstep(FP.stall, FP.stall + 24, sp), inp.up ? 0.65 : 0) : 0;
+    this.hov += (want - this.hov) * Math.min(1, dt * 3);
+    return this.hov;
+  }
+  // right wingtip in model space at the current sweep (the left one is its mirror image)
+  tipPos(out) {
+    const a = -this.sweep, c = Math.cos(a), s = Math.sin(a), px = 0.6875, pz = 1.875, rx = 3.8 - px, rz = -0.31 - pz;
+    out[0] = px + rx * c + rz * s; out[1] = -0.06; out[2] = pz - rx * s + rz * c;
+    return out;
+  }
+  frame(dt, inp) {
+    super.frame(dt, inp);
+    if (this.removed) return;
+    const sp = this.speed, g = this.game;
+    // the wings sweep back as the speed builds, all the way in hyperdrive
+    const sw = clamp(smoothstep(75, 150, sp) * 0.62 + (this.boosting ? 0.25 : 0), 0, 0.62);
+    this.sweep += (sw - this.sweep) * Math.min(1, dt * 1.6);
+    const tip = this.tipPos(_ec1), pts = this.fp.pts;
+    pts[1][0] = -tip[0]; pts[1][2] = tip[2]; pts[2][0] = tip[0]; pts[2][2] = tip[2];
+    // the sound barrier: a vapour cone just below it and a boom when you punch through
+    this.cone = smoothstep(108, 128, sp) * (1 - smoothstep(134, 150, sp));
+    if (sp > 130 && !this.supersonic) { this.supersonic = true; if (this.rider) this.sonicBoom(); }
+    else if (sp < 118) this.supersonic = false;
+    if (this.bayT > 0) this.bayT -= dt;
+    if (this.sngMsgT > 0) this.sngMsgT -= dt;
+    this.recoil = Math.max(0, this.recoil - dt * 12);
+    if (this.sngEvent && (this.sngEvent.done || this.sngEvent.w !== g.world)) this.sngEvent = null;
+  }
+  sonicBoom() {
+    const g = this.game, c = this.center(_ec2);
+    g.audio.play('sonic_boom', { x: c[0], y: c[1], z: c[2], range: 300 });
+    if (this.rider === g.player) g.shake = Math.max(g.shake || 0, 0.45);
+    this.boomT = this.t;
+  }
+  weapons(dt, inp) {
+    const g = this.game, M = g.munitions; if (!M || !inp) return;
+    // ---- rail cannons: alternating rails, the slugs converge on whatever the nose points at
+    if (inp.fire1 && this.cd1 <= 0 && this.overheat <= 0) {
+      this.cd1 = 0.085; this.side = -this.side;
+      const f = this.fwd, c = this.center(_ec2), hit = longRaycast(this.world, c[0] + f[0] * 4.8, c[1] + f[1] * 4.8, c[2] + f[2] * 4.8, f[0], f[1], f[2], 500, false);
+      const D = (hit ? hit.t : 500) + 4.8, m = this.local(this.side * 0.44, -0.19, -2.9, _ec1);
+      let dx = c[0] + f[0] * D - m[0], dy = c[1] + f[1] * D - m[1], dz = c[2] + f[2] * D - m[2];
+      const s = 0.0025, dl = Math.hypot(dx, dy, dz) || 1;
+      dx = dx / dl + (Math.random() - 0.5) * s; dy = dy / dl + (Math.random() - 0.5) * s; dz = dz / dl + (Math.random() - 0.5) * s;
+      const l2 = Math.hypot(dx, dy, dz), vf = Math.max(0, this.vel[0] * f[0] + this.vel[1] * f[1] + this.vel[2] * f[2]);
+      railSlug(M, this, m[0], m[1], m[2], dx / l2, dy / l2, dz / l2, 900 + vf);
+      this.addHeat(0.045); this.muzzle = 0.05; this.recoil = 1;
+      if (this.rider === g.player) g.shake = Math.max(g.shake || 0, 0.07);
+    }
+    // ---- target lock (the warhead homes on a locked target)
+    this.trackLock(dt, M, 450);
+    // ---- singularity warheads: one click, one warhead
+    if (this.sReload > 0 && this.sng < SNG.max) {
+      this.sReload -= dt;
+      if (this.sReload <= 0) { this.sng++; this.sReload = this.sng < SNG.max ? SNG.reload : 0; if (this.rider === g.player) g.audio.play('sng_ready', {}); }
+    }
+    this.designate();
+    const press = inp.fire2 && !this.f2was; this.f2was = inp.fire2;
+    if (press) this.launchWarhead(M);
+  }
+  // where a warhead would go: the locked target, otherwise wherever the aim (camera) ray meets the ground
+  designate() {
+    const g = this.game, cam = g.camera, d = this.aimDir(_ec3);
+    const D = this.desig || (this.desig = { x: 0, y: 0, z: 0, ent: null, hit: false, far: false, dist: 0 });
+    const L = this.lock;
+    D.far = false;
+    if (L && this.lockT >= 1 && !L.dead && !L.removed) { D.ent = L; D.x = L.x; D.y = L.y + L.h * 0.5; D.z = L.z; D.hit = true; }
+    else {
+      D.ent = null;
+      const hit = longRaycast(this.world, cam.x, cam.y, cam.z, d[0], d[1], d[2], SNG.range, true);
+      if (hit) { D.x = hit.hx; D.y = hit.hy; D.z = hit.hz; D.hit = true; }
+      else {
+        // nothing in range: an airburst where the aim leaves the loaded world (or at full range); aimed down past
+        // the loaded terrain it is out of range (the ground out there is not there yet)
+        const e = longRaycast.edge, t = e >= 0 ? e : SNG.range;
+        D.x = cam.x + d[0] * t; D.y = cam.y + d[1] * t; D.z = cam.z + d[2] * t; D.hit = false; D.far = e >= 0 && d[1] < 0.05;
+      }
+    }
+    const c = this.center(_ec2); D.dist = Math.hypot(D.x - c[0], D.y - c[1], D.z - c[2]);
+  }
+  launchWarhead(M) {
+    const g = this.game, own = this.rider === g.player, D = this.desig;
+    const say = (s) => { this.sngMsg = s; this.sngMsgT = 1.8; if (own) g.audio.play('deny', {}); };
+    if (this.sng <= 0) { say('NO WARHEAD'); return; }
+    if (D && D.dist < SNG.safe) { say('TOO CLOSE'); return; }
+    if (D && D.far) { say('OUT OF RANGE'); return; }
+    this.sng--; if (this.sReload <= 0) this.sReload = SNG.reload;
+    this.bayT = 1.1; this.sngMsg = 'AWAY'; this.sngMsgT = 2;
+    const m = this.local(0, -0.55, 0.3, _ec1);
+    singularityWarhead(M, this, m[0], m[1], m[2], this.vel[0], this.vel[1] - 5, this.vel[2], D);
+  }
+  parts() {
+    const P = this.pv5, o = P.out;
+    P.wingL.y = this.sweep; P.wingR.y = -this.sweep;
+    o.gear = this.gear > 0.5 ? P.gear : null; o.bay = this.bayT > 0 ? null : P.bay; o.wingL = P.wingL; o.wingR = P.wingR;
+    return o;
+  }
+  drawFX(R) {
+    this.airFX(R, this.tipPos(_ec3));
+    const e = this.engine, f = this.fwd, u = this.upv, r = this.rightv, t = this.t, hy = this.boosting;
+    if (e > 0.02 || hy) {
+      // the halo drive: a ring of light around the tail, flaring in hyperdrive
+      const c = this.local(0, 0, 3.625, _ec1), n = 18, rad = 0.95, sz = 0.26 + e * 0.12 + (hy ? 0.16 : 0), a0 = 0.22 + e * 0.38 + (hy ? 0.45 : 0);
+      for (let i = 0; i < n; i++) {
+        const a = i / n * TAU + t * 2.2, ca = Math.cos(a) * rad, sa = Math.sin(a) * rad;
+        R.fxSprite(c[0] + r[0] * ca + u[0] * sa, c[1] + r[1] * ca + u[1] * sa, c[2] + r[2] * ca + u[2] * sa, sz, 1.0, 0.86, 0.62, a0);
+      }
+      // blue-violet flame from the nozzle, longer in hyperdrive, with shock diamonds
+      const p = this.local(0, 0, 4.75, _ec2), len = 1.0 + e * 1.8 + (hy ? 2.4 : 0), k = 0.9 + Math.random() * 0.2;
+      R.fxBeam(p[0], p[1], p[2], p[0] - f[0] * len * k, p[1] - f[1] * len * k, p[2] - f[2] * len * k, 0.17 + e * 0.05, 0.42, 0.55, 1.0, 0.22 + e * 0.25 + (hy ? 0.15 : 0));
+      R.fxSprite(p[0], p[1], p[2], 0.4, 0.6, 0.75, 1.0, 0.4 + e * 0.4);
+      if (hy) for (let i = 1; i <= 4; i++) { const q = i * 1.1; R.fxSprite(p[0] - f[0] * q, p[1] - f[1] * q, p[2] - f[2] * q, 0.26 - i * 0.03, 0.7, 0.8, 1.0, 0.4); }
+    }
+    // vapour cone at the sound barrier, and the shock ring when it breaks
+    if (this.cone > 0.02) {
+      const c = this.local(0, 0.05, 0.4, _ec1);
+      for (let i = 0; i < 22; i++) { const a = i / 22 * TAU, rr = 1.45 * (1 + 0.07 * Math.sin(t * 37 + i * 1.7)), ca = Math.cos(a) * rr, sa = Math.sin(a) * rr; R.fxSprite(c[0] + r[0] * ca + u[0] * sa, c[1] + r[1] * ca + u[1] * sa, c[2] + r[2] * ca + u[2] * sa, 0.6, 0.9, 0.93, 0.98, 0.16 * this.cone); }
+    }
+    const ba = t - this.boomT;
+    if (ba < 0.5) {
+      const c = this.local(0, 0, 0.5, _ec1), rr = 1.5 + ba * 46, al = (1 - ba / 0.5) * 0.7;
+      for (let i = 0; i < 28; i++) { const a = i / 28 * TAU, ca = Math.cos(a) * rr, sa = Math.sin(a) * rr; R.fxSprite(c[0] + r[0] * ca + u[0] * sa, c[1] + r[1] * ca + u[1] * sa, c[2] + r[2] * ca + u[2] * sa, 0.9 + ba * 3, 0.85, 0.9, 1.0, al); }
+    }
+    // grav-lift: a violet shimmer under the hull while the gravity drive carries it
+    if (this.hov > 0.05 && (this.rider || !this.onGround)) {
+      const b = this.local(0, -1.0, 0.3, _ec1);
+      for (let i = 0; i < 3; i++) { const q = i * 0.45 + (t * 1.7 % 0.45); R.fxSprite(b[0] - u[0] * q, b[1] - u[1] * q, b[2] - u[2] * q, 1.3 - i * 0.25, 0.62, 0.45, 1.0, 0.2 * this.hov * (1 - i * 0.25)); }
+    }
+    // the rails: a charge glow along them while firing, an electric flash at the muzzle
+    if (this.recoil > 0.05) for (const sd of [-1, 1]) { const m = this.local(sd * 0.44, -0.19, -2.0, _ec1), q = this.local(sd * 0.44, -0.19, -0.6, _ec2); R.fxBeam(m[0], m[1], m[2], q[0], q[1], q[2], 0.05, 0.4, 0.9, 1.0, 0.8 * this.recoil); }
+    if (this.muzzle > 0) { const m = this.local(this.side * 0.44, -0.19, -3.05, _ec1); R.fxSprite(m[0], m[1], m[2], 0.6, 0.55, 0.9, 1.0, 1.8); R.fxSprite(m[0], m[1], m[2], 0.25, 1, 1, 1, 1.6); this.muzzle -= 0.02; }
+    // strobes on the wingtips
+    if ((t % 1.1) < 0.07) { const tp = this.tipPos(_ec3); for (const sd of [-1, 1]) { const p = this.local(tp[0] * sd, tp[1] - 0.25, tp[2] + 0.2, _ec1); R.fxSprite(p[0], p[1], p[2], 0.5, 1, 1, 1, 1.4); } }
+  }
+  lights(R) {
+    if (this.engine > 0.05) { const p = this.local(0, 0, 3.9, _ec1); R.addLight(p[0], p[1], p[2], 8 + this.engine * 5 + (this.boosting ? 6 : 0), 0.85, 0.85, 1.0, 0.9 + this.engine); }
+    if (this.muzzle > 0) { const p = this.local(this.side * 0.44, -0.19, -3.0, _ec1); R.addLight(p[0], p[1], p[2], 9, 0.5, 0.85, 1.0, 2.4); }
+    if (this.hov > 0.2 && this.rider) { const p = this.local(0, -1.4, 0.3, _ec1); R.addLight(p[0], p[1], p[2], 6, 0.65, 0.45, 1.0, 0.8 * this.hov); }
+  }
+}
+// ---------------------------------------------------------------- rail cannon
+// Slugs fly at about 1000 blocks/s: each frame sweeps a ray, punches through up to three mobs, and a block hit
+// blasts out a small crater. The ionised wake lingers for a moment as a fading streak.
+const RAIL_SLUG = {
+  step(M, m, dt) {
+    if (m.age > m.life) return false;
+    const w = M.world, step = m.speed * dt;
+    const hit = raycastSolid(w, m.x, m.y, m.z, m.dx, m.dy, m.dz, step);
+    let et = hit ? hit.t : step, stop = false;
+    const hs = [];
+    for (const e of w.entitiesNear(m.x + m.dx * et * 0.5, m.y + m.dy * et * 0.5, m.z + m.dz * et * 0.5, et * 0.5 + 4)) {
+      if (!M.hittable(e, m.owner) || m.hitE.includes(e)) continue;
+      const h = entityRayHit(e, m.x, m.y, m.z, m.dx, m.dy, m.dz, 0.25);
+      if (h && h.t <= et) hs.push([h.t, e, h.part]);
+    }
+    if (hs.length > 1) hs.sort((a, b) => a[0] - b[0]);
+    for (const [t, e, part] of hs) {
+      const px = m.x + m.dx * t, py = m.y + m.dy * t, pz = m.z + m.dz * t;
+      e.invul = 0; e.lastHitPart = part; e.hurt(m.dmg, { type: 'rail', source: m.owner.rider || m.owner, kb: 0.8 }); e.lastHitPart = -1;
+      if (e.isVehicle) { e.vel[0] += m.dx * 5; e.vel[1] += m.dy * 5 + 1; e.vel[2] += m.dz * 5; }
+      else if (!e.isBoss && !e.isCrystal) { e.vx += m.dx * 0.45; e.vy += 0.22; e.vz += m.dz * 0.45; }
+      railSparks(M, px, py, pz, 7, 0.4);
+      m.hitE.push(e); m.dmg *= 0.75;
+      if (--m.pierce <= 0) { et = t; stop = true; break; }
+    }
+    m.x += m.dx * et; m.y += m.dy * et; m.z += m.dz * et;
+    const T = m.trail; T.bx = m.x; T.by = m.y; T.bz = m.z;
+    if (stop) return false;
+    if (hit) { railImpact(M, m, hit); return false; }
+    return m.y > -64 && m.y < 400;
+  },
+  draw(R, m) {
+    const l = Math.min(m.age * m.speed, 24);
+    R.fxBeam(m.x - m.dx * l, m.y - m.dy * l, m.z - m.dz * l, m.x, m.y, m.z, 0.1, 0.45, 0.85, 1.0, 2.2);
+    R.fxBeam(m.x - m.dx * l * 0.5, m.y - m.dy * l * 0.5, m.z - m.dz * l * 0.5, m.x, m.y, m.z, 0.035, 1, 1, 1, 3);
+    R.fxSprite(m.x, m.y, m.z, 0.32, 0.7, 0.95, 1.0, 1.3);
+  },
+};
+function railSlug(M, owner, x, y, z, dx, dy, dz, speed) {
+  const trail = { ax: x, ay: y, az: z, bx: x, by: y, bz: z, age: 0, life: 0.3, w: 0.04, c: [0.5, 0.82, 1.0], a: 0.6 };
+  M.streaks.push(trail);
+  M.add({ cls: RAIL_SLUG, owner, x, y, z, dx, dy, dz, speed, age: 0, life: 0.9, dmg: 13, pierce: 3, hitE: [], trail });
+  M.game.audio.play('railgun', { x, y, z, range: 90, vol: 0.6 });
+}
+function railSparks(M, x, y, z, n, k) {
+  const P = M.game.particles;
+  for (let i = 0; i < n; i++) P.spawn('p_spark', x, y, z, { vx: (Math.random() - 0.5) * k, vy: Math.random() * k * 0.8, vz: (Math.random() - 0.5) * k, grav: 0.035, life: 8 + Math.random() * 10, size: 0.07 + Math.random() * 0.05, color: [0.6, 0.92, 1.0], emissive: true, collide: true });
+}
+// a slug hits the ground: a small crater (soft blocks give way more easily), debris, a flash and a thump
+function railImpact(M, m, hit) {
+  const g = M.game, w = M.world, P = g.particles;
+  const x = m.x - m.dx * 0.05, y = m.y - m.dy * 0.05, z = m.z - m.dz * 0.05;
+  const cx = x + m.dx * 0.6, cy = y + m.dy * 0.6, cz = z + m.dz * 0.6, r = 1.6;
+  let n = 0;
+  for (let bx = Math.floor(cx - r); bx <= Math.floor(cx + r); bx++) for (let by = Math.floor(cy - r); by <= Math.floor(cy + r); by++) for (let bz = Math.floor(cz - r); bz <= Math.floor(cz + r); bz++) {
+    const d = Math.hypot(bx + 0.5 - cx, by + 0.5 - cy, bz + 0.5 - cz); if (d > r) continue;
+    const v = w.getBlock(bx, by, bz), id = v & 4095; if (!id || FLUID[id]) continue;
+    const b = BLOCKS[id]; if (!b || b.hard < 0 || b.hard >= 40) continue;
+    if (Math.random() > 1.2 - d / r * 0.6 - b.hard * 0.05) continue;
+    const be = w.getBE(bx, by, bz); if (be) g.onBERemoved(be, bx, by, bz);
+    w.setBlock(bx, by, bz, 0, 1 | 8);
+    if (n++ < 4) {
+      const tx = P.blockTex(v, 2), col = P.tintOf(v, bx, bz);
+      for (let i = 0; i < 3; i++) P.spawn({ layer: tx.layer, uv: tx.uv }, bx + 0.5, by + 0.5, bz + 0.5, { vx: -m.dx * 0.25 + (Math.random() - 0.5) * 0.35, vy: 0.2 + Math.random() * 0.3, vz: -m.dz * 0.25 + (Math.random() - 0.5) * 0.35, grav: 0.05, life: 22 + Math.random() * 14, size: 0.14 + Math.random() * 0.1, color: col, fade: false, collide: true });
+    }
+  }
+  railSparks(M, x, y, z, 8, 0.55);
+  for (let i = 0; i < 3; i++) P.spawn('p_smoke', x + (Math.random() - 0.5), y + Math.random() * 0.5, z + (Math.random() - 0.5), { vx: (Math.random() - 0.5) * 0.06, vy: 0.04 + Math.random() * 0.03, vz: (Math.random() - 0.5) * 0.06, life: 30 + Math.random() * 20, size: 0.7 + Math.random() * 0.5, color: [0.55, 0.53, 0.5], alpha: 0.6 });
+  M.flashes.push({ x, y, z, size: 1.7, life: 0.12, age: 0, c: [0.6, 0.9, 1.0], i: 3 });
+  g.audio.play('rail_hit', { x, y, z, range: 70, vol: 0.55 });
+  for (const e of w.entitiesNear(x, y, z, 2.6)) if (M.hittable(e, m.owner) && !e.isBoss) e.hurt(4, { type: 'explosion', source: m.owner.rider || m.owner });
+}
+// ---------------------------------------------------------------- singularity warhead
+// Dropped from the bay, it falls clear of the jet, lights its motor and flies to the designated point (or the
+// locked target); wherever it strikes, a singularity forms.
+const SNG_WARHEAD = {
+  step(M, m, dt) {
+    const w = M.world;
+    if (m.age > m.life) { singularityAt(M, m, m.x, m.y, m.z); return false; }
+    const drop = m.age < 0.3;
+    if (drop) { m.vy -= 20 * dt; m.speed = Math.hypot(m.vx, m.vy, m.vz) || 1; m.dx = m.vx / m.speed; m.dy = m.vy / m.speed; m.dz = m.vz / m.speed; }
+    else {
+      const T = m.tgt;
+      if (T && !T.dead && !T.removed) { m.tp = m.tp || [0, 0, 0]; m.tp[0] = T.x; m.tp[1] = T.y + T.h * 0.5; m.tp[2] = T.z; }
+      if (!m.lit) {
+        // the motor lights with the warhead already turned toward its target, so it never noses into the ground
+        m.lit = true; M.game.audio.play('sng_motor', { x: m.x, y: m.y, z: m.z, range: 160 });
+        if (m.tp) { let ax = m.tp[0] - m.x, ay = m.tp[1] - m.y, az = m.tp[2] - m.z; const al = Math.hypot(ax, ay, az) || 1; ax = ax / al * 0.85 + m.dx * 0.15; ay = ay / al * 0.85 + m.dy * 0.15; az = az / al * 0.85 + m.dz * 0.15; const l = Math.hypot(ax, ay, az) || 1; m.dx = ax / l; m.dy = ay / l; m.dz = az / l; }
+      }
+      m.speed = Math.min(m.speed + 170 * dt, 230);
+      if (m.tp) {
+        let ax = m.tp[0] - m.x, ay = m.tp[1] - m.y, az = m.tp[2] - m.z; const al = Math.hypot(ax, ay, az) || 1; ax /= al; ay /= al; az /= al;
+        const ang = Math.acos(clamp(ax * m.dx + ay * m.dy + az * m.dz, -1, 1)), maxA = 3.0 * dt * Math.min(1, (m.age - 0.3) * 2.5 + 0.25);
+        if (ang > 1e-4) { const k = Math.min(1, maxA / ang); m.dx += (ax - m.dx) * k; m.dy += (ay - m.dy) * k; m.dz += (az - m.dz) * k; const l = Math.hypot(m.dx, m.dy, m.dz); m.dx /= l; m.dy /= l; m.dz /= l; }
+        if (al < m.speed * dt + 1.5) { singularityAt(M, m, m.tp[0], m.tp[1], m.tp[2]); return false; }
+      }
+    }
+    const step = m.speed * dt;
+    const hit = raycastSolid(w, m.x, m.y, m.z, m.dx, m.dy, m.dz, step);
+    let et = hit ? hit.t : step, ent = null;
+    if (!drop) for (const e of w.entitiesNear(m.x + m.dx * step * 0.5, m.y + m.dy * step * 0.5, m.z + m.dz * step * 0.5, step * 0.5 + 5)) {
+      if (!M.hittable(e, m.owner) || e.type === 'item' || e.type === 'xp') continue;
+      const h = entityRayHit(e, m.x, m.y, m.z, m.dx, m.dy, m.dz, 0.6);
+      if (h && h.t <= et) { et = h.t; ent = e; }
+    }
+    if (hit || ent) {
+      // still falling clear of the bay: the motor lights early instead of striking the ground under the jet
+      if (drop && !ent) { m.age = 0.3; return true; }
+      singularityAt(M, m, m.x + m.dx * (et - 0.4), m.y + m.dy * (et - 0.4), m.z + m.dz * (et - 0.4));
+      return false;
+    }
+    m.x += m.dx * step; m.y += m.dy * step; m.z += m.dz * step;
+    if (drop) { m.vx = m.dx * m.speed; m.vz = m.dz * m.speed; }
+    if (m.lit && (m.trailT -= dt) <= 0) {
+      m.trailT = 0.02;
+      const P = M.game.particles;
+      P.spawn('p_smoke', m.x - m.dx * 0.8, m.y - m.dy * 0.8, m.z - m.dz * 0.8, { vx: (Math.random() - 0.5) * 0.02, vy: 0.01, vz: (Math.random() - 0.5) * 0.02, life: 40 + Math.random() * 25, size: 0.55 + Math.random() * 0.35, color: [0.74, 0.7, 0.82], alpha: 0.65 });
+      if (Math.random() < 0.4) P.spawn('p_spark', m.x - m.dx, m.y - m.dy, m.z - m.dz, { vx: (Math.random() - 0.5) * 0.12, vy: (Math.random() - 0.5) * 0.12, vz: (Math.random() - 0.5) * 0.12, life: 10, size: 0.08, color: [0.75, 0.55, 1.0], emissive: true });
+    }
+    return m.y > -64 && m.y < 400;
+  },
+  draw(R, m) {
+    const pulse = 0.75 + 0.25 * Math.sin(m.age * 30);
+    // a dark core inside a violet containment glow
+    R.fxSprite(m.x, m.y, m.z, 0.6 * pulse, 0.62, 0.38, 1.0, 1.5);
+    R.fxSprite(m.x, m.y, m.z, 0.2, 1, 1, 1, 1.2);
+    if (m.lit) {
+      const bx = m.x - m.dx * 0.5, by = m.y - m.dy * 0.5, bz = m.z - m.dz * 0.5, fl = 1.2 + Math.random() * 0.6;
+      R.fxBeam(bx, by, bz, bx - m.dx * fl * 2.2, by - m.dy * fl * 2.2, bz - m.dz * fl * 2.2, 0.22, 0.75, 0.62, 1.0, 1.6);
+      R.fxSprite(bx, by, bz, 0.5, 0.9, 0.8, 1.0, 1.2);
+    }
+  },
+  light(R, m) { R.addLight(m.x, m.y, m.z, 10, 0.7, 0.45, 1.0, 1.8); },
+};
+function singularityWarhead(M, owner, x, y, z, vx, vy, vz, D) {
+  const sp = Math.hypot(vx, vy, vz) || 1;
+  const m = M.add({ cls: SNG_WARHEAD, owner, x, y, z, vx, vy, vz, dx: vx / sp, dy: vy / sp, dz: vz / sp, speed: sp, age: 0, life: 14, trailT: 0, lit: false,
+    tgt: D && D.ent || null, tp: D ? [D.x, D.y, D.z] : null });
+  M.game.audio.play('sng_launch', { x, y, z, range: 120 });
+  return m;
+}
+// too close to the jet that launched it (it struck something on the way out), the warhead fails safe: a dud
+function singularityAt(M, m, x, y, z) {
+  const o = m.owner;
+  if (o && !o.removed && o.center) {
+    const c = o.center(_ec2);
+    if (Math.hypot(c[0] - x, c[1] - y, c[2] - z) < SNG.safe * 0.6) { explode(M.world, x, y, z, 2.5, false, o); if (o.sngMsg !== undefined) { o.sngMsg = 'DUD: TOO CLOSE'; o.sngMsgT = 2.5; } return; }
+  }
+  M.events.push(new Singularity(M, x, y, z, o));
+}
+// what the burst does to a block left in the crater wall: 1 glass, 2 scorched soil, 3 scorched rock,
+// 4 burnt away, 5 melted (ice to water, snow gone), 0 unchanged
+let ECL_CAT = null;
+function eclCat(id) {
+  if (!ECL_CAT) {
+    ECL_CAT = new Uint8Array(BLOCKS.length);
+    for (const b of BLOCKS) {
+      if (!b) continue;
+      const n = b.name;
+      ECL_CAT[b.id] = (n === 'sand' || n === 'red_sand' || n.endsWith('concrete_powder')) ? 1
+        : /^(grass_block|dirt|coarse_dirt|podzol|mycelium|farmland|dirt_path|rooted_dirt|mud|moss_block|clay)$/.test(n) ? 2
+          : /^(stone|cobblestone|mossy_cobblestone|andesite|diorite|granite|tuff|calcite|deepslate|cobbled_deepslate|sandstone|red_sandstone|gravel|smooth_basalt|dripstone_block|netherrack|end_stone|terracotta)$/.test(n) || n.endsWith('_terracotta') ? 3
+            : (LEAVES[b.id] || PLANT[b.id] || /(_log|_wood|_stem|_hyphae|planks|wool|carpet|bookshelf|hay_block|_leaves)$/.test(n)) ? 4
+              : /^(ice|packed_ice|blue_ice|snow_layer|snow_block|powder_snow)$/.test(n) ? 5 : 0;
+    }
+  }
+  return ECL_CAT[id] || 0;
+}
+// crater cells (an ellipsoid plus the wall shell beyond it) sorted from the centre out, so the blast can carve
+// a little more every frame: { n, E (normalised squared radius), X, Y, Z }
+const CRATER_PLANS = {};
+function craterPlan(rh, rv) {
+  const k = rh + ':' + rv; if (CRATER_PLANS[k]) return CRATER_PLANS[k];
+  // counting sort into 1024 thin shells: linear time, and the carve front only needs shell order
+  const Hh = Math.ceil(rh * 1.16) + 1, Vv = Math.ceil(rv * 1.16) + 1, NB = 1024, cnt = new Uint32Array(NB + 1);
+  const shell = (dx, dy, dz) => { const e = (dx * dx + dz * dz) / (rh * rh) + dy * dy / (rv * rv); return e < 1.36 ? Math.min(NB - 1, Math.floor(e / 1.36 * NB)) : -1; };
+  let n = 0;
+  for (let dy = -Vv; dy <= Vv; dy++) for (let dz = -Hh; dz <= Hh; dz++) for (let dx = -Hh; dx <= Hh; dx++) { const b = shell(dx, dy, dz); if (b >= 0) { cnt[b + 1]++; n++; } }
+  for (let b = 0; b < NB; b++) cnt[b + 1] += cnt[b];
+  const P = { n, E: new Float32Array(n), X: new Int8Array(n), Y: new Int8Array(n), Z: new Int8Array(n) };
+  for (let dy = -Vv; dy <= Vv; dy++) for (let dz = -Hh; dz <= Hh; dz++) for (let dx = -Hh; dx <= Hh; dx++) {
+    const b = shell(dx, dy, dz); if (b < 0) continue;
+    const i = cnt[b]++; P.E[i] = (dx * dx + dz * dz) / (rh * rh) + dy * dy / (rv * rv); P.X[i] = dx; P.Y[i] = dy; P.Z[i] = dz;
+  }
+  return (CRATER_PLANS[k] = P);
+}
+// unit sphere for the event horizon (vox format: drawn pure black by the emissive path of the vox shader)
+function sngSphere(gl) {
+  if (sngSphere.m) return sngSphere.m;
+  const out = [], NU = 32, NV = 20;
+  const P = (i, j) => { const th = i / NU * TAU, ph = j / NV * Math.PI; return [Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th)]; };
+  const V = (p) => out.push(p[0], p[1], p[2], p[0], p[1], p[2], 0, 0, 0, MAT_GLOW);
+  for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) { const a = P(i, j), b = P(i + 1, j), c = P(i + 1, j + 1), d = P(i, j + 1); V(a); V(b); V(c); V(a); V(c); V(d); }
+  return (sngSphere.m = uploadVox(gl, new Float32Array(out)));
+}
+// ---------------------------------------------------------------- the singularity
+// After the warhead lands: the hole forms, pulls for a few seconds while it eats the ground around it, collapses,
+// then evaporates in one burst: a glassed crater, a shock front, a fireball and a mushroom cloud that lingers
+class Singularity {
+  constructor(M, x, y, z, owner) {
+    this.M = M; this.g = M.game; this.w = M.world; this.x = x; this.y = y; this.z = z;
+    this.owner = owner || null; this.src = owner ? owner.rider || owner : null;
+    this.t = 0; this.r = 0; this.burst = false; this.bt = 0; this.ripAcc = 0; this.bite = 0; this.rs = 0; this.done = false;
+    this.debris = []; this.puffs = null; this.plan = null; this.pi = 0; this.boomed = false; this.collapsing = false;
+    // the accretion disk's plane, tilted at random
+    const tilt = 0.25 + Math.random() * 0.4, az = Math.random() * TAU, n = this.n = [Math.sin(tilt) * Math.cos(az), Math.cos(tilt), Math.sin(tilt) * Math.sin(az)];
+    const l1 = Math.hypot(n[1], n[0]) || 1, e1 = this.e1 = [n[1] / l1, -n[0] / l1, 0];
+    this.e2 = [n[1] * e1[2] - n[2] * e1[1], n[2] * e1[0] - n[0] * e1[2], n[0] * e1[1] - n[1] * e1[0]];
+    this.rim = [Math.random() * TAU, Math.random() * TAU, Math.random() * TAU];
+    if (owner) owner.sngEvent = this;
+    this.g.audio.play('sng_form', { x, y, z, range: 480 });
+    M.flashes.push({ x, y, z, size: 6, life: 0.35, age: 0, c: [0.75, 0.55, 1.0], i: 4 });
+  }
+  update(dt) {
+    const g = this.g;
+    if (g.world !== this.w) { this.done = true; g.audio.loop('singularity', this, 0); return false; }
+    this.t += dt;
+    const t = this.t;
+    if (!this.burst) {
+      if (t < SNG.form) this.r = SNG.r0 * smoothstep(0, SNG.form, t);
+      else if (t < SNG.collapse) this.r = SNG.r0 + (SNG.r1 - SNG.r0) * (t - SNG.form) / (SNG.collapse - SNG.form);
+      else this.r = SNG.r1 * (1 - smoothstep(SNG.collapse, SNG.burst, t));
+      this.pull(dt);
+      if (t > SNG.form * 0.6 && t < SNG.collapse) this.ripBlocks(dt);
+      if (t >= SNG.collapse && !this.collapsing) { this.collapsing = true; g.audio.play('sng_collapse', { x: this.x, y: this.y, z: this.z, range: 480 }); }
+      const vol = t < SNG.collapse ? 0.25 + 0.6 * smoothstep(0, SNG.collapse, t) : 0.85 * (1 - smoothstep(SNG.collapse, SNG.burst, t));
+      g.audio.loop('singularity', this, vol, this.x, this.y, this.z, 420);
+      if (t >= SNG.burst) this.detonate();
+    } else {
+      this.bt += dt;
+      this.carve();
+      this.shock();
+      this.cloud();
+      if (this.bt > SNG.life) { this.done = true; return false; }
+    }
+    this.updDebris(dt);
+    return true;
+  }
+  // gravity: everything nearby is dragged in and swirled around the disk; at the horizon it is torn apart
+  pull(dt) {
+    const g = this.g, w = this.w, cx = this.x, cy = this.y, cz = this.z, R = SNG.pull, n = this.n;
+    const k = Math.min(1, this.t / SNG.form), horizon = this.r + 1.6;
+    this.bite += dt; const bite = this.bite >= 0.25; if (bite) this.bite = 0;
+    for (const e of w.entitiesNear(cx, cy, cz, R)) {
+      if (e.removed || e.isCrystal || e.spectator || (e.isPlayer && e.vehicle)) continue;
+      const dx = cx - e.x, dy = cy - (e.y + (e.h || 0) * 0.5), dz = cz - e.z, d = Math.hypot(dx, dy, dz) || 1;
+      const a = k * (160 / (1 + (d / 7) ** 2) + 14 * (1 - d / R)), ux = dx / d, uy = dy / d, uz = dz / d;
+      // close in, things on the ground are lifted off it (beating gravity) and fly in
+      const lift = dy > -2 ? (d < 22 ? Math.min(46, a * 0.9) : a * 0.25) : 0;
+      const sx = n[1] * uz - n[2] * uy, sy = n[2] * ux - n[0] * uz, sz = n[0] * uy - n[1] * ux;
+      // the dragon steers itself: it is dragged a little (it can still fly clear unless it comes close)
+      if (e.isBoss) { if (e.phase !== 'dying') { const q = Math.min(7, a * 0.25) * dt; e.x += ux * q; e.y += uy * q; e.z += uz * q; } }
+      else if (e.isVehicle) { const q = (e.rider === g.player ? 0.45 : 0.8) * a * dt; e.vel[0] += (ux + sx * 0.3) * q; e.vel[1] += (uy + sy * 0.3) * q; e.vel[2] += (uz + sz * 0.3) * q; }
+      else if (e.vx !== undefined) { const q = dt / 20; e.vx += (ux + sx * 0.35) * a * q; e.vy += ((uy + sy * 0.35) * a + lift) * q; e.vz += (uz + sz * 0.35) * a * q; }
+      if (d < horizon) {
+        if (e.type === 'item' || e.type === 'xp' || e.isProjectile || e.type === 'falling' || e.type === 'arrow' || e.type === 'tnt') { e.removed = true; continue; }
+        if (bite && e.hurt) { e.invul = 0; e.hurt(e.isBoss ? 6 : e.isVehicle ? 40 : 24, { type: 'singularity', source: e === this.owner ? null : this.src }); }
+        if (e.dead && !e.isPlayer && !e.isVehicle && !e.isBoss) e.removed = true;
+      }
+    }
+  }
+  // the hole tears blocks out of the ground around it, a little further out every second
+  ripBlocks(dt) {
+    const w = this.w, P = this.g.particles, rr = 3.5 + (this.t - SNG.form) * 2.0;
+    this.ripAcc += dt * SNG.rip;
+    let tries = 0;
+    while (this.ripAcc >= 1 && tries++ < 40) {
+      let dx = Math.random() * 2 - 1, dy = Math.random() < 0.18 ? Math.random() : -0.1 - Math.random() * 0.9, dz = Math.random() * 2 - 1;
+      const l = Math.hypot(dx, dy, dz) || 1; dx /= l; dy /= l; dz /= l;
+      const hit = raycast(w, this.x, this.y, this.z, dx, dy, dz, rr, false);
+      if (!hit) continue;
+      this.ripAcc -= 1;
+      const id = hit.id, b = BLOCKS[id];
+      if (!b || b.hard < 0 || FLUID[id]) continue;
+      const be = w.getBE(hit.x, hit.y, hit.z); if (be) this.g.onBERemoved(be, hit.x, hit.y, hit.z);
+      w.setBlock(hit.x, hit.y, hit.z, 0, 4 | 8);
+      const up = w.getId(hit.x, hit.y + 1, hit.z); if (up && !SOLID[up] && !FLUID[up]) w.setBlock(hit.x, hit.y + 1, hit.z, 0, 4 | 8);
+      if (this.debris.length < 360) {
+        const tx = P.blockTex(hit.v, 2);
+        this.debris.push({ x: hit.x + 0.5, y: hit.y + 0.5, z: hit.z + 0.5, vx: 0, vy: 0, vz: 0, size: 0.45 + Math.random() * 0.4, uv: tx.uv, color: P.tintOf(hit.v, hit.x, hit.z), alpha: 1, layer: tx.layer, src: 0, age: 0, life: 1e9, fade: false,
+          sx: (Math.random() - 0.5) * 2, sy: 2 + Math.random() * 3, sz: (Math.random() - 0.5) * 2, t: 0, out: 0 });
+      }
+    }
+    if (this.ripAcc > 3) this.ripAcc = 3;
+  }
+  updDebris(dt) {
+    const D = this.debris; if (!D.length) return;
+    const cx = this.x, cy = this.y, cz = this.z, n = this.n, rr = Math.max(0.5, this.r);
+    let j = 0;
+    for (const d of D) {
+      d.t += dt;
+      if (d.out) { d.sy -= 22 * dt; d.x += d.sx * dt; d.y += d.sy * dt; d.z += d.sz * dt; if (d.t < d.out) D[j++] = d; continue; }
+      const dx = cx - d.x, dy = cy - d.y, dz = cz - d.z, dist = Math.hypot(dx, dy, dz) || 1;
+      if (dist < rr * 1.45) continue;
+      const a = 26 + 260 / (1 + dist * 0.4), ux = dx / dist, uy = dy / dist, uz = dz / dist;
+      const tx = n[1] * uz - n[2] * uy, ty = n[2] * ux - n[0] * uz, tz = n[0] * uy - n[1] * ux;
+      d.sx += (ux + tx * 0.8) * a * dt; d.sy += (uy + ty * 0.8) * a * dt; d.sz += (uz + tz * 0.8) * a * dt;
+      const k = Math.exp(-dt * 1.6); d.sx *= k; d.sy *= k; d.sz *= k;
+      d.x += d.sx * dt; d.y += d.sy * dt; d.z += d.sz * dt;
+      if (dist < rr * 2.6) d.size *= Math.exp(-dt * 4);
+      D[j++] = d;
+    }
+    D.length = j;
+  }
+  // ---------------------------------------------------------------- the burst
+  detonate() {
+    const g = this.g, w = this.w, P = g.particles, cx = this.x, cy = this.y, cz = this.z;
+    this.burst = true; this.bt = 0; this.r = 0;
+    g.audio.loop('singularity', this, 0);
+    // the flash: as bright as it is close, dimmer when the ground hides it
+    const cam = g.camera, dc = Math.hypot(cam.x - cx, cam.y - cy, cam.z - cz);
+    const seen = !rayBlocked(w, cam.x, cam.y, cam.z, cx, cy + 2, cz);
+    screenFlash((seen ? 0.96 : 0.45) * (1 - smoothstep(90, 950, dc)), 2.2);
+    g.lightning = 1;
+    g.audio.play('sng_burst', { vol: 0.25 + 0.75 * (1 - smoothstep(60, 900, dc)) });
+    // close in nothing survives; further out it is blast and heat
+    for (const e of w.entitiesNear(cx, cy, cz, SNG.blast)) {
+      if (e.removed || (e.isPlayer && e.vehicle)) continue;
+      const dx = e.x - cx, dy = e.y + (e.h || 0) * 0.5 - cy, dz = e.z - cz, d = Math.hypot(dx, dy, dz) || 1;
+      if (e.type === 'item' || e.type === 'xp') { if (d < SNG.kill) e.removed = true; continue; }
+      const k = d < SNG.kill ? 1 : Math.pow(Math.max(0, 1 - (d - SNG.kill) / (SNG.blast - SNG.kill)), 1.6);
+      if (k <= 0) continue;
+      // a boss takes the full force (as if hit in the head) but survives one: half the dragon's health at most
+      if (e.hurt) { e.invul = 0; if (e.isBoss) e.lastHitPart = 0; e.hurt(e.isBoss ? Math.min(100, Math.round(320 * k + 4)) : Math.round(320 * k + 4), { type: 'explosion', source: this.src }); e.lastHitPart = -1; }
+      if (e.isVehicle) { e.vel[0] += dx / d * 45 * k; e.vel[1] += 18 * k; e.vel[2] += dz / d * 45 * k; }
+      else if (e.vx !== undefined && !e.isBoss && !e.isCrystal) { e.vx += dx / d * 1.6 * k; e.vy += 0.9 * k + 0.2; e.vz += dz / d * 1.6 * k; }
+      if (!e.fireImmune && !e.isVehicle) e.fireTicks = Math.max(e.fireTicks || 0, 160);
+    }
+    // anything still spiralling in is flung back out
+    for (const d of this.debris) {
+      const dx = d.x - cx, dy = d.y - cy, dz = d.z - cz, l = Math.hypot(dx, dy, dz) || 1, v = 25 + Math.random() * 35;
+      d.sx = dx / l * v; d.sy = Math.abs(dy / l) * v * 0.5 + 12 + Math.random() * 14; d.sz = dz / l * v; d.out = 1.5 + Math.random() * 2; d.t = 0; d.size = Math.max(d.size, 0.35);
+    }
+    // glowing embers thrown out of the fireball
+    for (let i = 0; i < 70; i++) {
+      const a = Math.random() * TAU, s = 0.8 + Math.random() * 1.6;
+      P.spawn('p_spark', cx, cy + 1, cz, { vx: Math.cos(a) * s, vy: 0.4 + Math.random() * 1.4, vz: Math.sin(a) * s, grav: 0.05, drag: 0.985, life: 40 + Math.random() * 50, size: 0.4 + Math.random() * 0.5, color: [1, 0.55 + Math.random() * 0.3, 0.25], emissive: true, collide: true });
+    }
+    this.plan = craterPlan(SNG.crH, SNG.crV); this.pi = 0;
+    this.gy = w.dim === 'nether' ? cy : Math.min(cy, w.heightAt(Math.floor(cx), Math.floor(cz)));
+    this.initCloud();
+  }
+  // a ragged rim: the crater's edge wobbles around the circle (normalised units)
+  rimAt(dx, dz) { const a = Math.atan2(dz, dx), R = this.rim; return 0.1 * Math.sin(3 * a + R[0]) + 0.07 * Math.sin(5 * a + R[1]) + 0.05 * Math.sin(9 * a + R[2]); }
+  vitrify(id) {
+    const c = eclCat(id), r = Math.random();
+    if (c === 1) return B.glass;
+    if (c === 2) return r < 0.5 ? B.coarse_dirt : r < 0.85 ? B.blackstone : B.magma_block;
+    if (c === 3) return this.w.dim === 'end' ? (r < 0.6 ? B.obsidian : r < 0.72 ? B.crying_obsidian : id) : r < 0.4 ? B.basalt : r < 0.78 ? B.blackstone : r < 0.92 ? B.magma_block : B.obsidian;
+    if (c === 4) return 0;
+    if (c === 5) return id === B.ice || id === B.packed_ice || id === B.blue_ice ? B.water : 0;
+    return id;
+  }
+  // the crater opens from the centre out over half a second: vaporised inside, glassed and scorched in the wall
+  carve() {
+    const PL = this.plan; if (!PL) return;
+    if (this.pi >= PL.n) { if (this.scZ === undefined) this.scZ = -Math.ceil(SNG.crH * 2); if (this.scZ <= SNG.crH * 2) { this.scorch(this.scZ, this.scZ + 9); this.scZ += 10; } return; }
+    const w = this.w, lim = 1.36 * Math.min(1, this.bt / 0.5);
+    const cx = Math.floor(this.x), cy = Math.floor(this.y), cz = Math.floor(this.z);
+    let budget = 12000;
+    while (this.pi < PL.n && PL.E[this.pi] <= lim && budget-- > 0) {
+      const i = this.pi++, x = cx + PL.X[i], y = cy + PL.Y[i], z = cz + PL.Z[i];
+      if (y < 1 || y >= CH) continue;
+      const v = w.getBlock(x, y, z), id = v & 4095; if (!id) continue;
+      const b = BLOCKS[id]; if (!b || b.hard < 0) continue;
+      const e = PL.E[i] / (1 + this.rimAt(PL.X[i], PL.Z[i]));
+      if (e < 1) w.setBlock(x, y, z, 0, e > 0.86 ? 1 | 4 | 8 : 4 | 8);
+      else if (e < 1.24 && !FLUID[id]) { const nv = this.vitrify(id); if (nv !== id) w.setBlock(x, y, z, nv, 4 | 8); }
+    }
+  }
+  // the blast zone around the crater: leaves blown off, trees snapped, grass burnt, small fires
+  scorch(z0, z1) {
+    const w = this.w; if (w.dim === 'nether') return;
+    const cx = Math.floor(this.x), cz = Math.floor(this.z), cy = this.y, R0 = SNG.crH * 0.85, R1 = SNG.crH * 2.0;
+    let fires = this.fires || 0;
+    for (let dz = Math.max(z0, -R1); dz <= Math.min(z1, R1); dz++) for (let dx = -R1; dx <= R1; dx++) {
+      const d = Math.hypot(dx, dz); if (d < R0 || d > R1) continue;
+      const x = cx + dx, z = cz + dz; if (!w.isLoaded(x, z)) continue;
+      const top = w.heightAt(x, z); if (top < cy - 28 || top > cy + 30) continue;
+      const k = 1 - (d - R0) / (R1 - R0);
+      for (let y = top - 1; y > top - 18 && y > 0; y--) {
+        const id = w.getId(x, y, z); if (!id) continue;
+        const c = eclCat(id);
+        if (LEAVES[id]) { if (Math.random() < k * 1.4) w.setBlock(x, y, z, 0, 4 | 8); continue; }
+        if (c === 4 && !PLANT[id]) { if (Math.random() < k * 0.7 - 0.1) w.setBlock(x, y, z, 0, 4 | 8); continue; }
+        if (PLANT[id] || c === 5) { w.setBlock(x, y, z, id === B.ice || id === B.packed_ice ? B.water : 0, 4 | 8); continue; }
+        if (!SOLID[id]) continue;
+        if (c === 2 && Math.random() < k + 0.3) w.setBlock(x, y, z, Math.random() < 0.55 ? B.coarse_dirt : B.dirt, 4 | 8);
+        if (fires < 55 && Math.random() < k * 0.045 && w.getId(x, y + 1, z) === 0 && OPAQUE[w.getId(x, y, z)]) { w.setBlock(x, y + 1, z, B.fire, 1); fires++; }
+        break;
+      }
+    }
+    this.fires = fires;
+  }
+  // the shock front: buffets you and brings the boom when it gets to you
+  shock() {
+    const g = this.g, p = g.player, bt = this.bt;
+    this.rs = 170 * (1 - Math.exp(-bt / 1.3));
+    if (this.boomed || !p) return;
+    const cam = g.camera, d = Math.hypot(cam.x - this.x, cam.y - this.y, cam.z - this.z);
+    if (d < 160 ? this.rs < d : bt < 4 + (d - 160) / 330) return;
+    this.boomed = true;
+    g.audio.play('sng_boom', { vol: 0.3 + 0.7 * (1 - smoothstep(80, 1000, d)) });
+    if (d < 280) {
+      const k = 1 - d / 280, dx = cam.x - this.x, dy = cam.y - this.y, dz = cam.z - this.z, l = d || 1;
+      g.shake = Math.max(g.shake || 0, 1.35 * k);
+      const V = p.vehicle;
+      if (V && V.vel) { V.vel[0] += dx / l * 28 * k; V.vel[1] += Math.max(0, dy / l) * 18 * k + 6 * k; V.vel[2] += dz / l * 28 * k; }
+      else if (!p.creative && !p.spectator) { p.vx += dx / l * 0.9 * k; p.vy += 0.35 * k; p.vz += dz / l * 0.9 * k; }
+    }
+  }
+  // mushroom cloud: a stem, a rolling cap and a ground surge, white hot first and dark smoke later
+  initCloud() {
+    const tex = ITEM_TEXI.p_cloud !== undefined ? ITEM_TEXI.p_cloud : ITEM_TEXI.p_smoke, P = [];
+    const mk = (k, a, b, c, s) => ({ x: this.x, y: this.y, z: this.z, vx: 0, vy: 0, vz: 0, size: s, uv: [0, 0, 1, 1], color: [1, 0.8, 0.5], alpha: 0, layer: tex, src: 1, age: 0, life: 1e9, fade: false, emissive: true, k, a, b, c, s0: s });
+    for (let i = 0; i < 42; i++) P.push(mk(0, Math.random() * TAU, i / 42, Math.random(), 4.5 + Math.random() * 3));
+    for (let i = 0; i < 110; i++) P.push(mk(1, i / 110 * TAU + Math.random() * 0.15, Math.random() * TAU, Math.random(), 6 + Math.random() * 4.5));
+    for (let i = 0; i < 48; i++) P.push(mk(2, i / 48 * TAU + Math.random() * 0.1, Math.random(), Math.random(), 5 + Math.random() * 3));
+    this.puffs = P;
+  }
+  cloud() {
+    const Q = this.puffs; if (!Q) return;
+    const bt = this.bt, cx = this.x, cy = this.y, cz = this.z;
+    const H = 66 * (1 - Math.exp(-bt / 3.4)), Rc = 8 + 16 * (1 - Math.exp(-bt / 5)), rt = 4.5 + 4.5 * (1 - Math.exp(-bt / 3)), stem = 2.5 + 3.5 * (1 - Math.exp(-bt / 3));
+    const heat = Math.exp(-bt / 2.2), hot = smoothstep(0.06, 0.4, heat), day = Math.max(0.3, this.g.skyFactor ? this.g.skyFactor() : 1);
+    const fade = smoothstep(0, 0.3, bt) * (1 - smoothstep(SNG.life - 14, SNG.life - 0.5, bt)), surge = Math.min(this.rs * 0.55, 48);
+    for (const q of Q) {
+      if (q.k === 0) { const h = q.b * H * 0.96, wd = stem * (0.55 + 0.45 * q.c) * (1 + (1 - q.b) * 0.6), a = q.a + bt * 0.25; q.x = cx + Math.cos(a) * wd; q.y = cy + h; q.z = cz + Math.sin(a) * wd; }
+      else if (q.k === 1) { const th = q.b + bt * 0.55, rr = Rc + Math.cos(th) * rt * (0.7 + 0.3 * q.c); q.x = cx + Math.cos(q.a) * rr; q.y = cy + H + Math.sin(th) * rt * 0.8; q.z = cz + Math.sin(q.a) * rr; }
+      else { const rr = surge * (0.8 + 0.2 * q.b); q.x = cx + Math.cos(q.a) * rr; q.y = this.gy + 1.2 + q.c * 2.5; q.z = cz + Math.sin(q.a) * rr; }
+      q.size = q.s0 * (0.35 + 0.65 * smoothstep(0, 1.6, bt)) * (1 + bt * 0.012);
+      // white hot, then fire, then smoke lit by the sky (blended so it does not pop)
+      const s = q.k === 2 ? 0.6 : 0.4 + q.c * 0.14;
+      if (hot > 0.001) {
+        q.emissive = true;
+        const fr = 1, fg = 0.42 + 0.55 * heat, fb = 0.2 + 0.75 * heat * heat;
+        q.color[0] = lerp(s * day * 0.85, fr, hot); q.color[1] = lerp(s * day * 0.8, fg, hot); q.color[2] = lerp(s * day * 0.76, fb, hot);
+      } else { q.emissive = false; q.color[0] = s; q.color[1] = s * 0.95; q.color[2] = s * 0.9; }
+      q.alpha = fade * (q.k === 2 ? 0.8 * (1 - smoothstep(8, 22, bt)) : 0.9);
+    }
+  }
+  // ---------------------------------------------------------------- drawing
+  extras(out) {
+    for (const d of this.debris) out.push(d);
+    if (this.puffs) for (const q of this.puffs) if (q.alpha > 0.01) out.push(q);
+  }
+  drawSolid(R) {
+    if (this.burst || this.r < 0.03) return;
+    const gl = R.gl, pr = R.progs.vox, u = pr.u, mesh = sngSphere(gl), M = this._m || (this._m = M4.create());
+    gl.useProgram(pr.p); R.setEnvUniforms(pr);
+    gl.uniformMatrix4fv(u.uProj, false, R.vp);
+    if (R.shadow && u.uShadowMap) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, R.shadow.tex); gl.uniform1i(u.uShadowMap, 1); gl.activeTexture(gl.TEXTURE0); }
+    gl.uniform1f(u.uPulse, R.time); gl.uniform1f(u.uAlphaV, 1); gl.uniform1f(u.uGlow, 0); gl.uniform1f(u.uHurtV, 0); gl.uniform2f(u.uLightE, 1, 0);
+    const s = this.r * 1.5;
+    M4.identity(M); M4.translate(M, this.x - R.camX, this.y - R.camY, this.z - R.camZ); M4.scale(M, s, s, s);
+    gl.uniformMatrix4fv(u.uModel, false, M);
+    gl.enable(gl.CULL_FACE); gl.bindVertexArray(mesh.vao); gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+  }
+  // the hole's place on screen, for the lensing in the composite pass (the biggest one on screen wins)
+  lens(R) {
+    const g = this.g, m = R.vp, dx = this.x - R.camX, dy = this.y - R.camY, dz = this.z - R.camZ;
+    const cw = m[3] * dx + m[7] * dy + m[11] * dz + m[15]; if (cw <= 0.5) return;
+    const nx = (m[0] * dx + m[4] * dy + m[8] * dz + m[12]) / cw, ny = (m[1] * dx + m[5] * dy + m[9] * dz + m[13]) / cw;
+    if (Math.abs(nx) > 1.6 || Math.abs(ny) > 1.6) return;
+    const d = Math.hypot(dx, dy, dz), rs = this.r * 1.5 / d / Math.tan((g.camera.fov || 70) * DEG / 2) * 0.5;
+    if (rs < 0.002) return;
+    const L = g.lens || (g.lens = [0, 0, 0, 0, 1]);
+    if (g.lensOn && L[2] >= rs) return;
+    L[0] = nx * 0.5 + 0.5; L[1] = ny * 0.5 + 0.5; L[2] = Math.min(rs, 0.2); L[3] = Math.min(1, this.t / SNG.form) * (1 - smoothstep(0.12, 0.3, rs));
+    L[4] = (m[2] * dx + m[6] * dy + m[10] * dz + m[14]) / cw * 0.5 + 0.5;
+    g.lensOn = L[3] > 0.001;
+  }
+  drawFX(R) {
+    const cx = this.x, cy = this.y, cz = this.z;
+    if (!this.burst) {
+      const r = this.r; if (r < 0.02) return;
+      const k = Math.min(1, this.t / SNG.form), t = this.t, n = this.n, e1 = this.e1, e2 = this.e2;
+      // accretion disk: matter spiralling in, white hot at the horizon, orange further out, streaked by its speed
+      for (let i = 0; i < 128; i++) {
+        const h = hashF2(91, i, 7), rad = r * (1.75 + 2.4 * h * h), a = i * 2.39996 + t * 6.5 / Math.sqrt(rad / r), off = (hashF2(17, i, 3) - 0.5) * 0.12 * r;
+        const ca = Math.cos(a), sa = Math.sin(a), hot = 1 - h;
+        const x = cx + (e1[0] * ca + e2[0] * sa) * rad + n[0] * off, y = cy + (e1[1] * ca + e2[1] * sa) * rad + n[1] * off, z = cz + (e1[2] * ca + e2[2] * sa) * rad + n[2] * off;
+        R.fxSprite(x, y, z, r * (0.13 + 0.17 * h), 1.0, 0.55 + 0.4 * hot, 0.3 + 0.6 * hot * hot, (0.9 + hot * 0.8) * k);
+        const b = a - 0.2, cb = Math.cos(b), sb = Math.sin(b);
+        R.fxBeam(x, y, z, cx + (e1[0] * cb + e2[0] * sb) * rad, cy + (e1[1] * cb + e2[1] * sb) * rad, cz + (e1[2] * cb + e2[2] * sb) * rad, r * 0.06, 1.0, 0.6 + 0.3 * hot, 0.35 + 0.4 * hot, 0.6 * k);
+      }
+      // photon ring: a thin bright circle hugging the shadow, always facing you
+      const v = R.view, rx = v[0], ry = v[4], rz = v[8], ux = v[1], uy = v[5], uz = v[9], pr = r * 1.56;
+      let px = cx + rx * pr, py = cy + ry * pr, pz = cz + rz * pr;
+      for (let i = 1; i <= 48; i++) {
+        const a = i / 48 * TAU, ca = Math.cos(a) * pr, sa = Math.sin(a) * pr, qx = cx + rx * ca + ux * sa, qy = cy + ry * ca + uy * sa, qz = cz + rz * ca + uz * sa;
+        R.fxBeam(px, py, pz, qx, qy, qz, r * 0.035, 0.85, 0.72, 1.0, 1.5 * k);
+        px = qx; py = qy; pz = qz;
+      }
+      // the collapse: the disk flares as it falls in
+      if (this.collapsing) { const c = smoothstep(SNG.collapse, SNG.burst, t); R.fxSprite(cx, cy, cz, SNG.r1 * (1.6 - c) * 2, 0.8, 0.65, 1.0, 1.5 * c); }
+      this.lens(R);
+      return;
+    }
+    // ---- the burst: fireball, a condensation shell racing out, and the shock front along the ground
+    const bt = this.bt, fr = SNG.crH * 1.25 * (1 - Math.exp(-bt / 0.16)), glow = Math.exp(-bt / 0.9);
+    if (bt < 4.5) {
+      R.fxSprite(cx, cy, cz, fr * 1.1, 1.0, 0.82 + 0.18 * glow, 0.62 + 0.38 * glow, 3.2 * glow + 0.25 * (1 - bt / 4.5));
+      for (let i = 0; i < 40; i++) {
+        const yy = 1 - (i + 0.5) / 40 * 2, rr = Math.sqrt(1 - yy * yy), a = i * 2.39996, q = fr * (0.5 + 0.4 * hashF2(5, i, 1));
+        R.fxSprite(cx + Math.cos(a) * rr * q, cy + Math.abs(yy) * q * 0.8, cz + Math.sin(a) * rr * q, fr * 0.42, 1.0, 0.5 + 0.35 * glow, 0.2 + 0.5 * glow, 1.5 * glow + 0.15 * (1 - bt / 4.5));
+      }
+    }
+    if (bt < 1.3) {
+      const v = R.view, rx = v[0], ry = v[4], rz = v[8], ux = v[1], uy = v[5], uz = v[9], pr = this.rs * 0.85, al = (1 - bt / 1.3) * 0.5;
+      let px = cx + rx * pr, py = cy + ry * pr, pz = cz + rz * pr;
+      for (let i = 1; i <= 64; i++) {
+        const a = i / 64 * TAU, ca = Math.cos(a) * pr, sa = Math.sin(a) * pr, qx = cx + rx * ca + ux * sa, qy = cy + ry * ca + uy * sa, qz = cz + rz * ca + uz * sa;
+        R.fxBeam(px, py, pz, qx, qy, qz, 0.5 + pr * 0.012, 0.95, 0.95, 1.0, al);
+        px = qx; py = qy; pz = qz;
+      }
+    }
+    if (bt < 3.6) {
+      const w = this.w, rs = this.rs, al = 0.95 * (1 - bt / 3.6), flat = w.dim === 'nether';
+      for (let i = 0; i < 96; i++) {
+        const a = i / 96 * TAU, x = cx + Math.cos(a) * rs, z = cz + Math.sin(a) * rs;
+        const y = flat ? this.gy : clamp(w.heightAt(Math.floor(x), Math.floor(z)), this.gy - 24, this.gy + 24);
+        R.fxSprite(x, y + 0.8, z, 2.4 + rs * 0.02, 1.0, 0.82, 0.6, al);
+      }
+    }
+  }
+  lights(R) {
+    if (!this.burst) { if (this.r > 0.05) R.addLight(this.x, this.y, this.z, 14 + this.r * 4, 1.0, 0.62, 0.9, 1.7 * Math.min(1, this.t / SNG.form)); return; }
+    const bt = this.bt;
+    R.addLight(this.x, this.y + 4, this.z, 120, 1.0, 0.78, 0.55, 9 * Math.exp(-bt / 0.7) + 2.2 * Math.exp(-bt / 5));
+  }
+}
+// ---------------------------------------------------------------- cockpit
+// Pared down on purpose: a frameless gold-tinted canopy, one panoramic display under a holographic edge light,
+// the caution lamps, stick and throttle. Shares the Stormcrow's canopy shape (48_cockpit.js).
+CK_DISPLAYS.fighter = [{ id: 'pfd', x: 0, y: 0, w: 341, h: 372 }, { id: 'tsd', x: 341, y: 0, w: 341, h: 372 }, { id: 'wpn', x: 682, y: 0, w: 342, h: 372 }];
+CK_LAMPS.fighter = ['MASTER CAUTION', 'PULL UP', 'GEAR', 'HYPER', 'LOCK', 'RAIL HOT', 'GRAV LIFT', 'SNG ARMED'];
+function buildEclipseCockpit() {
+  const M = new CkMesh(), G = new CkMesh(), STK = new CkMesh(), THR = new CkMesh(), P = CK_PAL, SILL = SC_SILL;
+  const HULL = ckRGB(0x1C1E25), HULL2 = ckRGB(0x2A2E37), CY = ckRGB(0x55EEFF, 0.85), VI = ckRGB(0xA36CFF, 0.85), GOLD = ckRGB(0xC89A3A);
+  G.surf(32, 34, (s, t) => scPt(s * 2 - 1, -0.9 + t * 1.8), GOLD, CK.GLASS);
+  // sills: a rail each side with a cyan light line, and the tub wall below
+  for (const sd of [-1, 1]) {
+    M.surf(4, 32, (s, t) => { const z = -0.92 + t * 1.82, w = scW(z); return [sd * (w - 0.056 + s * 0.07), SILL - 0.004 + Math.sin(s * Math.PI) * 0.008, z]; }, HULL, CK.SATIN);
+    M.surf(2, 32, (s, t) => { const z = -0.92 + t * 1.82; return [sd * (scW(z) - 0.056), SILL - 0.004 - s * 0.05, z]; }, HULL, CK.SATIN);
+    M.surf(1, 28, (s, t) => { const z = -0.8 + t * 1.5; return [sd * (scW(z) - 0.0575), SILL - 0.013 - s * 0.006, z]; }, CY, CK.GLOW);
+    M.surf(3, 14, (s, t) => { const z = -0.64 + t * 1.02, w = scW(z) - 0.056; return [sd * (w - s * 0.025), SILL - 0.054 - s * 0.25, z]; }, (s) => ckRGB(0x23262E, 0.8 + 0.2 * (1 - s)), CK.MATTE);
+    M.box(sd < 0 ? -0.43 : 0.215, -0.64, -0.5, sd < 0 ? -0.215 : 0.43, -0.535, 0.36, HULL2, CK.SATIN);
+    M.push(sd * 0.322, -0.535, -0.07, -Math.PI / 2, 0, 0);
+    M.pbox(-0.1, -0.4, 0, 0.1, 0.4, 0.005, 0.003, HULL, CK.SATIN);
+    M.box(-0.08, -0.3, 0.005, 0.08, 0.3, 0.008, P.black, CK.SATIN);
+    M.box(-0.07, 0.31, 0.005, 0.07, 0.315, 0.009, sd < 0 ? VI : CY, CK.GLOW);
+    M.pop();
+  }
+  // glare shield: a slim black hood with a cyan lip
+  const gsY = (z) => -0.17 + 0.03 * clamp((z + 0.92) / 0.42, 0, 1);
+  const gsPt = (a, z) => { const k = smoothstep(0.58, 1.0, Math.abs(a)); return [a * (scW(z) - 0.006), lerp(gsY(z), SILL + 0.004, k), z]; };
+  M.surf(32, 8, (s, t) => gsPt(s * 2 - 1, -0.92 + t * 0.42), P.black, CK.MATTE);
+  M.surf(32, 1, (s, t) => { const p = gsPt(s * 2 - 1, -0.5); return [p[0], p[1] - t * 0.026, -0.5]; }, P.black, CK.MATTE);
+  M.surf(32, 1, (s, t) => { const p = gsPt(s * 2 - 1, -0.5); return [p[0] * 0.98, p[1] - 0.026, -0.5 - t * 0.15]; }, P.black, CK.MATTE);
+  M.surf(24, 1, (s, t) => { const p = gsPt((s * 2 - 1) * 0.7, -0.5); return [p[0], p[1] - 0.004 + t * 0.003, -0.4995]; }, CY, CK.GLOW);
+  // panoramic display: three pages on one sheet, framed by light
+  const pcd = ckUV(ckDisp('fighter', 'pfd')); pcd[2] = 1;
+  M.push(0, -0.3, -0.575, -0.21, 0, 0);
+  M.box(-0.44, -0.37, -0.06, 0.44, 0.145, 0, HULL2, CK.SATIN);
+  M.pbox(-0.315, -0.125, 0, 0.315, 0.14, 0.012, 0.006, P.black, CK.SATIN);
+  M.quad([-0.3, -0.093, 0.0125], [0.3, -0.093, 0.0125], [0.3, 0.126, 0.0125], [-0.3, 0.126, 0.0125], P.white, CK.SCREEN, pcd);
+  M.box(-0.316, 0.139, 0.011, 0.316, 0.142, 0.0135, CY, CK.GLOW); M.box(-0.316, -0.124, 0.011, 0.316, -0.121, 0.0135, CY, CK.GLOW);
+  M.osbRow(-0.28, 0.28, -0.108, 12, 0.03, 0.011);
+  const lc = [P.lampA, P.lampR, P.lampG, P.lampA, P.lampY, P.lampA, ckRGB(0xB48CFF), ckRGB(0xC8A0FF)];
+  for (let i = 0; i < 8; i++) M.lamp(i < 4 ? -0.37 : 0.37, 0.1 - (i % 4) * 0.042, 0.07, 0.03, i, lc[i]);
+  // lower panel: the singularity master arm under a striped guard, a row of switches
+  M.pbox(-0.08, -0.29, 0, 0.08, -0.16, 0.008, 0.004, HULL, CK.SATIN);
+  M.box(-0.05, -0.27, 0.008, 0.05, -0.18, 0.03, P.red, CK.SATIN);
+  for (let i = 0; i < 5; i++) M.box(-0.05 + i * 0.022, -0.27, 0.0302, -0.04 + i * 0.022, -0.18, 0.0306, P.yellow, CK.SATIN);
+  M.legend(0, -0.3, 0.07, 0.006);
+  for (let i = 0; i < 5; i++) { M.toggle(0.14 + i * 0.035, -0.25, i % 2 === 0); M.legend(0.14 + i * 0.035, -0.222, 0.024, 0.004); }
+  for (let i = 0; i < 4; i++) M.knob(-0.3 + i * 0.05, -0.23, 0.01, 0.015, HULL2);
+  M.pop();
+  // seat, floor and the pilot's legs
+  M.push(0, -0.02, 0.23, 0, Math.PI, 0); M.pbox(-0.14, -0.16, -0.06, 0.14, 0.15, 0.06, 0.03, P.cushion, CK.MATTE); M.pop();
+  M.box(-0.19, -0.95, 0.2, -0.155, 0.12, 0.34, HULL2, CK.METAL); M.box(0.155, -0.95, 0.2, 0.19, 0.12, 0.34, HULL2, CK.METAL);
+  for (const sd of [-1, 1]) M.box(sd * 0.1 - 0.012, 0.15, 0.2, sd * 0.1 + 0.012, 0.17, 0.3, VI, CK.GLOW);
+  M.box(-0.2, -0.78, -0.2, 0.2, -0.7, 0.26, P.cushion, CK.MATTE);
+  M.box(-0.44, -1.02, -0.9, 0.44, -0.98, 0.4, P.shellD, CK.MATTE);
+  for (const sd of [-1, 1]) {
+    const x = sd * 0.11;
+    M.beam([x, -0.67, 0.02], [x, -0.6, -0.4], 0.13, 0.14, P.suit, CK.MATTE);
+    M.beam([x, -0.62, -0.42], [x, -0.92, -0.6], 0.11, 0.12, P.suit, CK.MATTE);
+    M.box(x - 0.06, -0.98, -0.72, x + 0.06, -0.9, -0.54, P.boot, CK.MATTE);
+  }
+  M.surf(20, 8, (s, t) => { const z = 0.34 + t * 0.58, a = s * 2 - 1, w = scW(z) - 0.05; return [a * w, SILL + 0.03 + 0.15 * (1 - a * a) * smoothstep(0.34, 0.92, z), z]; }, P.shellD, CK.MATTE);
+  // side stick and throttle (moving parts, built around their pivots)
+  STK.push(0, 0, 0, -Math.PI / 2, 0, 0); STK.cyl(0, 0, 0, 0.034, 0.03, 12, P.rubber, CK.MATTE); STK.cyl(0, 0, 0.03, 0.011, 0.06, 8, P.metal, CK.METAL); STK.pop();
+  STK.push(0, 0.085, 0, 0.18, 0, 0);
+  STK.pbox(-0.021, 0, -0.026, 0.021, 0.1, 0.026, 0.008, P.black, CK.SATIN);
+  STK.box(-0.022, 0.012, 0.008, 0.022, 0.07, 0.027, P.rubber, CK.MATTE);
+  STK.box(0.004, 0.098, -0.022, 0.016, 0.108, -0.008, CY, CK.GLOW);
+  STK.box(-0.016, 0.098, -0.022, -0.004, 0.108, -0.008, VI, CK.GLOW);
+  STK.pop();
+  THR.box(-0.009, 0, -0.012, 0.009, 0.075, 0.012, P.metal, CK.METAL);
+  THR.pbox(-0.032, 0.07, -0.05, 0.032, 0.12, 0.034, 0.01, P.black, CK.SATIN);
+  THR.box(-0.034, 0.09, -0.03, -0.031, 0.108, -0.005, CY, CK.GLOW);
+  return {
+    parts: { M, G, STK, THR }, stick: [0.322, -0.53, -0.25], throttle: [-0.322, -0.525, -0.2],
+    occ: [SILL, 0.39, -0.5, gsY(-0.5)], cab: [99, 0, 0, 0], tint: ckRGB(0xC89A3A), spill: [0, -0.3, -0.5], spillCol: [0.3, 0.85, 1.0],
+  };
+}
+COCKPITS.fighter = buildEclipseCockpit;
+// weapons and systems page: the planform at its current sweep, the warheads, rail heat and the drives
+function ckPageEclipse(c, w, h, v) {
+  ckFrame(c, w, h, 'WPN / SYS', v.lock ? (v.lockT >= 1 ? 'LOCK' : 'TRACK') : v.hov > 0.3 ? 'GRAV' : v.boosting ? 'HYPER' : '');
+  const cx = w / 2;
+  c.strokeStyle = CKC.white; c.lineWidth = 2;
+  const poly = (pts) => { c.beginPath(); c.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.closePath(); c.stroke(); };
+  poly([cx, 32, cx + 6, 58, cx + 12, 90, cx + 13, 122, cx + 9, 150, cx - 9, 150, cx - 13, 122, cx - 12, 90, cx - 6, 58]);
+  const a = v.sweep || 0, ca = Math.cos(a), sa = Math.sin(a);
+  for (const sd of [-1, 1]) {
+    const px = cx + sd * 10, py = 124, pts = [];
+    for (const [x, y] of [[0, -9], [64, -40], [66, -32], [0, 9]]) { const rx = x * ca - y * sa, ry = x * sa + y * ca; pts.push(px + sd * rx, py + ry); }
+    poly(pts);
+  }
+  c.strokeStyle = CKC.amber; c.beginPath(); c.ellipse(cx, 142, 17, 4, 0, 0, TAU); c.stroke();
+  // warheads
+  for (let i = 0; i < SNG.max; i++) {
+    const x = cx + (i - (SNG.max - 1) / 2) * 64, y = 196;
+    c.lineWidth = 2; c.strokeStyle = CKC.white; c.beginPath(); c.arc(x, y, 17, 0, TAU); c.stroke();
+    if (i < v.sng) { c.fillStyle = '#B48CFF'; c.beginPath(); c.arc(x, y, 13, 0, TAU); c.fill(); c.fillStyle = '#000'; c.beginPath(); c.arc(x, y, 6, 0, TAU); c.fill(); }
+    else if (i === v.sng && v.sReload > 0) { c.strokeStyle = CKC.amber; c.lineWidth = 5; c.beginPath(); c.arc(x, y, 12, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - v.sReload / SNG.reload)); c.stroke(); }
+  }
+  ckText(c, 'SINGULARITY ' + v.sng + '/' + SNG.max, 10, 232, 15, CKC.white);
+  const D = v.desig, st = v.sngMsgT > 0 ? v.sngMsg : D ? (D.ent ? 'TGT LOCKED' : D.far ? 'OUT OF RANGE' : D.hit ? 'TGT ' + Math.round(D.dist) + 'm' : 'AIRBURST') : '';
+  ckText(c, st, w - 10, 232, 13, st === 'AWAY' || st.startsWith('TGT') || st === 'AIRBURST' ? CKC.yellow : CKC.red, 'right');
+  ckText(c, 'RAIL', 10, 258, 13, v.overheat > 0 ? CKC.red : CKC.green);
+  c.fillStyle = 'rgba(156,255,99,0.12)'; c.fillRect(64, 251, w - 76, 14);
+  c.fillStyle = v.overheat > 0 || v.heat > 0.8 ? CKC.red : CKC.green; c.fillRect(64, 251, (w - 76) * clamp(v.heat, 0, 1), 14);
+  ckText(c, 'HYPER', 10, 282, 13, v.boosting ? CKC.amber : CKC.dim);
+  c.fillStyle = 'rgba(255,178,61,0.15)'; c.fillRect(64, 275, w - 76, 14); c.fillStyle = CKC.amber; c.fillRect(64, 275, (w - 76) * v.boost, 14);
+  const hull = v.hull / v.def.hull;
+  ckText(c, 'HULL', 10, 306, 13, hull < 0.3 ? CKC.red : CKC.green);
+  c.fillStyle = 'rgba(156,255,99,0.12)'; c.fillRect(64, 299, w - 76, 14); c.fillStyle = hull < 0.3 ? CKC.red : CKC.green; c.fillRect(64, 299, (w - 76) * clamp(hull, 0, 1), 14);
+  const F = ckFlight(v);
+  ckText(c, 'G ' + F.gz.toFixed(1) + '  MAX ' + (v.gPeak || 1).toFixed(1), 10, h - 34, 14, F.gz > 9 ? CKC.amber : CKC.white);
+  ckText(c, v.hov > 0.3 ? 'GRAV LIFT' : v.gear > 0.5 ? 'GEAR DN' : 'GEAR UP', w - 10, h - 34, 13, v.hov > 0.3 ? '#C8A0FF' : v.gear > 0.5 ? CKC.green : CKC.dim, 'right');
+  ckText(c, 'SWEEP ' + Math.round((v.sweep || 0) / DEG) + '°', 10, h - 14, 12, CKC.dim);
+  ckText(c, Math.round(F.kph) + ' KPH', w - 10, h - 14, 12, CKC.dim, 'right');
+}
+Object.assign(VEH_CLASSES, { fighter: Eclipse });
 
 // ===== main/50_audio.js =====
 // ============================================================================
@@ -15659,14 +16706,40 @@ class Audio {
       case 'torpedo': { const s = this.noise(dst, t, 1.2, 'lowpass', 700, 1, 0.6, 0.02, true); s.frequency.exponentialRampToValueAtTime(260, t + 1.1); this.tone(dst, t, 'sine', 140, 70, 0.5, 0.35); for (let i = 0; i < 6; i++) this.tone(dst, t + 0.05 + i * 0.07, 'sine', 900 + r() * 700, 500, 0.06, 0.05); break; }
       case 'sonar': { this.tone(dst, t, 'sine', 1480, 1470, 1.4, 0.16, 0.01); this.tone(dst, t + 0.25, 'sine', 1480, 1470, 1.0, 0.05, 0.01); break; }
       case 'glide_boost': { const s = this.noise(dst, t, 1.2, 'bandpass', 700, 0.8, 0.45, 0.02); s.frequency.exponentialRampToValueAtTime(1800, t + 0.4); break; }
+      // ---- the Eclipse: rail cannon, sound barrier, gravity drive, singularity warhead
+      case 'railgun': this.tone(dst, t, 'sawtooth', 2600 * p * (0.95 + r() * 0.1), 260, 0.09, 0.12); this.noise(dst, t, 0.05, 'highpass', 4800, 0.7, 0.32); this.tone(dst, t, 'sine', 170, 42, 0.15, 0.5); this.tone(dst, t + 0.004, 'square', 5400, 3800, 0.035, 0.035); break;
+      case 'rail_hit': { const s = this.noise(dst, t, 0.35, 'lowpass', 1500, 0.8, 0.6, 0.004, true); s.frequency.exponentialRampToValueAtTime(220, t + 0.3); this.tone(dst, t, 'sine', 130, 38, 0.22, 0.45); for (let i = 0; i < 4; i++) this.noise(dst, t + 0.03 + r() * 0.12, 0.03, 'highpass', 3500, 1, 0.14); break; }
+      case 'sonic_boom': for (const d of [0, 0.11]) { const s = this.noise(dst, t + d, 0.5, 'lowpass', 2600, 0.7, 0.95, 0.002, true); s.frequency.exponentialRampToValueAtTime(140, t + d + 0.45); this.tone(dst, t + d, 'sine', 95, 32, 0.4, 0.6); } break;
+      case 'grav_lift': { this.tone(dst, t, 'sine', 55, 110, 0.7, 0.35, 0.08); const s = this.noise(dst, t, 0.8, 'bandpass', 300, 2, 0.25, 0.1, true); s.frequency.exponentialRampToValueAtTime(900, t + 0.7); break; }
+      case 'sng_launch': this.tone(dst, t, 'sine', 80, 30, 0.6, 0.7); this.noise(dst, t, 0.25, 'lowpass', 900, 1, 0.6, 0.005, true); this.tone(dst, t + 0.05, 'sawtooth', 140, 720, 0.9, 0.06, 0.2); break;
+      case 'sng_motor': { const s = this.noise(dst, t, 1.6, 'bandpass', 500, 0.8, 0.7, 0.02); s.frequency.exponentialRampToValueAtTime(2600, t + 1.2); this.tone(dst, t, 'sine', 70, 140, 1.2, 0.3, 0.05); this.tone(dst, t, 'triangle', 420, 1300, 1.0, 0.05, 0.1); break; }
+      case 'sng_form': {
+        // space folding in on itself: a reversed rush, a sub-bass drop and a long glassy ring
+        const s = this.noise(dst, t, 0.9, 'bandpass', 4000, 1.2, 0.6, 0.6); s.frequency.exponentialRampToValueAtTime(160, t + 0.85);
+        this.tone(dst, t + 0.55, 'sine', 140, 26, 1.6, 0.9, 0.02); this.tone(dst, t + 0.6, 'sine', 1900, 1880, 2.2, 0.06, 0.02); this.tone(dst, t + 0.62, 'sine', 2851, 2840, 1.8, 0.03, 0.02);
+        break;
+      }
+      case 'sng_collapse': { this.tone(dst, t, 'sine', 180, 2600, 0.6, 0.25, 0.4); const s = this.noise(dst, t, 0.62, 'highpass', 900, 0.8, 0.45, 0.55); s.frequency.exponentialRampToValueAtTime(7000, t + 0.6); break; }
+      case 'sng_burst': this.noise(dst, t, 0.6, 'highpass', 2500, 0.6, 0.9, 0.002); this.noise(dst, t, 1.2, 'lowpass', 5000, 0.5, 0.6, 0.002); this.tone(dst, t, 'sine', 3000, 400, 0.3, 0.2); break;
+      case 'sng_boom': {
+        // the shock front arriving: a long, deep, rolling boom with crackles and the land echoing it back
+        const s = this.noise(dst, t, 6.5, 'lowpass', 1400, 0.7, 1.0, 0.004, true); s.frequency.exponentialRampToValueAtTime(45, t + 6);
+        this.tone(dst, t, 'sine', 55, 20, 4.5, 1.0, 0.01); this.tone(dst, t + 0.02, 'sine', 38, 18, 5, 0.8, 0.05);
+        this.noise(dst, t, 0.35, 'bandpass', 1800, 0.5, 0.8, 0.003);
+        for (let i = 0; i < 14; i++) this.noise(dst, t + 0.2 + r() * 3.5, 0.06 + r() * 0.1, 'lowpass', 900 + r() * 1400, 1, 0.25 + r() * 0.2, 0.005, true);
+        if (this.verb) { const g2 = this.ctx.createGain(); g2.gain.value = 0.8; g2.connect(this.verb); const s2 = this.noise(g2, t + 0.1, 5, 'lowpass', 700, 0.7, 0.8, 0.02, true); s2.frequency.exponentialRampToValueAtTime(60, t + 4.5); }
+        break;
+      }
+      case 'sng_ready': this.tone(dst, t, 'sine', 660, 660, 0.12, 0.12); this.tone(dst, t + 0.12, 'sine', 990, 990, 0.2, 0.12); this.tone(dst, t + 0.12, 'triangle', 1980, 1980, 0.15, 0.03); break;
+      case 'deny': this.tone(dst, t, 'square', 210, 200, 0.12, 0.09); this.tone(dst, t + 0.15, 'square', 210, 200, 0.12, 0.09); break;
     }
   }
   // ---------------------------------------------------------------- continuous loops (engines, lasers, lock tone)
-  panFor(x, y, z) {
+  panFor(x, y, z, range) {
     const p = this.game.player, cam = this.game.camera;
     if (!p || x === undefined) return [1, 0];
     const dx = x - cam.x, dy = y - cam.y, dz = z - cam.z, d = Math.hypot(dx, dy, dz);
-    return [Math.max(0, 1 - d / 70), clamp(camRightDot(cam, dx, dy, dz) / Math.max(d, 1), -0.8, 0.8)];
+    return [Math.max(0, 1 - d / (range || 70)), clamp(camRightDot(cam, dx, dy, dz) / Math.max(d, 1), -0.8, 0.8)];
   }
   loopNode(build) {
     const ctx = this.ctx, g = ctx.createGain(); g.gain.value = 0;
@@ -15680,7 +16753,7 @@ class Audio {
   noiseSrc(n, brown, dst) { const s = this.ctx.createBufferSource(); s.buffer = brown ? this.brownBuf : this.noiseBuf; s.loop = true; s.connect(dst); s.start(0, Math.random() * 1.5); n.src.push(s); return s; }
   filt(type, f, q, dst) { const b = this.ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q || 1; b.connect(dst); return b; }
   gainN(v, dst) { const g = this.ctx.createGain(); g.gain.value = v; g.connect(dst); return g; }
-  loop(name, key, vol, x, y, z) {
+  loop(name, key, vol, x, y, z, range) {
     if (!this.ok) return;
     const L = this.loops || (this.loops = new Map());
     const k = name + ':' + (key.id || (key.__lid || (key.__lid = Math.floor(Math.random() * 1e9))));
@@ -15688,13 +16761,18 @@ class Audio {
     if (vol <= 0) { if (n) n.target = 0; return; }
     if (!n) {
       n = this.loopNode((n, g) => {
-        if (name === 'drill') { const f = this.filt('bandpass', 900, 1.2, g); this.noiseSrc(n, false, this.gainN(0.8, f)); const lp = this.filt('lowpass', 420, 1, g); this.osc(n, 'sawtooth', 46, this.gainN(0.35, lp)); const q = this.osc(n, 'square', 23, this.gainN(0.25, lp)); void q; const lfo = this.osc(n, 'sine', 9, this.gainN(300, f.frequency)); void lfo; }
+        if (name === 'singularity') {
+          // a black hole feeding: a sub-bass drone, a churning rumble that pulses, and a thin eerie whine
+          this.osc(n, 'sine', 36, this.gainN(0.6, g)); this.osc(n, 'sawtooth', 54, this.gainN(0.18, this.filt('lowpass', 260, 1.2, g)));
+          const bp = this.filt('bandpass', 180, 3, g); this.noiseSrc(n, true, this.gainN(1.2, bp)); this.osc(n, 'sine', 0.7, this.gainN(90, bp.frequency));
+          const wo = this.osc(n, 'sine', 1240, this.gainN(0.035, g)); this.osc(n, 'sine', 5.5, this.gainN(18, wo.frequency));
+        } else if (name === 'drill') { const f = this.filt('bandpass', 900, 1.2, g); this.noiseSrc(n, false, this.gainN(0.8, f)); const lp = this.filt('lowpass', 420, 1, g); this.osc(n, 'sawtooth', 46, this.gainN(0.35, lp)); const q = this.osc(n, 'square', 23, this.gainN(0.25, lp)); void q; const lfo = this.osc(n, 'sine', 9, this.gainN(300, f.frequency)); void lfo; }
         else if (name === 'laser') { const f = this.filt('bandpass', 1400, 2.5, g); this.osc(n, 'sawtooth', 118, f); this.osc(n, 'square', 237, f); const lfo = this.osc(n, 'sine', 13, this.gainN(500, f.frequency)); void lfo; this.noiseSrc(n, false, this.gainN(0.25, this.filt('highpass', 3000, 0.7, g))); }
         else { this.osc(n, 'square', 1250, this.gainN(0.5, g)); }
       });
       L.set(k, n);
     }
-    n.target = vol; n.seen = performance.now(); n.x = x; n.y = y; n.z = z;
+    n.target = vol; n.seen = performance.now(); n.x = x; n.y = y; n.z = z; n.range = range;
   }
   engine(v, spec) {
     if (!this.ok || !spec) return;
@@ -15711,6 +16789,12 @@ class Audio {
           // air rushing over the canopy, and the roar of ground or canyon walls flashing past close by
           n.windF = this.filt('bandpass', 600, 0.55, g); n.windG = this.gainN(0, n.windF); this.noiseSrc(n, false, n.windG);
           n.rushF = this.filt('lowpass', 700, 0.8, g); n.rushG = this.gainN(0, n.rushF); this.noiseSrc(n, true, n.rushG);
+          if (spec.fusion) {
+            // the Eclipse: a fusion drive's electric hum over the turbine, and the gravity drive's throb while it hovers
+            n.fusG = this.gainN(0, eg); const bp = this.filt('bandpass', 420, 2.5, n.fusG);
+            n.fus1 = this.osc(n, 'sawtooth', 90, bp); n.fus2 = this.osc(n, 'sine', 180.6, n.fusG);
+            n.gravG = this.gainN(0, g); const trem = this.gainN(0.7, n.gravG); n.grav = this.osc(n, 'sine', 46, trem); this.osc(n, 'sine', 3.2, this.gainN(0.3, trem.gain));
+          }
         } else if (spec.kind === 'gunship') {
           n.turb = this.osc(n, 'triangle', 320, this.gainN(0.08, g));
           const lp = this.filt('lowpass', 650, 0.9, g); n.chopG = this.gainN(0.6, lp); this.noiseSrc(n, true, n.chopG);
@@ -15743,6 +16827,10 @@ class Audio {
       set(n.hum.frequency, 60 + thr * 110); set(n.abG.gain, spec.ab * 1.6);
       set(n.windG.gain, wind / n.target * 2.4); set(n.windF.frequency, (ck ? 900 : 500) + spec.speed * 5);
       set(n.rushG.gain, rush / n.target * 2.6); set(n.rushF.frequency, 350 + (spec.prox || 0) * 900);
+      if (n.fusG) {
+        set(n.fusG.gain, 0.05 + thr * 0.09 + spec.ab * 0.12); set(n.fus1.frequency, 70 + thr * 90 + spec.speed * 0.4); set(n.fus2.frequency, 140 + thr * 180 + spec.speed * 0.8);
+        set(n.gravG.gain, (spec.hov || 0) * 0.2 / n.target);
+      }
       if (v.removed || (!v.rider && thr < 0.01 && v.engine < 0.03)) n.target = 0;
     } else if (spec.kind === 'gunship') {
       n.target = Math.min(0.7, thr * 0.7 + spec.boost * 0.15);
@@ -15766,7 +16854,7 @@ class Audio {
       if (!M) continue;
       for (const [k, n] of M) {
         if (tnow - n.seen > 150) n.target = 0;
-        const [att, pan] = this.panFor(n.x, n.y, n.z);
+        const [att, pan] = this.panFor(n.x, n.y, n.z, n.range);
         n.cur += (n.target * att - n.cur) * Math.min(1, dt * 10);
         n.g.gain.value = n.cur;
         if (n.pan) n.pan.pan.value = pan;
@@ -16592,8 +17680,8 @@ class UI {
     const rows = [['Move', 'W A S D'], ['Jump / Swim up / Fly up', 'Space (double-tap to fly in Creative)'], ['Sneak / Fly down', 'Shift'], ['Sprint', 'Ctrl or double-tap W'], ['Mine / Attack', 'Left mouse (hold)'], ['Place / Use / Eat', 'Right mouse'], ['Pick block', 'Middle mouse'], ['Hotbar', '1–9 or mouse wheel'], ['Inventory', 'E'], ['Drop item', 'Q (Ctrl+Q whole stack)'], ['Chat / Commands', 'T or /'], ['Perspective', 'F5'], ['Debug info', 'F3'], ['Hide HUD', 'F1'], ['Screenshot', 'F2'], ['Pause', 'Esc']];
     const touch = [['Move', 'Left joystick (push fully forward to sprint)'], ['Look', 'Drag on the right side'], ['Place / Use / Attack', 'Tap on a block or mob'], ['Mine', 'Hold your finger on a block'], ['Jump', '⬆ button (double-tap to fly in Creative)'], ['Sneak', '⇩ toggle'], ['Inventory', '⋯ button'], ['Drop', 'Long-press the selected hotbar slot']];
     const tbl = (r) => h('table', { class: 'ctl' }, ...r.map(([a, b]) => h('tr', null, h('td', null, a), h('td', null, b))));
-    const cmds = h('div', { class: 'cmds' }, 'Commands: /help, /vehicle <jet|bomber|gunship|bike|tank|mech|sub|drill>, /gamemode <survival|creative|spectator>, /time set <day|night|noon|midnight|n>, /weather <clear|rain|thunder>, /tp x y z, /give <item> [n], /summon <mob>, /locate <village|pyramid|jungle_temple|igloo|witch_hut|ruined_portal|mineshaft|fortress|stronghold|end_city>, /dimension <overworld|nether|end>, /seed, /kill, /difficulty <0-3>, /spawnpoint, /gamerule <keepInventory|mobGriefing|doDaylightCycle|fireSpread> <true|false>, /clear, /xp <n>, /heal, /feed');
-    this.screen.append(this.panel('Controls & Help', h('div', { class: 'scroll' }, h('h3', null, 'Keyboard & Mouse'), tbl(rows), h('h3', null, 'Vehicles'), tbl([['Board / exit', 'F next to a vehicle (or right-click it)'], ['Camera', 'F5 cycles chase, cockpit and far chase; mouse wheel zooms'], ['Stormcrow jet', 'Mouse steers, W/S throttle, Ctrl afterburner, A/D roll, Shift airbrake, LMB plasma cannons, RMB Hydra missile (hold the nose on a target to lock)'], ['Mantis VTOL', 'Mouse aims, WASD move, Space/Shift climb and descend, Ctrl boost, LMB cutting laser (burns through blocks), RMB rocket salvo'], ['Viper hover bike', 'Mouse steers, W/S throttle, A/D strafe, Space hop, Ctrl boost, LMB twin blasters, RMB hold to charge a fusion shot'], ['Wraith bomber', 'Flies like the jet; hold RMB to open the bay and drop plasma bombs on the yellow CCIP ring'], ['Jet cockpits', 'F5 to the cockpit and the Stormcrow and Wraith fly like a simulator: the mouse pitches and rolls the airframe directly and nothing levels it for you, so loops, rolls and inverted flight all work. A/D is the rudder, hold C or the middle mouse button to look around, the wheel zooms. The flight computer holds your flight path when you let go, even upside down. The chase cameras keep the assisted mouse aim. Pull hard for too long and the view greys out'], ['Bastion hover tank', 'Mouse aims the turret, W/S drive, A/D turn the hull, Ctrl boost, LMB coax blaster, RMB arcing plasma cannon (the ring shows where the shell lands)'], ['Titan mech', 'WASD walks toward where you aim (the legs turn by themselves), mouse twists the torso, Ctrl runs, Space fires the jump jets (landing hard pounds the ground), LMB twin autocannons, RMB eight-rocket salvo'], ['Nautilus submarine', 'Underwater the mouse steers and dives, W/S propeller, Space/Shift ballast, Ctrl boost, LMB pulse laser, RMB torpedo. Headlights light up the deep; on the surface it floats'], ['Mole tunnel borer', 'W/S drive, A/D turn, hold LMB to spin the drill and bore a 3x3 tunnel; look up or down to bore at an angle. Ores go straight into your inventory. Ctrl overdrive, RMB seismic charge'], ['Get one', 'Creative inventory Vehicles tab, /vehicle jet|bomber|gunship|bike|tank|mech|sub|drill, or craft with iron, diamonds, redstone, glass and gunpowder']]), h('h3', null, 'The End'), tbl([['Find it', 'Craft eyes of ender (ember powder + ender pearl) and throw them; they fly toward the nearest stronghold'], ['Open the portal', 'Put an eye in each of the 12 frames in the stronghold\'s portal room'], ['The fight', 'Destroy the end crystals on the obsidian pillars (they heal the dragon), then hit its head — it takes the most damage there. Arrows and vehicle weapons work too'], ['Going home', 'When the dragon falls the exit portal lights up; an end gateway opens to the outer islands'], ['Endermen', 'They attack if you look them in the eye; a carved pumpkin worn as a helmet keeps you safe. They hate water'], ['Elytra', 'Found on end ships. Wear it in the chest slot, jump, then press jump again in mid-air to glide; use fireworks to boost']]), h('h3', null, 'Touch'), tbl(touch), h('h3', null, 'Gamepad'), h('p', null, 'Left stick move · Right stick look · A jump · B sneak · RT mine/attack · LT use/place · LB/RB hotbar · Y inventory · Start pause · L3 sprint'), cmds), this.btn('Done', back, 'primary')));
+    const cmds = h('div', { class: 'cmds' }, 'Commands: /help, /vehicle <jet|bomber|fighter|gunship|bike|tank|mech|sub|drill>, /gamemode <survival|creative|spectator>, /time set <day|night|noon|midnight|n>, /weather <clear|rain|thunder>, /tp x y z, /give <item> [n], /summon <mob>, /locate <village|pyramid|jungle_temple|igloo|witch_hut|ruined_portal|mineshaft|fortress|stronghold|end_city>, /dimension <overworld|nether|end>, /seed, /kill, /difficulty <0-3>, /spawnpoint, /gamerule <keepInventory|mobGriefing|doDaylightCycle|fireSpread> <true|false>, /clear, /xp <n>, /heal, /feed');
+    this.screen.append(this.panel('Controls & Help', h('div', { class: 'scroll' }, h('h3', null, 'Keyboard & Mouse'), tbl(rows), h('h3', null, 'Vehicles'), tbl([['Board / exit', 'F next to a vehicle (or right-click it)'], ['Camera', 'F5 cycles chase, cockpit and far chase; mouse wheel zooms'], ['Stormcrow jet', 'Mouse steers, W/S throttle, Ctrl afterburner, A/D roll, Shift airbrake, LMB plasma cannons, RMB Hydra missile (hold the nose on a target to lock)'], ['Mantis VTOL', 'Mouse aims, WASD move, Space/Shift climb and descend, Ctrl boost, LMB cutting laser (burns through blocks), RMB rocket salvo'], ['Viper hover bike', 'Mouse steers, W/S throttle, A/D strafe, Space hop, Ctrl boost, LMB twin blasters, RMB hold to charge a fusion shot'], ['Wraith bomber', 'Flies like the jet; hold RMB to open the bay and drop plasma bombs on the yellow CCIP ring'], ['Eclipse fighter', 'Flies like the jets (simulator cockpit included), only faster and sharper. Space is the grav-lift: lift straight off the ground, and below flying speed it hovers (Space climbs, Shift sinks). Ctrl hyperdrive: the wings sweep back and you break the sound barrier. LMB hypervelocity rail cannon: slugs punch through mobs and blast craters. RMB singularity warhead: point at the ground (or lock a target) and click; a micro black hole swallows everything around it, then bursts. Keep 48 blocks away'], ['Jet cockpits', 'F5 to the cockpit and the Stormcrow, Wraith and Eclipse fly like a simulator: the mouse pitches and rolls the airframe directly and nothing levels it for you, so loops, rolls and inverted flight all work. A/D is the rudder, hold C or the middle mouse button to look around, the wheel zooms. The flight computer holds your flight path when you let go, even upside down. The chase cameras keep the assisted mouse aim. Pull hard for too long and the view greys out'], ['Bastion hover tank', 'Mouse aims the turret, W/S drive, A/D turn the hull, Ctrl boost, LMB coax blaster, RMB arcing plasma cannon (the ring shows where the shell lands)'], ['Titan mech', 'WASD walks toward where you aim (the legs turn by themselves), mouse twists the torso, Ctrl runs, Space fires the jump jets (landing hard pounds the ground), LMB twin autocannons, RMB eight-rocket salvo'], ['Nautilus submarine', 'Underwater the mouse steers and dives, W/S propeller, Space/Shift ballast, Ctrl boost, LMB pulse laser, RMB torpedo. Headlights light up the deep; on the surface it floats'], ['Mole tunnel borer', 'W/S drive, A/D turn, hold LMB to spin the drill and bore a 3x3 tunnel; look up or down to bore at an angle. Ores go straight into your inventory. Ctrl overdrive, RMB seismic charge'], ['Get one', 'Creative inventory Vehicles tab, /vehicle jet|bomber|fighter|gunship|bike|tank|mech|sub|drill, or craft with iron, diamonds, redstone, glass and gunpowder (the Eclipse needs netherite, an end crystal and an eye of ender)']]), h('h3', null, 'The End'), tbl([['Find it', 'Craft eyes of ender (ember powder + ender pearl) and throw them; they fly toward the nearest stronghold'], ['Open the portal', 'Put an eye in each of the 12 frames in the stronghold\'s portal room'], ['The fight', 'Destroy the end crystals on the obsidian pillars (they heal the dragon), then hit its head — it takes the most damage there. Arrows and vehicle weapons work too'], ['Going home', 'When the dragon falls the exit portal lights up; an end gateway opens to the outer islands'], ['Endermen', 'They attack if you look them in the eye; a carved pumpkin worn as a helmet keeps you safe. They hate water'], ['Elytra', 'Found on end ships. Wear it in the chest slot, jump, then press jump again in mid-air to glide; use fireworks to boost']]), h('h3', null, 'Touch'), tbl(touch), h('h3', null, 'Gamepad'), h('p', null, 'Left stick move · Right stick look · A jump · B sneak · RT mine/attack · LT use/place · LB/RB hotbar · Y inventory · Start pause · L3 sprint'), cmds), this.btn('Done', back, 'primary')));
   }
   // ------------------------------------------------------------------ settings
   showSettings(back) {
@@ -17224,7 +18312,7 @@ class VehicleHUD {
     c.clearRect(0, 0, this.w, this.h);
     c.lineCap = 'round'; c.lineJoin = 'round';
     this.fs = clamp(Math.round(this.h / 58), 11, 17);
-    if (v.kind === 'jet' || v.kind === 'bomber') this.jet(c, v, dt);
+    if (v.kind === 'jet' || v.kind === 'bomber' || v.kind === 'fighter') this.jet(c, v, dt);
     else if (v.kind === 'gunship') this.gunship(c, v, dt);
     else if (v.kind === 'tank') this.tank(c, v, dt);
     else if (v.kind === 'mech') this.mech(c, v, dt);
@@ -17358,7 +18446,8 @@ class VehicleHUD {
         if (!locked) { const r = b * (2.4 - lockT * 1.6); this.poly([s[0], s[1] - r, s[0] + r, s[1], s[0], s[1] + r, s[0] - r, s[1]], true); }
         else if (this.flash(4)) this.text('LOCK', s[0], s[1] - b - fs, 'center', fs, '#FFD23F');
         this.text(Math.round(d) + 'm', s[0] + b + 6, s[1] + b, 'left', fs * 0.8);
-        const nm = e.isMob ? titleCase(e.type) : e.def.name.split(' ')[0].toUpperCase();
+        // mobs by type, vehicles by name; the dragon has neither a mob def nor a vehicle def
+        const nm = e.isMob || !(e.def && e.def.name) ? titleCase(e.type || '') : e.def.name.split(' ')[0];
         this.text(nm.toUpperCase(), s[0] + b + 6, s[1] - b, 'left', fs * 0.8);
         this.col = old;
       }
@@ -17418,7 +18507,7 @@ class VehicleHUD {
   jet(c, v, dt) {
     if (v.simMode && v.simMode()) { this.hmd(c, v, dt); return; }
     const cx = this.w / 2, cy = this.h / 2;
-    this.col = '#A8FF52';
+    this.col = v.kind === 'fighter' ? '#8CF6FF' : '#A8FF52';
     const cen = v.center([0, 0, 0]), f = v.fwd;
     // aim ring (where the mouse points)
     this.circle(cx, cy, 9); this.line(cx - 16, cy, cx - 11, cy); this.line(cx + 11, cy, cx + 16, cy); this.line(cx, cy - 16, cx, cy - 11);
@@ -17471,15 +18560,18 @@ class VehicleHUD {
     this.bar(tx, ty, fs * 0.9, fs * 7, v.throttle, v.boosting ? '#FFB23D' : this.col);
     this.bar(tx + fs * 1.4, ty, fs * 0.5, fs * 7, v.boost, '#FFB23D');
     this.text('THR ' + Math.round(v.throttle * 100), tx + fs * 2.4, ty + fs * 0.4, 'left', fs * 0.85);
-    if (v.boosting) this.text('AFTERBURNER', tx + fs * 2.4, ty + fs * 1.7, 'left', fs * 0.85, '#FFB23D');
-    if (v.gear > 0.5) this.text('GEAR DN', tx + fs * 2.4, ty + fs * 3.0, 'left', fs * 0.85);
+    if (v.boosting) this.text(v.kind === 'fighter' ? 'HYPERDRIVE' : 'AFTERBURNER', tx + fs * 2.4, ty + fs * 1.7, 'left', fs * 0.85, '#FFB23D');
+    if (v.hov > 0.3) this.text('GRAV LIFT', tx + fs * 2.4, ty + fs * 3.0, 'left', fs * 0.85, '#D8B4FF');
+    else if (v.gear > 0.5) this.text('GEAR DN', tx + fs * 2.4, ty + fs * 3.0, 'left', fs * 0.85);
     if (v.onGround) this.text('TAXI', tx + fs * 2.4, ty + fs * 4.3, 'left', fs * 0.85);
     // targets + lock
-    this.targets(v, 320, v.lock, v.lockT, true);
+    this.targets(v, v.kind === 'fighter' ? 450 : 320, v.lock, v.lockT, true);
     // weapons
     const wx = cx + Math.min(W * 0.3, 330) - fs * 6, wy = H - fs * 7.5;
-    this.weaponLine(wx, wy, 'PLASMA', v.heat, v.overheat > 0);
-    if (v.kind === 'bomber') {
+    if (v.kind === 'fighter') this.eclipseWeapons(v, wx, wy);
+    else this.weaponLine(wx, wy, 'PLASMA', v.heat, v.overheat > 0);
+    if (v.kind === 'fighter') { this.designator(v); this.sngTimer(v); }
+    else if (v.kind === 'bomber') {
       this.text('BOMBS', wx, wy + fs * 1.8, 'left', fs * 0.9);
       this.pips(wx + fs * 5.2, wy + fs * 1.3, v.bombs, 12);
       this.text(v.bay > 0.5 ? 'BAY OPEN' : 'BAY SAFE', wx, wy + fs * 3.6, 'left', fs * 0.9, v.bay > 0.5 ? '#FFD23F' : this.col);
@@ -17492,7 +18584,7 @@ class VehicleHUD {
     }
     if (v.overheat > 0 && this.flash(5)) this.text('OVERHEAT', cx, cy + fs * 4, 'center', fs * 1.1, '#FF5A2E');
     this.hullBar(fs * 1.5, fs * 1.6, v);
-    this.text(v.kind === 'bomber' ? 'WRAITH // B-9' : 'STORMCROW // IX-7', fs * 1.5, fs * 3.2, 'left', fs * 0.8);
+    this.text(v.kind === 'bomber' ? 'WRAITH // B-9' : v.kind === 'fighter' ? 'ECLIPSE // HX-9' : 'STORMCROW // IX-7', fs * 1.5, fs * 3.2, 'left', fs * 0.8);
     this.radar(fs * 1.5 + 70, H - 90, 62, v, 260);
     this.lockAudio(v);
     this.warnings(v);
@@ -17512,7 +18604,7 @@ class VehicleHUD {
   // displays carry the radar, stores and systems). Head-fixed, so it turns with free look like a real HMD.
   hmd(c, v, dt) {
     const W = this.w, H = this.h, cx = W / 2, cy = H * 0.4, fs = this.fs, sp = v.speed, f = v.fwd;
-    this.col = '#A8FF52';
+    this.col = v.kind === 'fighter' ? '#8CF6FF' : '#A8FF52';
     const cen = v.center([0, 0, 0]);
     // gun cross on the cannon line, flight path marker, world-referenced ladder
     const b = this.proj(cen[0] + f[0] * 600, cen[1] + f[1] * 600, cen[2] + f[2] * 600);
@@ -17534,7 +18626,7 @@ class VehicleHUD {
     this.tape(cx + tx, cy, tapeH, v.y, 5, 4, true, (s) => String(Math.round(s)), 'ALT');
     const gz = v.gz === undefined ? 1 : v.gz, agl = v.agl !== undefined && v.agl < 200 ? Math.round(v.agl) : '---';
     this.text('G ' + (Math.abs(gz) < 0.05 ? 0 : gz).toFixed(1), cx - tx - fs * 5, cy + tapeH / 2 + fs, 'left', fs * 0.9, gz > 7 ? '#FFB23D' : this.col);
-    this.text('THR ' + Math.round(v.throttle * 100) + (v.boosting ? ' A/B' : ''), cx - tx - fs * 5, cy + tapeH / 2 + fs * 2.2, 'left', fs * 0.85, v.boosting ? '#FFB23D' : this.col);
+    this.text('THR ' + Math.round(v.throttle * 100) + (v.boosting ? (v.kind === 'fighter' ? ' HYPER' : ' A/B') : ''), cx - tx - fs * 5, cy + tapeH / 2 + fs * 2.2, 'left', fs * 0.85, v.boosting ? '#FFB23D' : this.col);
     this.text('R ' + agl, cx + tx + 6, cy + tapeH / 2 + fs, 'left', fs * 0.9, typeof agl === 'number' && agl < 15 && !v.onGround ? '#FFB23D' : this.col);
     this.text((v.vel[1] >= 0 ? '+' : '') + v.vel[1].toFixed(0) + ' VS', cx + tx + 6, cy + tapeH / 2 + fs * 2.2, 'left', fs * 0.85);
     this.headingTape(cx, fs * 3.2, Math.min(W * 0.34, 380), v.heading());
@@ -17543,15 +18635,56 @@ class VehicleHUD {
     if (v.kind === 'bomber') {
       this.text((v.bay > 0.5 ? 'BAY OPEN' : 'BAY SAFE') + '   BOMBS ' + v.bombs, cx, wy, 'center', fs * 0.9, v.bay > 0.5 ? '#FFD23F' : this.col);
       this.ccipMark(v);
+    } else if (v.kind === 'fighter') {
+      const msg = v.sngMsgT > 0 ? v.sngMsg : v.lock && v.lockT >= 1 ? 'SNG ' + v.sng + ' LOCK' : 'SNG ' + v.sng;
+      this.text('RAIL ' + (v.overheat > 0 ? 'OVHT' : Math.round(v.heat * 100) + '%') + '   ' + msg, cx, wy, 'center', fs * 0.9, v.sngMsgT > 0 && v.sngMsg !== 'AWAY' ? '#FF5A2E' : v.lock && v.lockT >= 1 ? '#FFD23F' : this.col);
+      if (v.hov > 0.3) this.text('GRAV LIFT', cx, wy + fs * 2.6, 'center', fs * 0.85, '#D8B4FF');
+      this.designator(v); this.sngTimer(v);
     } else {
       const ls = v.lock ? (v.lockT >= 1 ? 'LOCK' : 'LOCKING') : 'SEEK';
       this.text('HYDRA ' + v.missiles + '  ' + ls, cx, wy, 'center', fs * 0.9, v.lock && v.lockT >= 1 ? '#FFD23F' : this.col);
     }
     if (v.overheat > 0 && this.flash(5)) this.text('GUN OVERHEAT', cx, wy + fs * 1.3, 'center', fs * 0.9, '#FF5A2E');
     if (v.onGround) this.text('TAXI', cx, wy - fs * 1.3, 'center', fs * 0.9);
-    this.targets(v, 320, v.lock, v.lockT, true);
+    this.targets(v, v.kind === 'fighter' ? 450 : 320, v.lock, v.lockT, true);
     this.lockAudio(v);
     this.warnings(v);
+  }
+  // ------------------------------------------------------------ ECLIPSE
+  // rail heat, the warheads (with the reload of the next one) and what the warhead system is saying
+  eclipseWeapons(v, x, y) {
+    const fs = this.fs, ready = v.sng > 0;
+    this.weaponLine(x, y, 'RAIL', v.heat, v.overheat > 0);
+    this.text('SNG', x, y + fs * 1.8, 'left', fs * 0.9, ready ? '#D8B4FF' : this.col);
+    this.pips(x + fs * 5.2, y + fs * 1.3, v.sng, SNG.max, '#D8B4FF');
+    if (v.sng < SNG.max) this.bar(x + fs * 7.4, y + fs * 1.45, fs * 4.8, fs * 0.7, 1 - v.sReload / SNG.reload, '#B48CFF');
+    const D = v.desig, bad = v.sngMsgT > 0 && v.sngMsg !== 'AWAY';
+    const msg = v.sngMsgT > 0 ? v.sngMsg : v.lock && v.lockT >= 1 ? 'TGT LOCKED' : v.lock ? 'LOCKING ' + Math.round(v.lockT * 100) + '%' : !ready ? 'RELOADING' : !D ? '' : D.far ? 'OUT OF RANGE' : D.hit ? 'TGT ' + Math.round(D.dist) + 'm' : 'AIRBURST';
+    this.text(msg, x, y + fs * 3.6, 'left', fs * 0.9, bad ? '#FF5A2E' : v.lock && v.lockT >= 1 ? '#FFD23F' : this.col);
+  }
+  // where a warhead would strike: a diamond on the ground with the crater's outline around it
+  designator(v) {
+    const D = v.desig; if (!D || v.sng <= 0) return;
+    const fs = this.fs, close = D.dist < SNG.safe || D.far, old = this.col;
+    this.col = close ? '#FF5A2E' : '#D8B4FF';
+    if (!D.ent && D.hit) {
+      const pts = [], R = SNG.crH;
+      for (let i = 0; i <= 36; i++) { const a = i / 36 * TAU, p = this.proj(D.x + Math.cos(a) * R, D.y + 0.4, D.z + Math.sin(a) * R); if (!p) { pts.length = 0; break; } pts.push(p[0], p[1]); }
+      if (pts.length) this.poly(pts);
+    }
+    const s = this.proj(D.x, D.y, D.z);
+    if (s) {
+      const q = 10 + Math.sin(this.t * 6) * 2;
+      this.poly([s[0], s[1] - q, s[0] + q, s[1], s[0], s[1] + q, s[0] - q, s[1]], true); this.circle(s[0], s[1], 2);
+      this.text(D.far ? 'OUT OF RANGE' : (close ? 'TOO CLOSE  ' : D.hit ? '' : 'AIRBURST  ') + Math.round(D.dist) + 'm', s[0] + q + 6, s[1] - 2, 'left', fs * 0.8, this.col);
+    }
+    this.col = old;
+  }
+  // a live singularity of yours: the countdown to its burst
+  sngTimer(v) {
+    const E = v.sngEvent; if (!E || E.burst) return;
+    const left = Math.max(0, SNG.burst - E.t);
+    if (this.flash(left < 1.2 ? 7 : 2.5)) this.text('SINGULARITY  T-' + left.toFixed(1), this.w / 2, this.h * 0.2, 'center', this.fs * 1.3, '#D8B4FF');
   }
   // ------------------------------------------------------------ BASTION
   tank(c, v, dt) {
@@ -19156,6 +20289,7 @@ class Game {
         gl.bindVertexArray(part.vao); gl.drawArrays(gl.TRIANGLES, 0, part.count);
       }
     }
+    this.munitions.drawSolid(R);
   }
   drawFX(R) {
     R.fxBegin();
@@ -19200,6 +20334,7 @@ class Game {
       const pulse = 0.6 + 0.4 * Math.sin((e.age + a) * 0.3);
       extra.push({ x: e.ix(a), y: e.iy(a) + 0.15, z: e.iz(a), vx: 0, vy: 0, vz: 0, size: 0.18 + Math.min(0.2, e.value * 0.01), uv: [0, 0, 1, 1], color: [0.7 + 0.3 * pulse, 1, 0.4], alpha: 1, layer: ITEM_TEXI.p_xp, src: 1, age: 0, life: 1e9, fade: false, emissive: true });
     }
+    this.munitions.particleExtras(extra);
     this.particles.draw(R, extra);
   }
   // the jets' cockpit interiors, drawn from the pilot's seat
@@ -19292,7 +20427,7 @@ class Game {
     try {
       switch (c) {
         case 'help': ui.message('Commands: gamemode, time, weather, tp (x y z, or x z for surface), give, summon, vehicle, locate, dimension, seed, kill, difficulty, spawnpoint, gamerule, clear, xp, heal, feed'); break;
-        case 'vehicle': case 'v': { const k = { jet: 'jet', stormcrow: 'jet', gunship: 'gunship', vtol: 'gunship', mantis: 'gunship', bike: 'bike', viper: 'bike', hoverbike: 'bike', bomber: 'bomber', wraith: 'bomber', tank: 'tank', bastion: 'tank', mech: 'mech', titan: 'mech', walker: 'mech', sub: 'sub', submarine: 'sub', nautilus: 'sub', drill: 'drill', mole: 'drill', borer: 'drill' }[a[1]]; if (!k) throw 'Usage: /vehicle jet | bomber | gunship | bike | tank | mech | sub | drill'; const d = p.lookVec(), hl = Math.hypot(d[0], d[2]) || 1; const dist = k === 'bike' ? 4 : k === 'drill' ? 7 : 10, x = p.x + d[0] / hl * dist, z = p.z + d[2] / hl * dist; const y = Math.max(w.heightAt(Math.floor(x), Math.floor(z)), Math.floor(p.y)); spawnVehicle(w, k, x, y + 0.05, z, p.yaw); ui.message('Deployed ' + VEH_DEFS[k].name + '. Walk up and press F to board.', '#afa'); break; }
+        case 'vehicle': case 'v': { const k = { jet: 'jet', stormcrow: 'jet', gunship: 'gunship', vtol: 'gunship', mantis: 'gunship', bike: 'bike', viper: 'bike', hoverbike: 'bike', bomber: 'bomber', wraith: 'bomber', tank: 'tank', bastion: 'tank', mech: 'mech', titan: 'mech', walker: 'mech', sub: 'sub', submarine: 'sub', nautilus: 'sub', drill: 'drill', mole: 'drill', borer: 'drill', fighter: 'fighter', eclipse: 'fighter', hypersonic: 'fighter' }[a[1]]; if (!k) throw 'Usage: /vehicle jet | bomber | fighter | gunship | bike | tank | mech | sub | drill'; const d = p.lookVec(), hl = Math.hypot(d[0], d[2]) || 1; const dist = k === 'bike' ? 4 : k === 'drill' ? 7 : 10, x = p.x + d[0] / hl * dist, z = p.z + d[2] / hl * dist; const y = Math.max(w.heightAt(Math.floor(x), Math.floor(z)), Math.floor(p.y)); spawnVehicle(w, k, x, y + 0.05, z, p.yaw); ui.message('Deployed ' + VEH_DEFS[k].name + '. Walk up and press F to board.', '#afa'); break; }
         case 'gamemode': case 'gm': { const m = { survival: 'survival', s: 'survival', 0: 'survival', creative: 'creative', c: 'creative', 1: 'creative', spectator: 'spectator', sp: 'spectator', 3: 'spectator' }[a[1]]; if (!m) throw 'Unknown mode'; p.mode = m; p.flying = m === 'spectator' ? true : (m === 'creative' ? p.flying : false); ui.message('Game mode set to ' + titleCase(m)); break; }
         case 'time': { if (a[1] === 'set') { const v = { day: 1000, noon: 6000, night: 13000, midnight: 18000, sunrise: 23000, sunset: 12000 }[a[2]]; const t = v !== undefined ? v : +a[2]; this.time = Math.floor(this.time / 24000) * 24000 + t; ui.message('Set the time to ' + t); } else if (a[1] === 'add') { this.time += +a[2]; } else ui.message('Day ' + Math.floor(this.time / 24000) + ', time ' + Math.floor(this.time % 24000)); break; }
         case 'weather': { const t = a[1]; if (t !== 'clear' && t !== 'rain' && t !== 'thunder') throw 'Usage: /weather clear | rain | thunder'; const W = this.weather; W.rain = t !== 'clear'; W.thunder = t === 'thunder'; W.timer = t === 'clear' ? randInt(12000, 30000) : randInt(6000, 12000); this.weatherSnap = true; ui.message('Weather set to ' + t); break; }

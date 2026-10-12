@@ -977,6 +977,7 @@ class Game {
         gl.bindVertexArray(part.vao); gl.drawArrays(gl.TRIANGLES, 0, part.count);
       }
     }
+    this.munitions.drawSolid(R);
   }
   drawFX(R) {
     R.fxBegin();
@@ -1021,6 +1022,7 @@ class Game {
       const pulse = 0.6 + 0.4 * Math.sin((e.age + a) * 0.3);
       extra.push({ x: e.ix(a), y: e.iy(a) + 0.15, z: e.iz(a), vx: 0, vy: 0, vz: 0, size: 0.18 + Math.min(0.2, e.value * 0.01), uv: [0, 0, 1, 1], color: [0.7 + 0.3 * pulse, 1, 0.4], alpha: 1, layer: ITEM_TEXI.p_xp, src: 1, age: 0, life: 1e9, fade: false, emissive: true });
     }
+    this.munitions.particleExtras(extra);
     this.particles.draw(R, extra);
   }
   // the jets' cockpit interiors, drawn from the pilot's seat
@@ -1113,7 +1115,7 @@ class Game {
     try {
       switch (c) {
         case 'help': ui.message('Commands: gamemode, time, weather, tp (x y z, or x z for surface), give, summon, vehicle, locate, dimension, seed, kill, difficulty, spawnpoint, gamerule, clear, xp, heal, feed'); break;
-        case 'vehicle': case 'v': { const k = { jet: 'jet', stormcrow: 'jet', gunship: 'gunship', vtol: 'gunship', mantis: 'gunship', bike: 'bike', viper: 'bike', hoverbike: 'bike', bomber: 'bomber', wraith: 'bomber', tank: 'tank', bastion: 'tank', mech: 'mech', titan: 'mech', walker: 'mech', sub: 'sub', submarine: 'sub', nautilus: 'sub', drill: 'drill', mole: 'drill', borer: 'drill' }[a[1]]; if (!k) throw 'Usage: /vehicle jet | bomber | gunship | bike | tank | mech | sub | drill'; const d = p.lookVec(), hl = Math.hypot(d[0], d[2]) || 1; const dist = k === 'bike' ? 4 : k === 'drill' ? 7 : 10, x = p.x + d[0] / hl * dist, z = p.z + d[2] / hl * dist; const y = Math.max(w.heightAt(Math.floor(x), Math.floor(z)), Math.floor(p.y)); spawnVehicle(w, k, x, y + 0.05, z, p.yaw); ui.message('Deployed ' + VEH_DEFS[k].name + '. Walk up and press F to board.', '#afa'); break; }
+        case 'vehicle': case 'v': { const k = { jet: 'jet', stormcrow: 'jet', gunship: 'gunship', vtol: 'gunship', mantis: 'gunship', bike: 'bike', viper: 'bike', hoverbike: 'bike', bomber: 'bomber', wraith: 'bomber', tank: 'tank', bastion: 'tank', mech: 'mech', titan: 'mech', walker: 'mech', sub: 'sub', submarine: 'sub', nautilus: 'sub', drill: 'drill', mole: 'drill', borer: 'drill', fighter: 'fighter', eclipse: 'fighter', hypersonic: 'fighter' }[a[1]]; if (!k) throw 'Usage: /vehicle jet | bomber | fighter | gunship | bike | tank | mech | sub | drill'; const d = p.lookVec(), hl = Math.hypot(d[0], d[2]) || 1; const dist = k === 'bike' ? 4 : k === 'drill' ? 7 : 10, x = p.x + d[0] / hl * dist, z = p.z + d[2] / hl * dist; const y = Math.max(w.heightAt(Math.floor(x), Math.floor(z)), Math.floor(p.y)); spawnVehicle(w, k, x, y + 0.05, z, p.yaw); ui.message('Deployed ' + VEH_DEFS[k].name + '. Walk up and press F to board.', '#afa'); break; }
         case 'gamemode': case 'gm': { const m = { survival: 'survival', s: 'survival', 0: 'survival', creative: 'creative', c: 'creative', 1: 'creative', spectator: 'spectator', sp: 'spectator', 3: 'spectator' }[a[1]]; if (!m) throw 'Unknown mode'; p.mode = m; p.flying = m === 'spectator' ? true : (m === 'creative' ? p.flying : false); ui.message('Game mode set to ' + titleCase(m)); break; }
         case 'time': { if (a[1] === 'set') { const v = { day: 1000, noon: 6000, night: 13000, midnight: 18000, sunrise: 23000, sunset: 12000 }[a[2]]; const t = v !== undefined ? v : +a[2]; this.time = Math.floor(this.time / 24000) * 24000 + t; ui.message('Set the time to ' + t); } else if (a[1] === 'add') { this.time += +a[2]; } else ui.message('Day ' + Math.floor(this.time / 24000) + ', time ' + Math.floor(this.time % 24000)); break; }
         case 'weather': { const t = a[1]; if (t !== 'clear' && t !== 'rain' && t !== 'thunder') throw 'Usage: /weather clear | rain | thunder'; const W = this.weather; W.rain = t !== 'clear'; W.thunder = t === 'thunder'; W.timer = t === 'clear' ? randInt(12000, 30000) : randInt(6000, 12000); this.weatherSnap = true; ui.message('Weather set to ' + t); break; }

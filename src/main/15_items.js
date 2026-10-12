@@ -85,6 +85,7 @@ defItem('spawn_egg_enderman', { tex: 'spawn_egg', tint: 0x161616, tint2: 0x9A3AE
 defItem('titan_mech', { stack: 1, use: 'vehicle', vehicle: 'mech', disp: 'Titan Assault Mech', tex: 'veh_mech' });
 defItem('nautilus_sub', { stack: 1, use: 'vehicle', vehicle: 'sub', disp: 'Nautilus Submarine', tex: 'veh_sub' });
 defItem('mole_drill', { stack: 1, use: 'vehicle', vehicle: 'drill', disp: 'Mole Tunnel Borer', tex: 'veh_drill' });
+defItem('eclipse_fighter', { stack: 1, use: 'vehicle', vehicle: 'fighter', disp: 'Eclipse Hypersonic Fighter', tex: 'veh_fighter' });
 ITEMS[B.end_rod].flat = 'i:end_rod_item';
 // a carved pumpkin can be worn: endermen cannot meet your eyes through it
 ITEMS[B.carved_pumpkin].armor = { slot: 0, def: 0, tough: 0, mat: 'pumpkin' };
@@ -232,6 +233,7 @@ function shapeless(out, n, ings) {
   shaped('titan_mech', 1, ['GDG', 'IRI', 'PIP'], { G: 'glowstone_dust', D: 'diamond', I: 'iron_ingot', R: 'redstone', P: 'gunpowder' });
   shaped('nautilus_sub', 1, ['IGI', 'IDI', 'KRK'], { I: 'iron_ingot', G: 'glass', D: 'diamond', K: 'kelp', R: 'redstone' });
   shaped('mole_drill', 1, ['DI ', 'IRI', 'III'], { D: 'diamond', I: 'iron_ingot', R: 'redstone' });
+  shaped('eclipse_fighter', 1, ['DCD', 'NEN', 'IGI'], { D: 'diamond', C: 'end_crystal', N: 'netherite_ingot', E: 'eye_of_ender', I: 'iron_ingot', G: 'glass' });
   for (const [n, base] of SLABS) shaped(n, 6, ['MMM'], { M: base });
   for (const [n, base] of STAIRS) shaped(n, 4, ['M  ', 'MM ', 'MMM'], { M: base });
 })();
