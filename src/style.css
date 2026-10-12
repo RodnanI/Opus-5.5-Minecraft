@@ -218,3 +218,16 @@ table.ctl td:first-child { color: #ffd24a; width: 42%; }
 #screen.menu.credits .croll p { margin: 4px 0; font-size: 17px; line-height: 1.5; }
 #screen.menu.credits button { position: relative; z-index: 1; width: auto; min-width: 180px; max-width: 240px; }
 @keyframes croll { from { transform: translateY(0); } to { transform: translateY(calc(-100% - 100vh)); } }
+/* Skyways: world options and the region banner */
+.skyopts { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; margin: 2px 0; border: 2px solid #2f4f6f; background: rgba(30, 60, 90, 0.28); }
+.skyrow { display: flex; align-items: center; gap: 8px; flex: 1; max-width: 62%; }
+.skyrow input[type=range] { flex: 1; min-width: 60px; accent-color: #6ab0ff; pointer-events: auto; touch-action: pan-x; }
+.skylv { min-width: 7.6em; font-size: 13px; color: #ffd24a; text-align: right; white-space: nowrap; }
+.skydesc { font-size: 12px; color: #bcd3e6; min-height: 2.4em; }
+.skydesc.rolled { animation: skyroll 0.7s ease-out; }
+@keyframes skyroll { from { color: #ffd24a; transform: scale(1.04); } to { color: #bcd3e6; transform: none; } }
+.mbtn.dice { width: auto; padding: 3px 9px; margin: 0; font-size: 17px; line-height: 1.2; }
+#skybanner { position: fixed; left: 0; right: 0; top: 14%; text-align: center; pointer-events: none; opacity: 0; transform: translateY(-10px); transition: opacity 0.7s, transform 0.7s; z-index: 4; }
+#skybanner.show { opacity: 1; transform: none; }
+#skybanner .sbt { font-size: clamp(20px, 3.4vw, 38px); font-weight: 700; letter-spacing: 0.2em; color: #fff; text-shadow: 0 2px 0 #000, 0 0 20px rgba(0, 0, 0, 0.6); }
+#skybanner .sbs { margin-top: 4px; font-size: clamp(12px, 1.4vw, 16px); letter-spacing: 0.12em; color: #ffd24a; text-shadow: 0 1px 0 #000, 0 0 10px rgba(0, 0, 0, 0.6); }

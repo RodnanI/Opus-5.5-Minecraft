@@ -463,6 +463,8 @@ class Jet extends Vehicle {
       const px = nx + _v3[0], py = ny + yo + _v3[1], pz = nz + _v3[2];
       if (this.pointSolid(px, py, pz) || (i === 4 && FLUID[w.getId(Math.floor(px), Math.floor(py), Math.floor(pz))] === 1)) { hit = i; hx = px; hy = py; hz = pz; break; }
     }
+    // a Skyways race gate's frame gives like an air-race pylon: scraped through for a hull hit and a time penalty
+    if (hit >= 0 && this.game.skyways && this.game.skyways.ringAt(hx, hy, hz)) { this.x = nx; this.y = ny; this.z = nz; this.game.skyways.ringHit(this, hx, hy, hz); return; }
     if (hit >= 0) {
       const vy = v[1], level = u[1] > 0.85 && Math.abs(f[1]) < 0.33;
       const gy = this.groundUnder(nx, nz, ny + 2.5, 4.5);

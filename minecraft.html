@@ -228,6 +228,19 @@ table.ctl td:first-child { color: #ffd24a; width: 42%; }
 #screen.menu.credits .croll p { margin: 4px 0; font-size: 17px; line-height: 1.5; }
 #screen.menu.credits button { position: relative; z-index: 1; width: auto; min-width: 180px; max-width: 240px; }
 @keyframes croll { from { transform: translateY(0); } to { transform: translateY(calc(-100% - 100vh)); } }
+/* Skyways: world options and the region banner */
+.skyopts { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; margin: 2px 0; border: 2px solid #2f4f6f; background: rgba(30, 60, 90, 0.28); }
+.skyrow { display: flex; align-items: center; gap: 8px; flex: 1; max-width: 62%; }
+.skyrow input[type=range] { flex: 1; min-width: 60px; accent-color: #6ab0ff; pointer-events: auto; touch-action: pan-x; }
+.skylv { min-width: 7.6em; font-size: 13px; color: #ffd24a; text-align: right; white-space: nowrap; }
+.skydesc { font-size: 12px; color: #bcd3e6; min-height: 2.4em; }
+.skydesc.rolled { animation: skyroll 0.7s ease-out; }
+@keyframes skyroll { from { color: #ffd24a; transform: scale(1.04); } to { color: #bcd3e6; transform: none; } }
+.mbtn.dice { width: auto; padding: 3px 9px; margin: 0; font-size: 17px; line-height: 1.2; }
+#skybanner { position: fixed; left: 0; right: 0; top: 14%; text-align: center; pointer-events: none; opacity: 0; transform: translateY(-10px); transition: opacity 0.7s, transform 0.7s; z-index: 4; }
+#skybanner.show { opacity: 1; transform: none; }
+#skybanner .sbt { font-size: clamp(20px, 3.4vw, 38px); font-weight: 700; letter-spacing: 0.2em; color: #fff; text-shadow: 0 2px 0 #000, 0 0 20px rgba(0, 0, 0, 0.6); }
+#skybanner .sbs { margin-top: 4px; font-size: clamp(12px, 1.4vw, 16px); letter-spacing: 0.12em; color: #ffd24a; text-shadow: 0 1px 0 #000, 0 0 10px rgba(0, 0, 0, 0.6); }
 </style>
 </head>
 <body>
@@ -824,11 +837,11 @@ biomeDef(12, 'Flower Forest', { grass: 0x79C05A, foliage: 0x59AE30, trees: 5, tr
 biomeDef(13, 'Taiga', { grass: 0x86B783, foliage: 0x68A464, water: 0x287082, trees: 9, treeTypes: [['spruce', 70], ['pine', 30]], grassD: 0.1, fern: 0.6, flowerD: 0.003, animals: ['sheep', 'pig', 'chicken'] });
 biomeDef(14, 'Snowy Taiga', { grass: 0x80B497, foliage: 0x60A17B, water: 0x205E83, snowy: true, trees: 6, treeTypes: [['spruce', 70], ['pine', 30]], grassD: 0.05, fern: 0.7, flowerD: 0 });
 biomeDef(15, 'Snowy Plains', { grass: 0x80B497, foliage: 0x60A17B, water: 0x3D57D6, snowy: true, trees: 0.2, treeTypes: [['spruce', 100]], grassD: 0.02, flowerD: 0 });
-biomeDef(16, 'Desert', { grass: 0xBFB755, foliage: 0xAEA42A, water: 0x32A598, top: 'sand', filler: 'sand', grassD: 0, flowerD: 0, sky: 0x6EB1FF });
-biomeDef(17, 'Savanna', { grass: 0xBFB755, foliage: 0xAEA42A, water: 0x2C8B9C, trees: 1.2, treeTypes: [['acacia', 85], ['oak', 15]], grassD: 0.35, flowerD: 0.004, animals: ['cow', 'sheep', 'chicken'], sky: 0x6EB1FF });
+biomeDef(16, 'Desert', { grass: 0xBFB755, foliage: 0xAEA42A, water: 0x32A598, top: 'sand', filler: 'sand', grassD: 0, flowerD: 0, sky: 0x6EB1FF, dry: true });
+biomeDef(17, 'Savanna', { grass: 0xBFB755, foliage: 0xAEA42A, water: 0x2C8B9C, trees: 1.2, treeTypes: [['acacia', 85], ['oak', 15]], grassD: 0.35, flowerD: 0.004, animals: ['cow', 'sheep', 'chicken'], sky: 0x6EB1FF, dry: true });
 biomeDef(18, 'Jungle', { grass: 0x59C93C, foliage: 0x30BB0B, water: 0x14A2C5, trees: 22, treeTypes: [['jungle', 28], ['mega_jungle', 10], ['jungle_bush', 52], ['big_oak', 10]], grassD: 0.3, fern: 0.3, flowerD: 0.005, animals: ['chicken', 'pig'] });
 biomeDef(19, 'Swamp', { grass: 0x6A7039, foliage: 0x6A7039, water: 0x617B64, trees: 2, treeTypes: [['swamp_oak', 100]], grassD: 0.08, flowerD: 0.01, flowers: ['blue_orchid'], fog: 0.3 });
-biomeDef(20, 'Badlands', { grass: 0x90814D, foliage: 0x9E814D, water: 0x4E7F81, top: 'red_sand', filler: 'orange_terracotta', grassD: 0, flowerD: 0, sky: 0x6EB1FF });
+biomeDef(20, 'Badlands', { grass: 0x90814D, foliage: 0x9E814D, water: 0x4E7F81, top: 'red_sand', filler: 'orange_terracotta', grassD: 0, flowerD: 0, sky: 0x6EB1FF, dry: true });
 biomeDef(21, 'Mountains', { grass: 0x8AB689, foliage: 0x6DA36B, water: 0x007BF7, trees: 1.5, treeTypes: [['spruce', 60], ['oak', 40]], grassD: 0.05, flowerD: 0.003, animals: ['sheep'] });
 biomeDef(22, 'Snowy Peaks', { grass: 0x80B497, foliage: 0x60A17B, snowy: true, top: 'snow', filler: 'snow', grassD: 0, flowerD: 0 });
 biomeDef(23, 'Mushroom Fields', { grass: 0x55C93F, foliage: 0x2BBB0F, water: 0x8A8997, top: 'mycelium', trees: 1, treeTypes: [['huge_red_mushroom', 50], ['huge_brown_mushroom', 50]], grassD: 0, flowerD: 0, animals: ['cow'] });
@@ -1108,8 +1121,12 @@ class OverworldGen {
     for (let y = 0; y < CH;) { const c = br.pick(bandCols), n = br.range(1, 4); for (let k = 0; k < n && y < CH; k++, y++) this.bands[y] = c; }
     this.amplified = this.type === 'amplified';
     this.structs = typeof Structures !== 'undefined' ? new Structures(this) : null;
+    // Skyways (21_skyways*.js) builds its own terrain; the overworld code reaches it through climate and generate
+    this.sky = this.type === 'skyways' ? new SkyGen(this, opts.sky) : null;
+    this.tall = this.amplified || !!this.sky;
   }
   climate(x, z, o) {
+    if (this.sky) return this.sky.climate(x, z, o);
     const wx = x + this.nWarp.n2(x * 0.0032, z * 0.0032) * 48;
     const wz = z + this.nWarp.n2(x * 0.0032 + 91.7, z * 0.0032 - 43.1) * 48;
     const cont = clamp(fbm2(this.nCont, wx / 1400, wz / 1400, 5, 0.5) * 1.55 + 0.08, -1, 1);
@@ -1203,6 +1220,7 @@ class OverworldGen {
   }
   ter3(x, y, z) { return this.nTer.n3(x / 44, y / 30, z / 44) * 0.7 + this.nTer.n3(x / 19 + 50, y / 14, z / 19) * 0.3; }
   surfaceAt(x, z, c) {
+    if (this.sky) return this.sky.surfaceY(x, z);
     const h = c.h, amp = c.amp;
     if (amp < 0.05) return Math.ceil(h) - 1;
     const hi = Math.min(CH - 1, Math.floor(h + amp + 1)), lo = Math.floor(h - amp - 1);
@@ -1232,6 +1250,7 @@ class OverworldGen {
     const x0 = cx << 4, z0 = cz << 4;
     if (this.cache.size > 30000) this.cache.clear();
     if (this.type === 'flat') return this.generateFlat(ctx);
+    if (this.sky) return this.sky.generate(cx, cz);
     // climate for 18x18 (1 border)
     const H = new Float32Array(324), AMP = new Float32Array(324), BI = new Uint8Array(324);
     for (let dz = -1; dz <= 16; dz++) for (let dx = -1; dx <= 16; dx++) {
@@ -1703,6 +1722,1878 @@ class OverworldGen {
   }
 }
 
+// ===== shared/21_skyways.js =====
+// ============================================================================
+//  SKYWAYS (1/2): a world type made for flying jets. Regions, terrain and the natural obstacles.
+//  The map is split into regions about 720 blocks across (a jittered grid, domain-warped and blended over ~150
+//  blocks at the borders). Each region has a name, a difficulty and one of five terrains: canyon mazes (red rock,
+//  or flooded fjords where it is cold), lagoons of rock spires (or a stone forest of needles), sky archipelagos,
+//  peaks bored through by lit tunnels, and meadows. Spawn is the home airbase. The map level (1-10, the same
+//  everywhere or rolled per region) sets canyon widths, spire sizes and spacing, arch heights, debris, tunnel and
+//  gate radii. Everything is a pure function of the seed and the level, so every worker builds the same blocks and
+//  the main thread can ask any worker for a region's airfield and course (21_skyways_courses.js).
+// ============================================================================
+const SKY_CELL = 720, SKY_BLEND = 150, SKY_TAU = Math.PI * 2;
+const SKZ = { HOME: 0, MEADOW: 1, CANYON: 2, SPIRES: 3, ISLES: 4, PEAKS: 5 };
+// the 8 regions around home, clockwise from the north-west corner
+const SKY_RING = [[-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]];
+const SKY_LEVELS = ['Sightseer', 'Cadet', 'Rookie', 'Pilot', 'Wingman', 'Flight Lead', 'Ace', 'Top Gun', 'Daredevil', 'Impossible'];
+const SKY_LEVEL_DESC = [
+  'Very wide canyons, roomy tunnels, huge gates and almost nothing in the way. Sightseeing.',
+  'Wide canyons and tunnels, big gates, rock arches high overhead.',
+  'Comfortable canyons and tunnels, a few lower arches to duck under.',
+  'Canyons pinch in places, spires stand closer, the first debris drifts near the islands.',
+  'Balanced: tighter turns, smaller gates, debris fields, windows through the spires.',
+  'Narrow canyons with low arches, dense spire forests, smaller gates.',
+  'Slot canyons and roofed gorges, tight tunnels, crowded debris fields.',
+  'Very tight: thin gaps, low thick arches, stalactites hanging in the tunnel caverns.',
+  'Needle-thin gaps, narrow winding tunnels, debris everywhere.',
+  'Barely flyable. Every gap is a dare.'];
+const SKY_NAMES = {
+  canyon: [['Ember', 'Scarlet', 'Copper', 'Sunfire', 'Rustwater', 'Painted', 'Coyote', 'Ochre', 'Redwind', 'Dusthorn', 'Saffron', 'Cinder'], ['Canyons', 'Gorge', 'Breaks', 'Narrows', 'Labyrinth', 'Chasms']],
+  fjord: [['Frostfang', 'Rime', 'Whiteout', 'Icewind', 'Silverthaw', 'Glacier', 'Hoarfrost', 'Winterhold'], ['Fjords', 'Sound', 'Inlets', 'Gorge']],
+  spires: [['Glasswater', 'Jade', 'Pearl', 'Sapphire', 'Turquoise', 'Coral', 'Moonwater', 'Azure', 'Lotus'], ['Spires', 'Pillars', 'Lagoon', 'Stacks', 'Towers']],
+  forest: [['Mossback', 'Emerald', 'Thornwood', 'Verdant', 'Greenhollow', 'Fernwild'], ['Stone Forest', 'Needles', 'Karst', 'Pinnacles']],
+  isles: [['Halcyon', 'Skyreach', 'Cloudhaven', 'Drifting', 'Aether', 'Zephyr', 'Lumen', 'Starfall', 'Windward'], ['Isles', 'Archipelago', 'Skylands', 'Reaches', 'Islands']],
+  peaks: [['Ironback', 'Granite', 'Thunder', 'Stormcrest', 'Obsidian', 'Greywolf', 'Titan', 'Anvil', 'Basalt'], ['Peaks', 'Range', 'Massif', 'Crags', 'Teeth', 'Spine']],
+  meadow: [['Greenfield', 'Willow', 'Clover', 'Amber', 'Bluebell', 'Sunny', 'Honey', 'Meadowlark', 'Barley'], ['Meadows', 'Downs', 'Fields', 'Vale', 'Lowlands', 'Plains']],
+};
+// what each terrain is called, and what its course is called
+const SKY_KIND = {
+  home: ['Home Airfield', 'Flight School'], meadow: ['Lowlands', 'Lowland Loop'], canyon: ['Canyonlands', 'Canyon Run'], fjord: ['Glacier Fjords', 'Fjord Run'],
+  spires: ['Spire Lagoon', 'Spire Slalom'], forest: ['Stone Forest', 'Needle Slalom'], isles: ['Sky Archipelago', 'Island Circuit'], peaks: ['Tunnel Peaks', 'Tunnel Dash'],
+};
+Object.assign(BIO, { RED_CANYON: 26, FJORD: 27, SPIRE_LAGOON: 28, STONE_FOREST: 29, SKY_ISLES: 30, HIGH_PEAKS: 31 });
+biomeDef(26, 'Red Rock Canyons', { grass: 0xA4A15A, foliage: 0x9C9C3E, water: 0x3AA3A0, trees: 0.6, treeTypes: [['acacia', 75], ['oak', 25]], grassD: 0.06, flowerD: 0.003, flowers: ['dandelion', 'orange_tulip', 'red_tulip'], top: 'red_sand', filler: 'red_sand', animals: ['sheep'], sky: 0x7DB4FF, dry: true });
+biomeDef(27, 'Glacier Fjords', { grass: 0x80B497, foliage: 0x60A17B, water: 0x2B5FB5, snowy: true, trees: 1.5, treeTypes: [['spruce', 75], ['pine', 25]], grassD: 0.04, fern: 0.6, flowerD: 0 });
+biomeDef(28, 'Spire Lagoon', { grass: 0x67CC48, foliage: 0x45B52B, water: 0x2BCFC4, trees: 3, treeTypes: [['jungle', 35], ['jungle_bush', 40], ['oak', 25]], grassD: 0.3, fern: 0.35, flowerD: 0.02, flowers: ['blue_orchid', 'allium', 'pink_tulip', 'oxeye_daisy'], animals: ['chicken'], sky: 0x6CB6FF });
+biomeDef(29, 'Stone Forest', { grass: 0x5FB843, foliage: 0x3C9E28, water: 0x2C98BE, trees: 3, treeTypes: [['jungle_bush', 55], ['oak', 25], ['jungle', 20]], grassD: 0.4, fern: 0.5, flowerD: 0.01, animals: ['chicken', 'pig'] });
+biomeDef(30, 'Sky Archipelago', { grass: 0x78D058, foliage: 0x58C236, water: 0x3FA8F2, trees: 2.5, treeTypes: [['oak', 40], ['birch', 25], ['cherry', 15], ['big_oak', 20]], grassD: 0.32, flowerD: 0.05, flowers: FLOWERS.concat(FLOWERS2), animals: ['sheep', 'cow', 'pig', 'chicken'], sky: 0x74B0FF });
+biomeDef(31, 'Tunnel Peaks', { grass: 0x86B486, foliage: 0x68A168, water: 0x2E7ED0, trees: 2, treeTypes: [['spruce', 65], ['pine', 35]], grassD: 0.08, fern: 0.3, flowerD: 0.004, animals: ['sheep'] });
+
+// terraced canyon wall profile: s 0 = floor edge, 1 = rim; mostly a staircase of ledges over a smooth slope
+function skyProf(s) {
+  const t = s * 4, i = Math.floor(t), st = (i + smoothstep(0.4, 0.95, t - i)) / 4;
+  return smoothstep(0, 1, s) * 0.42 + st * 0.58;
+}
+function skyKey(i, j) { return (i + 32768) * 65536 + (j + 32768); }
+
+class SkyBase {
+  constructor(gen, o) {
+    o = o || {};
+    this.g = gen; this.seed = gen.seed >>> 0;
+    this.level = clamp(Math.round(+o.level || 5), 1, 10);
+    this.d0 = (this.level - 1) / 9;
+    this.varied = !!o.varied;
+    const r = new RNG(this.seed ^ 0x5C1E5A1D), ns = () => new Noise(r.u32());
+    this.nZW = ns(); this.nBase = ns(); this.nHill = ns(); this.nDet = ns(); this.nCanA = ns(); this.nCanB = ns();
+    this.nCanW = ns(); this.nCanV = ns(); this.nRidge = ns(); this.nOver = ns(); this.nTemp = ns(); this.nHum = ns();
+    this.nDens = ns(); this.nVar = ns();
+    this.cells = new Map(); this.ncache = new Map(); this.cf = new Map(); this.afNear = new Map();
+    this.fSp = new Map(); this.fNd = new Map(); this.fIs = new Map(); this.fHo = new Map(); this.fAr = new Map(); this.fBr = new Map();
+    this._cs = new Array(9); this._ds = new Float64Array(9); this._ck = null; this._c9 = null;
+    // the 8 regions around home show off every terrain: each twice, rotated so that neighbours around the ring differ
+    const ring = [SKZ.CANYON, SKZ.SPIRES, SKZ.ISLES, SKZ.PEAKS, SKZ.CANYON, SKZ.SPIRES, SKZ.ISLES, SKZ.PEAKS];
+    const rr = new RNG(this.seed ^ 0x40E1), rot = rr.int(8), rev = rr.next() < 0.5;
+    this.homeRing = ring.map((_, k) => ring[(((rev ? 8 - k : k) + rot) % 8 + 8) % 8]);
+  }
+  // ---------------------------------------------------------------- regions
+  diffOf(i, j) {
+    if (i === 0 && j === 0) return this.d0 * 0.55;   // the home course is the gentle introduction
+    return this.varied ? clamp(this.d0 + (hashF2(this.seed ^ 0xD1FF, i, j) - 0.5) * 0.95, 0, 1) : this.d0;
+  }
+  // meadows get rarer as the map gets harder
+  rawType(i, j, salt) {
+    const wm = lerp(1.2, 0.3, this.diffOf(i, j)), t = hashF2(this.seed ^ salt, i, j) * (wm + 4);
+    return t < wm ? SKZ.MEADOW : SKZ.CANYON + Math.min(3, Math.floor(t - wm));
+  }
+  cell(i, j) {
+    const k = skyKey(i, j);
+    let c = this.cells.get(k); if (c) return c;
+    const r = new RNG(hash2(this.seed ^ 0x2A0E5, i, j)), home = i === 0 && j === 0;
+    const jx = (r.next() - 0.5) * 0.44 * SKY_CELL, jz = (r.next() - 0.5) * 0.44 * SKY_CELL;
+    const x = i * SKY_CELL + (home ? 0 : jx), z = j * SKY_CELL + (home ? 0 : jz), d = this.diffOf(i, j);
+    let type;
+    if (home) type = SKZ.HOME;
+    else if (Math.abs(i) <= 1 && Math.abs(j) <= 1) type = this.homeRing[SKY_RING.findIndex(p => p[0] === i && p[1] === j)];
+    else {
+      type = this.rawType(i, j, 0x7E01);
+      if (type === this.rawType(i - 1, j, 0x7E01) || type === this.rawType(i, j - 1, 0x7E01)) type = this.rawType(i, j, 0x7E02);
+    }
+    const temp = fbm2(this.nTemp, x / 2600, z / 2600, 2, 0.5);
+    // (the regions around home stay temperate, so the red canyons are always there to see)
+    const cold = type !== SKZ.SPIRES && type !== SKZ.HOME && Math.max(Math.abs(i), Math.abs(j)) > 1 && temp < -0.24 ? 1 : 0;
+    const sv = type === SKZ.SPIRES && r.next() < 0.3 + d * 0.25 ? 1 : 0;   // a stone forest of needles instead of a lagoon
+    c = { i, j, k, x, z, d, type, cold, sv, home, lv: Math.round(d * 9) + 1, salt: r.u32() };
+    c.kind = home ? 'home' : type === SKZ.MEADOW ? 'meadow' : type === SKZ.CANYON ? (cold ? 'fjord' : 'canyon') : type === SKZ.SPIRES ? (sv ? 'forest' : 'spires') : type === SKZ.ISLES ? 'isles' : 'peaks';
+    const words = SKY_NAMES[c.kind] || SKY_NAMES.meadow;
+    c.name = home ? 'Skyhaven' : r.pick(words[0]) + ' ' + r.pick(words[1]);
+    c.label = SKY_KIND[c.kind][0]; c.courseName = (home ? 'Skyhaven ' : c.name + ' ') + SKY_KIND[c.kind][1];
+    if (home) c.name = 'Skyhaven Airbase';
+    this.cells.set(k, c);
+    return c;
+  }
+  cells9(i0, j0) {
+    const k = skyKey(i0, j0);
+    if (this._ck === k) return this._c9;
+    const out = [];
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) out.push(this.cell(i0 + di, j0 + dj));
+    this._ck = k; this._c9 = out;
+    return out;
+  }
+  warp(x, z) { return [x + this.nZW.n2(x / 520, z / 520) * 95, z + this.nZW.n2(x / 520 + 71.3, z / 520 - 33.7) * 95]; }
+  // the region a point belongs to, and how far into it (1 = well inside); cheap enough for the HUD
+  zoneAt(x, z) {
+    const [wx, wz] = this.warp(x, z), cs = this.cells9(Math.floor(wx / SKY_CELL + 0.5), Math.floor(wz / SKY_CELL + 0.5));
+    let b = null, bd = 1e18, sd = 1e18;
+    for (const c of cs) { const dd = Math.hypot(wx - c.x, wz - c.z); if (dd < bd) { sd = bd; bd = dd; b = c; } else if (dd < sd) sd = dd; }
+    return { cell: b, inside: clamp((sd - bd) / SKY_BLEND, 0, 1) };
+  }
+  // ---------------------------------------------------------------- natural terrain (no airfields), cached per column
+  natCol(x, z) {
+    const key = x * 131072 + z;
+    let o = this.ncache.get(key); if (o) return o;
+    if (this.ncache.size > 60000) this.ncache.clear();
+    o = this.computeNat(x, z);
+    this.ncache.set(key, o);
+    return o;
+  }
+  computeNat(x, z) {
+    const [wx, wz] = this.warp(x, z), cs = this.cells9(Math.floor(wx / SKY_CELL + 0.5), Math.floor(wz / SKY_CELL + 0.5)), ds = this._ds;
+    let best = 1e18, bi = 0;
+    for (let k = 0; k < 9; k++) { const c = cs[k], dx = wx - c.x, dz = wz - c.z, dd = Math.sqrt(dx * dx + dz * dz); ds[k] = dd; if (dd < best) { best = dd; bi = k; } }
+    const tw = new Float32Array(6);
+    let tot = 0, d = 0, cold = 0, sv = 0, second = 1e18;
+    for (let k = 0; k < 9; k++) {
+      const e = ds[k] - best; if (k !== bi && ds[k] < second) second = ds[k];
+      if (e >= SKY_BLEND) continue;
+      let w = 1 - e / SKY_BLEND; w *= w; tot += w;
+      const c = cs[k]; tw[c.type] += w; d += w * c.d; cold += w * c.cold; sv += w * c.sv;
+    }
+    for (let t = 0; t < 6; t++) tw[t] /= tot;
+    const o = { tw, cell: cs[bi], zt: cs[bi].type, d: d / tot, cold: cold / tot, sv: sv / tot, inside: clamp((second - best) / SKY_BLEND, 0, 1), cs: -1, cF: 0, cP: 0, eA: 99, eB: 99 };
+    const n1 = fbm2(this.nBase, x / 600, z / 600, 3, 0.5), n2 = fbm2(this.nHill, x / 170, z / 170, 3, 0.5), det = fbm2(this.nDet, x / 40, z / 40, 2, 0.5);
+    o.n1 = n1; o.n2 = n2; o.det = det;
+    let h = 0;
+    if (tw[0] > 0) h += tw[0] * (69 + n1 * 7 + n2 * 4 + det * 1.4);
+    if (tw[1] > 0) h += tw[1] * (67 + n1 * 15 + n2 * 7 + det * 2.2);
+    if (tw[2] > 0) h += tw[2] * this.canyonH(x, z, o, n1, n2, det);
+    if (tw[3] > 0) h += tw[3] * lerp(51 + n2 * 6 + det * 2 + smoothstep(0.18, 0.42, n1) * 16, 67 + n2 * 5 + det * 2, o.sv);
+    if (tw[4] > 0) h += tw[4] * (64 + n1 * 11 + n2 * 6 + det * 2);
+    if (tw[5] > 0) h += tw[5] * this.peaksH(x, z, n2, det);
+    o.hn = Math.min(h, CH - 6);
+    o.temp = fbm2(this.nTemp, x / 2600, z / 2600, 2, 0.5) * 1.6 - o.cold * 0.6;
+    o.hum = fbm2(this.nHum, x / 1300, z / 1300, 2, 0.5) * 1.6;
+    return o;
+  }
+  // canyon noise of both families at an integer column (warped together), cached: [main, side]
+  cfv(x, z) {
+    const key = x * 131072 + z;
+    let v = this.cf.get(key); if (v) return v;
+    if (this.cf.size > 90000) this.cf.clear();
+    const wx = x + this.nCanW.n2(x / 260, z / 260) * 46, wz = z + this.nCanW.n2(x / 260 + 19.1, z / 260 - 7.7) * 46;
+    v = [fbm2(this.nCanA, wx / 540, wz / 540, 2, 0.5), fbm2(this.nCanB, wx / 300, wz / 300, 2, 0.5)];
+    this.cf.set(key, v);
+    return v;
+  }
+  // canyon field value and gradient (per block) of a family at an integer column
+  cgrad(x, z, fam) {
+    const v = this.cfv(x, z)[fam], gx = (this.cfv(x + 1, z)[fam] - this.cfv(x - 1, z)[fam]) * 0.5, gz = (this.cfv(x, z + 1)[fam] - this.cfv(x, z - 1)[fam]) * 0.5;
+    return [v, gx, gz];
+  }
+  // distance (blocks) from the centre line of the nearest canyon of a family
+  cdist(x, z, fam) { const [v, gx, gz] = this.cgrad(x, z, fam); return Math.abs(v) / Math.max(Math.hypot(gx, gz), 0.0011); }
+  // two families of winding canyons cut into a stepped plateau: wide main canyons with a river, and narrower side
+  // canyons whose floors hang a third of the way up the walls. Flooded to the walls in the cold (fjords)
+  canyonH(x, z, o, n1, n2, det) {
+    const d = o.d, cold = o.cold;
+    const P = lerp(113, 127, cold) + n1 * 12 + Math.round(n2 * 3) * 1.6, F = lerp(61 + det * 1.2, 40, cold);
+    const vA = 1 + 0.38 * clamp(this.nCanV.n2(x / 230, z / 230) * 1.4, -1, 1), vB = 1 + 0.3 * clamp(this.nCanV.n2(x / 170 + 50, z / 170) * 1.4, -1, 1);
+    // (the narrows still leave room for a jet down the bottom)
+    const fwA = Math.max(lerp(30, 7.5, d) * vA, lerp(14, 6.5, d)), wwA = lerp(36, 13, d) * lerp(1, 0.75, cold), fwB = Math.max(lerp(17, 5.5, d) * vB, 5), wwB = lerp(24, 10, d);
+    const eA = this.cdist(x, z, 0), eB = this.cdist(x, z, 1);
+    const sA = clamp((eA - fwA) / wwA, 0, 1), sB = clamp((eB - fwB) / wwB, 0, 1), FB = F + (P - F) * 0.36;
+    const hA = F + (P - F) * skyProf(sA), hB = FB + (P - FB) * skyProf(sB);
+    let h, s, f;
+    if (hA <= hB) { h = hA; s = sA; f = F; } else { h = hB; s = sB; f = FB; }
+    // a river down the middle of the main canyons
+    if (cold < 0.5) { const rw = Math.max(3, fwA * 0.4); if (eA < rw) { const q = eA / rw, rv = 58.4 + 3.4 * q * q; if (rv < h) { h = rv; s = 0; } } }
+    o.cs = s > 0.01 && s < 0.99 ? s : -1; o.cF = f; o.cP = P; o.eA = eA; o.eB = eB; o.fwA = fwA; o.wwA = wwA; o.cFloor = F;
+    return h;
+  }
+  // sharp ridged ranges with deep valleys between them; some massifs stand taller than others
+  peaksH(x, z, n2, det) {
+    const r = fbm2(this.nRidge, x / 430, z / 430, 4, 0.5), m = fbm2(this.nRidge, x / 900 + 33.3, z / 900 - 17.1, 2, 0.5);
+    let k = 1 - Math.abs(r) * 1.75; if (k < 0) k = 0;
+    return 70 + (96 + m * 40) * Math.pow(k, 2.2) + n2 * 9 + det * 3;
+  }
+  // ---------------------------------------------------------------- final columns (the overworld's climate)
+  climate(x, z, o) {
+    const n = this.natCol(x, z);
+    let h = n.hn;
+    o.nat = n; o.tw = n.tw; o.zt = n.zt; o.cell = n.cell; o.d = n.d; o.cold = n.cold; o.sv = n.sv; o.af = null;
+    // airfields flatten their ground and keep their approach paths clear
+    const afs = this.airfieldsNear(x, z);
+    for (let k = 0; k < afs.length; k++) h = this.airShape(afs[k], x, z, h, o);
+    o.h = h;
+    o.cs = Math.abs(h - n.hn) < 0.3 ? n.cs : -1;
+    o.biome = this.biomeOf(n, o);
+    // what the rest of the overworld code reads
+    o.temp = n.temp; o.hum = n.hum; o.det = n.det; o.m = n.zt === SKZ.PEAKS ? 0.5 : 0; o.hill = 0; o.amp = 0; o.cont = 0.3;
+    o.river = 0; o.swamp = 0; o.bad = 0; o.mush = 0; o.ridge = 0; o.variant = n.n2;
+    return o;
+  }
+  biomeOf(n, o) {
+    switch (n.zt) {
+      case SKZ.CANYON: return n.cold > 0.5 ? BIO.FJORD : BIO.RED_CANYON;
+      case SKZ.SPIRES: return n.sv > 0.5 ? BIO.STONE_FOREST : BIO.SPIRE_LAGOON;
+      case SKZ.ISLES: return n.cold > 0.5 ? BIO.SNOWY_TAIGA : BIO.SKY_ISLES;
+      case SKZ.PEAKS: return n.cold > 0.5 || o.h > 156 ? BIO.SNOWY_PEAKS : BIO.HIGH_PEAKS;
+    }
+    // meadows (and home): the classic biomes by climate, plain grass around the airfields
+    if (o.af || o.h < SEA - 0.5) return n.cold > 0.5 ? BIO.SNOWY_PLAINS : BIO.PLAINS;
+    if (n.cold > 0.5) return n.hum < 0 ? BIO.SNOWY_PLAINS : BIO.SNOWY_TAIGA;
+    const t = n.temp, hu = n.hum, v = n.n2;
+    if (t > 0.5) return hu < 0.1 ? BIO.SAVANNA : BIO.PLAINS;
+    if (hu < -0.25) return BIO.PLAINS;
+    if (hu < 0.15) return v > 0.25 ? BIO.FLOWER_FOREST : v < -0.3 ? BIO.CHERRY_GROVE : BIO.PLAINS;
+    return v > 0 ? BIO.FOREST : BIO.BIRCH_FOREST;
+  }
+  // airfields of the 3x3 grid cells around a column (the only ones whose pad or approach paths can reach it)
+  airfieldsNear(x, z) {
+    const i = Math.floor(x / SKY_CELL + 0.5), j = Math.floor(z / SKY_CELL + 0.5), k = skyKey(i, j);
+    let l = this.afNear.get(k);
+    if (!l) {
+      l = [];
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const a = this.airfield(this.cell(i + di, j + dj)); if (a) l.push(a); }
+      this.afNear.set(k, l);
+    }
+    return l;
+  }
+  // an airfield's effect on one column: the pad is levelled (feathered into the terrain around it) and a corridor
+  // off both ends of the runway is cut down to a 1:7 slope, so there is always a clear approach and climb-out
+  airShape(af, x, z, h, o) {
+    const dx = x - af.x, dz = z - af.z, a = dx * af.fx + dz * af.fz, b = dx * af.rx + dz * af.rz;
+    const ea = Math.max(0, Math.abs(a) - af.padA), eb = b < af.padB0 ? af.padB0 - b : b > af.padB1 ? b - af.padB1 : 0;
+    const out = ea > 0 || eb > 0 ? Math.hypot(ea, eb) : 0;
+    if (out < 28) {
+      const k = 1 - smoothstep(0, 28, out);
+      h = lerp(h, af.y + 1, k);
+      if (out === 0 && o) { o.af = af; o.afa = a; o.afb = b; }
+    }
+    const ae = Math.abs(a) - af.padA;
+    if (ae > 0 && ae < 380) {
+      const half = af.W + 18 + ae * 0.22, e = 1 - smoothstep(half, half + 26, Math.abs(b));
+      if (e > 0) { const cap = af.y + 2 + ae * 0.14; if (h > cap) h = lerp(h, cap, e); }
+    }
+    return h;
+  }
+  // true where a feature (spire, island, hoop, arch) would get in the way of an airfield: over the pad, or under the
+  // glide path off either end of a runway
+  airspace(x, z, yb) {
+    const afs = this.airfieldsNear(Math.floor(x), Math.floor(z));
+    for (let k = 0; k < afs.length; k++) {
+      const af = afs[k], dx = x - af.x, dz = z - af.z, a = dx * af.fx + dz * af.fz, b = dx * af.rx + dz * af.rz;
+      if (Math.abs(a) < af.padA + 30 && b > af.padB0 - 30 && b < af.padB1 + 30 && yb < af.y + 75) return true;
+      const ae = Math.abs(a) - af.padA;
+      if (ae > -30 && ae < 420 && Math.abs(b) < af.W + 40 + Math.max(0, ae) * 0.25 && yb < af.y + 34 + Math.max(0, ae) * 0.16) return true;
+    }
+    return false;
+  }
+  airspaceAround(x, z, r, yb) { return this.airspace(x, z, yb) || this.airspace(x + r, z, yb) || this.airspace(x - r, z, yb) || this.airspace(x, z + r, yb) || this.airspace(x, z - r, yb); }
+  // ---------------------------------------------------------------- spires (lagoons): one candidate per 40-block cell
+  spire(gi, gj) {
+    const key = skyKey(gi, gj);
+    let s = this.fSp.get(key); if (s !== undefined) return s;
+    if (this.fSp.size > 30000) this.fSp.clear();
+    s = null;
+    const r = new RNG(hash2(this.seed ^ 0x5F1E0, gi, gj));
+    const x = gi * 40 + 12 + r.next() * 16, z = gj * 40 + 12 + r.next() * 16, n = this.natCol(Math.floor(x), Math.floor(z));
+    if (n.tw[SKZ.SPIRES] > 0.55 && n.sv < 0.5) {
+      const d = n.d, clu = clamp(0.75 + this.nDens.n2(x / 260, z / 260) * 0.9, 0.25, 1.3);
+      if (r.next() < lerp(0.32, 0.72, d) * clu) {
+        const r0 = lerp(10.5, 5.5, d) * (0.72 + r.next() * 0.55), lo = lerp(108, 96, d);
+        const top = Math.min(CH - 5, Math.round(lo + r.next() * (182 - lo)));
+        s = { x, z, r0, base: Math.floor(n.hn) - 6, top, lx: (r.next() - 0.5) * 0.12, lz: (r.next() - 0.5) * 0.12, ph1: r.next() * SKY_TAU, ph2: r.next() * SKY_TAU, mat: r.int(7), gi, gj, d, needle: false };
+        // a pair of neighbours may be joined by a natural rock bridge; big spires sometimes have a window through them
+        const pb = lerp(0.07, 0.3, d);
+        s.bx = r.next() < pb; s.bz = r.next() < pb;
+        if (r0 >= 7.5 && r.next() < lerp(0.08, 0.32, d)) {
+          const ey = Math.round(lerp(s.base + 30, s.top - 18, r.next())), er = Math.max(5.6, Math.min(r0 * 0.62, lerp(9.5, 6, d)));
+          const t = (ey - s.base) / (s.top - s.base), rAt = r0 * (1.16 - 0.36 * t);
+          if (rAt >= er + 2.2 && ey > 74) s.eye = { y: ey, r: er, a: r.next() * Math.PI };
+        }
+        if (this.airspaceAround(x, z, r0 + 4, s.base)) s = null;
+      }
+    }
+    this.fSp.set(key, s);
+    return s;
+  }
+  // needles (stone forest): thin pinnacles on a 22-block grid
+  needle(gi, gj) {
+    const key = skyKey(gi, gj);
+    let s = this.fNd.get(key); if (s !== undefined) return s;
+    if (this.fNd.size > 40000) this.fNd.clear();
+    s = null;
+    const r = new RNG(hash2(this.seed ^ 0x4EED1, gi, gj));
+    const x = gi * 22 + 7 + r.next() * 8, z = gj * 22 + 7 + r.next() * 8, n = this.natCol(Math.floor(x), Math.floor(z));
+    if (n.tw[SKZ.SPIRES] > 0.55 && n.sv >= 0.5) {
+      const d = n.d, clu = clamp(0.8 + this.nDens.n2(x / 200 + 9, z / 200) * 0.8, 0.3, 1.25);
+      if (r.next() < lerp(0.55, 0.88, d) * clu) {
+        const r0 = lerp(4.4, 2.5, d) * (0.75 + r.next() * 0.5), ground = Math.floor(n.hn);
+        const top = Math.min(CH - 5, ground + Math.round(22 + r.next() * lerp(46, 64, d)));
+        s = { x, z, r0, base: ground - 4, top, lx: (r.next() - 0.5) * 0.09, lz: (r.next() - 0.5) * 0.09, ph1: r.next() * SKY_TAU, ph2: r.next() * SKY_TAU, mat: r.int(7), gi, gj, d, needle: true, bx: false, bz: false };
+        if (this.airspaceAround(x, z, r0 + 3, s.base)) s = null;
+      }
+    }
+    this.fNd.set(key, s);
+    return s;
+  }
+  // per-height radius of a spire (and the phase of its ribbing), built once per spire
+  spireProf(s) {
+    if (s.prof) return s.prof;
+    const n = s.top - s.base + 1, r = new Float32Array(n), cp = new Float32Array(n), sp = new Float32Array(n);
+    let rm = 0;
+    for (let k = 0; k < n; k++) {
+      const y = s.base + k, t = k / (n - 1);
+      let rr = s.r0 * (1.16 - 0.36 * t) * (1 + 0.06 * Math.sin(y * 0.17 + s.ph2));
+      if (s.top - y < 4) rr *= 1.06 + (4 - (s.top - y)) * 0.03;
+      r[k] = rr; if (rr > rm) rm = rr;
+      cp[k] = Math.cos(s.ph1 + y * 0.09); sp[k] = Math.sin(s.ph1 + y * 0.09);
+    }
+    const lean = (Math.abs(s.lx) + Math.abs(s.lz)) * n;
+    return s.prof = { r, cp, sp, rmax: rm * 1.2 + lean + 1 };
+  }
+  spireSolid(s, x, y, z) {
+    const k = Math.floor(y) - s.base; if (k < 0 || y > s.top + 1) return false;
+    const P = this.spireProf(s), kk = Math.min(k, P.r.length - 1);
+    const dx = x - s.x - s.lx * kk, dz = z - s.z - s.lz * kk, d2 = dx * dx + dz * dz;
+    if (d2 > P.rmax * P.rmax) return false;
+    const th = Math.atan2(dz, dx), rr = P.r[kk] * (1 + 0.12 * (Math.sin(3 * th) * P.cp[kk] + Math.cos(3 * th) * P.sp[kk]) + 0.06 * Math.sin(5 * th + s.ph2));
+    if (d2 >= rr * rr) return false;
+    if (s.eye && this.inEye(s, x, y, z)) return false;
+    return true;
+  }
+  inEye(s, x, y, z) {
+    const e = s.eye, ax = Math.cos(e.a), az = Math.sin(e.a);
+    const k = e.y - s.base, cx = s.x + s.lx * k, cz = s.z + s.lz * k;
+    const u = (x - cx) * -az + (z - cz) * ax, v = y - e.y;
+    return u * u + v * v < e.r * e.r;
+  }
+  // rock bridge from spire s to its +x (dir 0) or +z (dir 1) neighbour
+  bridge(s, dir) {
+    if (!s || !(dir ? s.bz : s.bx)) return null;
+    const key = skyKey(s.gi * 2 + dir, s.gj);
+    let b = this.fBr.get(key); if (b !== undefined) return b;
+    if (this.fBr.size > 20000) this.fBr.clear();
+    b = null;
+    const t = dir ? this.spire(s.gi, s.gj + 1) : this.spire(s.gi + 1, s.gj);
+    if (t) {
+      const L = Math.hypot(t.x - s.x, t.z - s.z), r = new RNG(hash2(this.seed ^ 0xB81D6E, s.gi * 2 + dir, s.gj));
+      const lo = Math.max(84, Math.max(s.base, t.base) + 30), hi = Math.min(s.top, t.top) - 10;
+      if (L > s.r0 + t.r0 + 12 && L < 78 && hi > lo) b = { ax: s.x, az: s.z, bx: t.x, bz: t.z, yb: Math.round(lerp(lo, hi, r.next())), T: 3 + r.next() * 2 + s.d * 2.5, W: 2 + r.next() * 1.4 };
+    }
+    this.fBr.set(key, b);
+    return b;
+  }
+  bridgeSpan(b, x, z) {
+    const dx = b.bx - b.ax, dz = b.bz - b.az, L2 = dx * dx + dz * dz;
+    const t = clamp(((x - b.ax) * dx + (z - b.az) * dz) / L2, 0, 1), px = b.ax + dx * t, pz = b.az + dz * t, l = Math.hypot(x - px, z - pz);
+    if (l > b.W) return null;
+    const q = Math.abs(2 * t - 1), th = b.T * (0.45 + 0.55 * q * q);
+    return [Math.floor(b.yb - th), b.yb + (l < b.W * 0.6 ? 1 : 0)];
+  }
+  // ---------------------------------------------------------------- floating islands: two layers on 76-block grids
+  island(layer, gi, gj) {
+    const key = skyKey(gi * 2 + layer, gj);
+    let s = this.fIs.get(key); if (s !== undefined) return s;
+    if (this.fIs.size > 20000) this.fIs.clear();
+    s = null;
+    const r = new RNG(hash2(this.seed ^ (layer ? 0x15A2 : 0x15A1), gi, gj)), off = layer ? 38 : 0;
+    const x = gi * 76 + off + 16 + r.next() * 44, z = gj * 76 + off + 16 + r.next() * 44, n = this.natCol(Math.floor(x), Math.floor(z));
+    const wI = n.tw[SKZ.ISLES], wM = n.tw[SKZ.MEADOW] + n.tw[SKZ.HOME], d = n.d;
+    const clu = clamp(0.8 + this.nDens.n2(x / 330 - 40, z / 330) * 0.8, 0.3, 1.3);
+    const p = wI > 0.55 ? (layer ? lerp(0.22, 0.38, d) : lerp(0.42, 0.62, d)) * clu : wM > 0.6 && layer === 1 ? 0.07 : 0;
+    if (p > 0 && r.next() < p) {
+      const R = layer ? 8 + r.next() * 14 : 9 + r.next() * 22;
+      let Y = Math.round(layer ? 140 + r.next() * 32 : 96 + r.next() * 30), depth = R * (0.75 + r.next() * 0.55);
+      if (layer) depth = Math.min(depth, Y - 134);
+      if (Y - depth < n.hn + 16) Y = Math.round(n.hn + 16 + depth);
+      if (Y < CH - 8 && depth > 3) {
+        s = { x, z, R, Y, depth, ph1: r.next() * SKY_TAU, ph2: r.next() * SKY_TAU, ph3: r.next() * SKY_TAU, layer, gi, gj, d, cold: n.cold > 0.5, salt: r.u32() };
+        if (R >= 11 && r.next() < 0.45) s.fall = r.next() * SKY_TAU;
+        if (r.next() < lerp(0.05, 0.45, d)) { s.chains = []; const nc = 2 + r.int(2); for (let k = 0; k < nc; k++) s.chains.push([r.next() * SKY_TAU, 0.3 + r.next() * 0.3]); }
+        // debris: a cloud of small floating rocks around islands on the harder maps
+        if (d > 0.28 && wI > 0.55) {
+          const nd = Math.floor((d - 0.28) * 26 * r.next());
+          if (nd > 0) {
+            s.debris = [];
+            for (let k = 0; k < nd; k++) {
+              const a = r.next() * SKY_TAU, dist = R * 1.3 + 5 + r.next() * R * 1.3, ry = Y - 10 + r.next() * 30;
+              s.debris.push({ x: x + Math.cos(a) * dist, y: Math.min(CH - 4, ry), z: z + Math.sin(a) * dist, r: 0.9 + r.next() * 1.7 });
+            }
+          }
+        }
+        if (this.airspaceAround(x, z, R * 1.3 + 4, Y - depth - 2)) s = null;
+      }
+    }
+    this.fIs.set(key, s);
+    return s;
+  }
+  // vertical extent [bottom, top] of an island at a column, or null
+  isleSpan(s, x, z) {
+    const dx = x - s.x, dz = z - s.z, d2 = dx * dx + dz * dz, Rm = s.R * 1.32;
+    if (d2 > Rm * Rm) return null;
+    const th = Math.atan2(dz, dx), Rt = s.R * (1 + 0.15 * Math.sin(2 * th + s.ph1) + 0.09 * Math.sin(3 * th + s.ph2) + 0.05 * Math.sin(5 * th + s.ph3));
+    const rho = Math.sqrt(d2) / Rt; if (rho >= 1) return null;
+    const xi = Math.floor(x), zi = Math.floor(z), hh = hashF2(s.salt, xi, zi);
+    const top = s.Y + Math.floor(1.6 * (1 - rho * rho) + hh * 0.9);
+    let bot = s.Y - Math.floor(s.depth * Math.pow(1 - rho, 0.62) * (0.84 + 0.16 * Math.sin(4 * th + s.ph1 * 2))) - 1;
+    if (hh < 0.12) bot -= 1 + Math.floor(hh * 40);   // dangling rocks under the island
+    return [bot, top];
+  }
+  // ---------------------------------------------------------------- hoops: giant floating stone rings, 180-block grid
+  hoop(gi, gj) {
+    const key = skyKey(gi, gj);
+    let h = this.fHo.get(key); if (h !== undefined) return h;
+    if (this.fHo.size > 20000) this.fHo.clear();
+    h = null;
+    const r = new RNG(hash2(this.seed ^ 0x400B5, gi, gj));
+    const x = gi * 180 + 40 + r.next() * 100, z = gj * 180 + 40 + r.next() * 100, n = this.natCol(Math.floor(x), Math.floor(z)), zt = n.zt;
+    const p = n.inside < 0.35 ? 0 : zt === SKZ.ISLES ? 0.55 : zt === SKZ.MEADOW || zt === SKZ.HOME ? 0.3 : zt === SKZ.SPIRES ? 0.3 : 0;
+    if (p > 0 && r.next() < p) {
+      const d = n.d, Ri = lerp(19, 8.5, d) * (0.85 + r.next() * 0.35), wr = 3 + r.next() * 2.5, th = 1.6 + r.next() * 1.2;
+      let y = Math.max(n.hn, SEA) + Ri + wr + 12 + r.next() * 40;
+      if (y + Ri + wr > CH - 4) y = CH - 4 - Ri - wr;
+      const a = r.next() * Math.PI;
+      h = { x, y: Math.round(y), z, Ri, wr, th, nx: Math.cos(a), nz: Math.sin(a), salt: r.u32() };
+      // nothing may stand inside the hoop or cut through its ring
+      if (this.airspaceAround(x, z, Ri + wr, y - Ri - wr)) h = null;
+      else {
+        for (let k = 0; k < 16 && h; k++) {
+          const t = k / 16 * SKY_TAU, c = Math.cos(t), sn = Math.sin(t);
+          for (const rad of [0, Ri * 0.6, Ri + wr * 0.5]) if (this.solidAt(x - h.nz * c * rad, h.y + sn * rad, z + h.nx * c * rad, null, true)) { h = null; break; }
+        }
+      }
+    }
+    this.fHo.set(key, h);
+    return h;
+  }
+  // the one or two vertical runs a hoop fills in a column: [y0, y1, y2, y3] (y2 < 0: a single run)
+  hoopSpan(h, x, z, out) {
+    const dx = x - h.x, dz = z - h.z, a = dx * h.nx + dz * h.nz;
+    if (a > h.th || a < -h.th) return false;
+    const u = -dx * h.nz + dz * h.nx, Ro = h.Ri + h.wr;
+    if (u > Ro || u < -Ro) return false;
+    const outer = Math.sqrt(Ro * Ro - u * u), inner = Math.abs(u) < h.Ri ? Math.sqrt(h.Ri * h.Ri - u * u) : 0;
+    if (!inner) { out[0] = Math.ceil(h.y - outer - 0.5); out[1] = Math.floor(h.y + outer - 0.5); out[2] = -1; return out[1] >= out[0]; }
+    out[0] = Math.ceil(h.y - outer - 0.5); out[1] = Math.floor(h.y - inner - 0.5); out[2] = Math.ceil(h.y + inner - 0.5); out[3] = Math.floor(h.y + outer - 0.5);
+    return true;
+  }
+  // ---------------------------------------------------------------- natural arches across the main canyons, 210-block grid
+  arch(gi, gj) {
+    const key = skyKey(gi, gj);
+    let a = this.fAr.get(key); if (a !== undefined) return a;
+    if (this.fAr.size > 20000) this.fAr.clear();
+    a = null;
+    const r = new RNG(hash2(this.seed ^ 0xA6C4E5, gi, gj));
+    const p = this.snapCanyon(gi * 210 + 30 + r.next() * 150, gj * 210 + 30 + r.next() * 150, 0);
+    if (p) {
+      const n = this.natCol(p[0], p[1]);
+      if (n.tw[SKZ.CANYON] > 0.85 && r.next() < lerp(0.4, 0.92, n.d) && n.cP - n.cFloor > 34) {
+        const d = n.d, [, gx, gz] = this.cgrad(p[0], p[1], 0), gl = Math.hypot(gx, gz) || 1, F = n.cFloor, P = n.cP;
+        const roof = r.next() < d * 0.3;
+        a = { x: p[0] + 0.5, z: p[1] + 0.5, nx: gx / gl, nz: gz / gl, tx: -gz / gl, tz: gx / gl, hs: (n.fwA + n.wwA) * 1.1 + 8, P,
+          Ya: F + (P - F) * lerp(0.74, 0.36, d) * (0.88 + r.next() * 0.2), T: lerp(4, 9, d) + r.next() * 3, W: roof ? 16 + r.next() * 20 : 4 + r.next() * 5, F };
+        if (a.Ya - F < 18 || this.airspaceAround(a.x, a.z, a.hs, a.Ya)) a = null;
+      }
+    }
+    this.fAr.set(key, a);
+    return a;
+  }
+  archSpan(a, x, z) {
+    const dx = x - a.x, dz = z - a.z, u = dx * a.nx + dz * a.nz, v = dx * a.tx + dz * a.tz;
+    if (u > a.hs || u < -a.hs || v > a.W * 0.5 + 2 || v < -a.W * 0.5 - 2) return null;
+    const q = Math.abs(u) / a.hs, wv = a.W * 0.5 * (0.82 + 0.18 * q) + Math.sin(u * 0.3 + a.x) * 0.6;
+    if (Math.abs(v) > wv) return null;
+    const under = a.Ya + (a.P + 2 - a.Ya) * Math.pow(q, 2.6), top = Math.min(a.P + 2, a.Ya + a.T + 4 * q * q + 2 * q);
+    if (top <= under) return null;
+    return [Math.floor(under), Math.floor(top)];
+  }
+  // Newton steps onto the centre line of a canyon family; null if it does not settle
+  snapCanyon(x, z, fam) {
+    let px = x, pz = z;
+    for (let k = 0; k < 10; k++) {
+      const xi = Math.round(px), zi = Math.round(pz), [v, gx, gz] = this.cgrad(xi, zi, fam), g2 = gx * gx + gz * gz;
+      if (g2 < 1e-9) return null;
+      const sx = v * gx / g2, sz = v * gz / g2;
+      if (Math.abs(sx) < 0.6 && Math.abs(sz) < 0.6) return [xi, zi];
+      px = xi - clamp(sx, -40, 40); pz = zi - clamp(sz, -40, 40);
+    }
+    return null;
+  }
+  // ---------------------------------------------------------------- queries
+  // is (x, y, z) solid? Terrain (with room for canyon-wall overhangs), the natural features and, given a region
+  // plan, its own tunnels and course features. Used to keep gates, hoops and courses in clear air
+  solidAt(x, y, z, P, noHoops) {
+    if (y < 1) return true;
+    if (y >= CH) return false;
+    const c = this.g.climateCached(Math.floor(x), Math.floor(z));
+    if (y < c.h + (c.cs >= 0 ? 4 : 0.6)) return !(P && P.tubes.length && this.inTubes(P, x, y, z));
+    if (this.featSolid(x, y, z, c, noHoops)) return true;
+    return !!(P && P.feats.length && this.planFeatSolid(P, x, y, z));
+  }
+  featSolid(x, y, z, c, noHoops) {
+    const tw = c.tw;
+    if (tw[SKZ.SPIRES] > 0) {
+      const sv = c.sv >= 0.5, G = sv ? 22 : 40, gi = Math.floor(x / G), gj = Math.floor(z / G);
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        const s = sv ? this.needle(gi + di, gj + dj) : this.spire(gi + di, gj + dj);
+        if (!s) continue;
+        if (y <= s.top + 1 && this.spireSolid(s, x, y, z)) return true;
+        // the trees on a spire's cap
+        if (!s.needle && y > s.top && y < s.top + 11) { const k = s.top - s.base, P = this.spireProf(s), rt = P.r[k] * 0.85; if (rt >= 4 && Math.hypot(x - s.x - s.lx * k, z - s.z - s.lz * k) < rt * 0.45 + 4) return true; }
+        for (let k = 0; k < 2; k++) { const b = this.bridge(s, k); if (b) { const sp = this.bridgeSpan(b, x, z); if (sp && y >= sp[0] && y <= sp[1] + 1) return true; } }
+      }
+    }
+    if (tw[SKZ.ISLES] + tw[SKZ.MEADOW] + tw[SKZ.HOME] > 0) {
+      for (let layer = 0; layer < 2; layer++) {
+        const off = layer ? 38 : 0, gi = Math.floor((x - off) / 76), gj = Math.floor((z - off) / 76);
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+          const s = this.island(layer, gi + di, gj + dj); if (!s) continue;
+          const sp = this.isleSpan(s, x, z); if (sp && y >= sp[0] && y <= sp[1] + 1) return true;
+          // the trees on an island
+          if (y > s.Y && y < s.Y + 14 && s.R * s.R / 110 >= 0.5 && Math.hypot(x - s.x, z - s.z) < s.R * 0.6 + 4) return true;
+          if (s.debris) for (const q of s.debris) { const dx = x - q.x, dy = y - q.y, dz = z - q.z, rr = q.r + 1; if (dx * dx + dy * dy + dz * dz < rr * rr) return true; }
+        }
+      }
+    }
+    if (tw[SKZ.CANYON] > 0) {
+      const gi = Math.floor(x / 210), gj = Math.floor(z / 210);
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        const a = this.arch(gi + di, gj + dj); if (!a) continue;
+        const sp = this.archSpan(a, x, z); if (sp && y >= sp[0] - 1 && y <= sp[1] + 1) return true;
+      }
+    }
+    if (!noHoops) {
+      const gi = Math.floor(x / 180), gj = Math.floor(z / 180), o = this._hs || (this._hs = [0, 0, 0, 0]);
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        const h = this.hoop(gi + di, gj + dj); if (!h || !this.hoopSpan(h, x, z, o)) continue;
+        if (y >= o[0] - 1 && y <= o[1] + 1) return true;
+        if (o[2] >= 0 && y >= o[2] - 1 && y <= o[3] + 1) return true;
+      }
+    }
+    return false;
+  }
+}
+
+// ===== shared/21_skyways_courses.js =====
+// ============================================================================
+//  SKYWAYS (2/2): airfields, race courses, tunnels, and building the chunks.
+//  Every region gets an airstrip (spawn gets a whole airbase) and a course of glowing ring gates laid through its
+//  signature terrain: down the centre line of a canyon (under its arches), a slalom between spires (through their
+//  windows, under their bridges), a circuit through hoops and under islands, a dash through tunnels bored along the
+//  course itself, or a loop over the meadows past rock pillars and arches built around the gates. Every gate is
+//  checked for clear air around its ring and along its approach before it is kept.
+// ============================================================================
+// 3x5 digits for runway designators, top row first
+const SKY_DIGITS = ['111101101101111', '010110010010111', '111001111100111', '111001111001111', '101101111001001', '111100111001111', '111100111101111', '111001001001001', '111101111101111', '111101111001111'];
+const SKY_GATE_MATS = [   // [segment A, segment B, light] for course gates, start, finish and boost rings
+  ['orange_concrete', 'white_concrete', 'sea_lantern'], ['lime_concrete', 'white_concrete', 'verdant_froglight'],
+  ['black_concrete', 'white_concrete', 'pearlescent_froglight'], ['cyan_concrete', 'light_blue_concrete', 'sea_lantern']];
+function skyAngle(a, b) { let d = b - a; while (d > Math.PI) d -= SKY_TAU; while (d < -Math.PI) d += SKY_TAU; return d; }
+
+class SkyGen extends SkyBase {
+  constructor(gen, o) {
+    super(gen, o);
+    this.spirePal = [B.stone, B.andesite, B.stone, B.calcite, B.stone, B.andesite, B.tuff, B.stone];
+    this.needlePal = [B.stone, B.andesite, B.tuff, B.stone, B.cobblestone, B.andesite];
+    this.fjordPal = [B.stone, B.stone, B.andesite, B.stone, B.diorite, B.stone, B.blue_ice, B.stone, B.andesite, B.calcite, B.stone, B.tuff];
+    this.gateMats = SKY_GATE_MATS.map(m => m.map(n => B[n]));
+  }
+  // ================================================================ airfields
+  // one per region: spawn's is a full airbase, the others an airstrip with a hangar. Placed where the ground is
+  // flattest and the approach paths need the least cutting, with the runway on a grid axis so its markings stay
+  // crisp. The departure end faces the more open approach.
+  airfield(c) {
+    if (c.air !== undefined) return c.air;
+    c.air = null;
+    const r = new RNG(hash2(this.seed ^ 0xA1F1E1D, c.i, c.j)), home = c.home, d = c.d;
+    const L = home ? 104 : Math.round(lerp(92, 60, d)), W = home ? 8 : d < 0.5 ? 6 : 5;
+    const AD = home ? 30 : 16, AA = home ? 62 : 26, HD = home ? 24 : 13;
+    const padA = L + 14, padB0 = -W - 10, padB1 = W + 12 + AD + HD + 4;
+    const lagoon = c.type === SKZ.SPIRES && !c.sv;
+    const cands = [[c.x, c.z]];
+    if (!home) for (const rad of [70, 140, 200]) for (let k = 0; k < 7; k++) { const a = (k + r.next() * 0.6) / 7 * SKY_TAU; cands.push([c.x + Math.cos(a) * rad, c.z + Math.sin(a) * rad]); }
+    let best = null, bc = 1e18;
+    for (const [px, pz] of cands) for (let ax = 0; ax < 2; ax++) {
+      const cx = Math.round(px), cz = Math.round(pz), fx = ax ? 0 : 1, fz = ax ? 1 : 0, rx = -fz, rz = fx;
+      let sum = 0, n = 0, bad = 0;
+      const hs = [];
+      for (let a = -padA; a <= padA; a += 16) for (let b = padB0; b <= padB1; b += 12) {
+        const nc = this.natCol(cx + a * fx + b * rx, cz + a * fz + b * rz);
+        if (!home && (nc.cell !== c || nc.tw[c.type] < 0.55)) bad++;
+        let hh = nc.hn; if (lagoon && hh < SEA + 1) hh = SEA + 1.5;
+        hs.push(hh); sum += hh; n++;
+      }
+      const mean = sum / n, y0 = Math.max(SEA + 2, Math.round(mean));
+      let dev = 0; for (const hh of hs) dev += Math.abs(hh - mean);
+      const cut = [0, 0];
+      for (let e = 0; e < 2; e++) for (let ae = 10; ae <= 370; ae += 30) for (const b of [0, -(W + 12), W + 12]) {
+        const a = (e ? 1 : -1) * (padA + ae), hh = this.natCol(cx + a * fx + b * rx, cz + a * fz + b * rz).hn, cap = y0 + 2 + ae * 0.14;
+        if (hh > cap) cut[e] += hh - cap;
+      }
+      // the course starts ~200 blocks off the departure end (which faces the middle): keep that well inside the region
+      const along = ax ? c.z - cz : c.x - cx, sg = along >= 0 ? 1 : -1, sx = cx + fx * sg * (padA + 200), sz = cz + fz * sg * (padA + 200);
+      const cost = dev / n * 10 + (cut[0] + cut[1]) * 0.12 + bad * 40 + Math.hypot(cx - c.x, cz - c.z) * 0.02 + (home ? 0 : Math.max(0, Math.hypot(sx - c.x, sz - c.z) - 220) * 0.15);
+      if (cost < bc) { bc = cost; best = { cx, cz, ax, y0, cut }; }
+    }
+    if (!best || (!home && bc > 420)) return null;
+    // take off toward the middle of the region (its course starts straight off the runway), or toward the more open
+    // end when the strip sits in the middle; home picks either
+    const along = best.ax ? c.z - best.cz : c.x - best.cx;
+    const s = home ? (r.next() < 0.5 ? 1 : -1) : Math.abs(along) > 40 ? Math.sign(along) : (best.cut[1] < best.cut[0] * 0.8 ? 1 : best.cut[0] < best.cut[1] * 0.8 ? -1 : r.next() < 0.5 ? 1 : -1);
+    const fx = best.ax ? 0 : s, fz = best.ax ? s : 0;
+    return c.air = { x: best.cx, z: best.cz, fx, fz, rx: -fz, rz: fx, L, W, AD, AA, HD, padA, padB0, padB1, y: best.y0, home,
+      i: c.i, j: c.j, name: home ? 'Skyhaven Airbase' : c.name + ' Airstrip', d };
+  }
+  // heading (degrees, north = 360) of a runway direction, and its two-digit designator
+  rwyNum(fx, fz) { const deg = Math.round((Math.atan2(fx, -fz) / SKY_TAU * 360 + 360) % 360); return String(Math.round(deg / 10) || 36).padStart(2, '0'); }
+  // ================================================================ region plans: course, tunnels, course features
+  plan(c) {
+    if (c.plan) return c.plan;
+    const P = c.plan = { c, gates: [], boosts: [], tubes: [], feats: [], len: 0, ok: false };
+    const af = this.airfield(c);
+    if (!af) return P;
+    const rnd = new RNG(hash2(this.seed ^ 0xC0E5E, c.i, c.j)), d = c.d;
+    P.R = lerp(13, 6.2, d) + (c.home ? 2.5 : 0);
+    P.N = c.home ? 10 : Math.round(lerp(12, 16, d));
+    P.gap = lerp(150, 98, d);
+    // canyon gates come closer together, so the line through them keeps to the winding canyon
+    if (c.type === SKZ.CANYON) { P.gap *= 0.62; P.N += 5; }
+    if (this.startGate(P, af)) {
+      if (c.type === SKZ.HOME || c.type === SKZ.MEADOW) this.trackLoop(P, af, rnd);
+      else if (c.type === SKZ.CANYON) this.trackCanyon(P, rnd);
+      else if (c.type === SKZ.SPIRES) this.trackSpires(P, rnd);
+      else if (c.type === SKZ.ISLES) this.trackIsles(P, rnd);
+      else this.trackPeaks(P, rnd);
+    }
+    if (c.type === SKZ.PEAKS) this.freeTunnels(P, rnd);
+    const G = P.gates;
+    if (G.length >= 5) {
+      P.ok = true;
+      G[0].k = 1; G[G.length - 1].k = 2;
+      for (let i = 0; i < G.length; i++) G[i].i = i;
+      let len = 0;
+      for (let i = 1; i < G.length; i++) len += G[i].seg || Math.hypot(G[i].x - G[i - 1].x, G[i].y - G[i - 1].y, G[i].z - G[i - 1].z) * 1.06;
+      P.len = len;
+      const gold = len / lerp(96, 84, d);
+      P.par = [gold, gold * 1.2, gold * 1.45];
+      this.addBoosts(P, rnd);
+    } else P.gates = [];
+    return P;
+  }
+  // the gates' (and course features') bounding box, for quick rejection
+  planBox(P) {
+    if (P.box) return P.box;
+    let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+    const add = (x, z, r) => { if (x - r < x0) x0 = x - r; if (z - r < z0) z0 = z - r; if (x + r > x1) x1 = x + r; if (z + r > z1) z1 = z + r; };
+    for (const g of P.gates) add(g.x, g.z, g.R + 4);
+    for (const g of P.boosts) add(g.x, g.z, g.R + 4);
+    for (const f of P.feats) add(f.x, f.z, f.reach);
+    for (const t of P.tubes) { add(t.x0, t.z0, 0); add(t.x1, t.z1, 0); }
+    return P.box = [x0, z0, x1, z1];
+  }
+  addGate(P, x, y, z, nx, nz, R, seg) { const g = { x, y, z, nx, nz, R, k: 0 }; if (seg) g.seg = seg; P.gates.push(g); return g; }
+  // clear air around a gate's ring, through its middle and along its approach and exit (ignores the course's own
+  // features, which are built around the gates)
+  gateClear(P, x, y, z, nx, nz, R, own) {
+    const Ro = R + 1.8, ux = -nz, uz = nx, d = P.c.d;
+    if (y - Ro < SEA + 1.5 || y + Ro > CH - 3) return false;
+    const Q = own ? null : P;
+    // the harder the map, the closer a gate may hang to rock and the shorter the straight run at it
+    const m = lerp(2.5, 1.3, d), L = lerp(24, 16, d);
+    for (let k = 0; k < 16; k++) {
+      const t = k / 16 * SKY_TAU, cu = Math.cos(t), rr = Ro + m;
+      if (this.solidAt(x + ux * cu * rr, y + Math.sin(t) * rr, z + uz * cu * rr, Q)) return false;
+    }
+    for (const off of [-L, -L / 2, 0, L / 2, L]) for (let k = 0; k < 5; k++) {
+      const cu = k === 1 ? 0.65 : k === 2 ? -0.65 : 0, cv = k === 3 ? 0.65 : k === 4 ? -0.65 : 0;
+      if (this.solidAt(x + nx * off + ux * cu * R, y + cv * R, z + nz * off + uz * cu * R, Q)) return false;
+    }
+    for (const g of P.gates) if (Math.hypot(g.x - x, g.y - y, g.z - z) < 40) return false;
+    return true;
+  }
+  // heading on arrival after a circular turn out of gate g toward a target in direction (cx, cz): the way out of g
+  // reflected across the chord
+  arrival(g, cx, cz) { const d = g.nx * cx + g.nz * cz; let ax = 2 * d * cx - g.nx, az = 2 * d * cz - g.nz; const l = Math.hypot(ax, az) || 1; return [ax / l, az / l]; }
+  ideal(g, cx, cz, tx, tz) { const [ax, az] = this.arrival(g, cx, cz), bx = ax + tx, bz = az + tz, l = Math.hypot(bx, bz); return l > 0.2 ? [bx / l, bz / l] : [ax, az]; }
+  // how many rock samples the way into a gate may cross (a slalom bends round the odd rock; needle forests more)
+  arcAllow(P, g, x, z) { return Math.max(1, Math.floor(Math.max(4, Math.ceil(Math.hypot(x - g.x, z - g.z) / 10)) * (P.c.sv ? 0.35 : 0.2))); }
+  // the curve a pilot flies from gate g into a gate at (x, y, z) facing (nx, nz): a Hermite curve with the gates'
+  // facings as tangents, sampled every ~10 blocks. How many samples run through rock (spires, islands), or -1 when
+  // it runs into the ground
+  arcBad(P, g, x, y, z, nx, nz) {
+    const L = Math.hypot(x - g.x, z - g.z), T = L * 0.9, n = Math.max(4, Math.ceil(L / 10));
+    let bad = 0;
+    for (let k = 1; k < n; k++) {
+      const s = k / n, s2 = s * s, s3 = s2 * s, h1 = 2 * s3 - 3 * s2 + 1, h2 = -2 * s3 + 3 * s2, h3 = s3 - 2 * s2 + s, h4 = s3 - s2;
+      const px = h1 * g.x + h2 * x + (h3 * g.nx + h4 * nx) * T, pz = h1 * g.z + h2 * z + (h3 * g.nz + h4 * nz) * T, py = h1 * g.y + h2 * y;
+      // the ground (a canyon wall, a ridge) is a hard no; a slalom may have to bend round a rock or two
+      const c = this.g.climateCached(Math.floor(px), Math.floor(pz));
+      if (py < c.h + (c.cs >= 0 ? 6 : 3) && !(P.tubes.length && this.inTubes(P, px, py, pz))) return -1;
+      if (this.solidAt(px, py, pz, P)) bad++;
+    }
+    return bad;
+  }
+  // the first gate hangs straight off the departure end, a little above the climb-out
+  startGate(P, af) {
+    // (from a mountaintop strip the course may start below the runway: off the edge and down)
+    for (const dist of [200, 240, 170, 290, 350]) for (const up of [30, 40, 52, 22, 66, 10, -6, -22, -40]) {
+      const x = af.x + af.fx * (af.padA + dist), z = af.z + af.fz * (af.padA + dist), y = Math.min(af.y + up, CH - P.R - 6);
+      if (this.gateClear(P, x, y, z, af.fx, af.fz, P.R)) { this.addGate(P, x, y, z, af.fx, af.fz, P.R); return true; }
+    }
+    return false;
+  }
+  inRegion(P, x, z, w) { const n = this.natCol(Math.floor(x), Math.floor(z)); return n.cell === P.c && n.tw[P.c.type] >= (w || 0.6); }
+  // lowest gate centre that clears the ground (and the trees on it) at a spot
+  floorY(x, z, R) { const c = this.g.climateCached(Math.floor(x), Math.floor(z)); return Math.max(c.h, SEA) + R + 1.8 + (BIOMES[c.biome].trees > 0 && !c.af ? 14 : 5); }
+  // ---------------------------------------------------------------- meadows and home: a racetrack loop around the airfield
+  // out off the departure end, around a wide loop to one side and back down the approach to land. A few gates are
+  // dressed with rock pillars, a stone ring or an arch built around them.
+  trackLoop(P, af, rnd) {
+    const c = P.c, d = c.d, side = rnd.next() < 0.5 ? 1 : -1, A = af.padA, R = P.R;
+    const j = () => (rnd.next() - 0.5) * 60, w = c.home ? 0.8 : 1.05;
+    const ab = [[A - 20, 0], [A + 200, 0], [A + 290 + j(), side * (140 + j()) * w], [A + 190 + j(), side * (300 + j()) * w], [j(), side * (350 + j() * 0.8) * w],
+      [-A - 190 + j(), side * (300 + j()) * w], [-A - 290 + j(), side * (140 + j()) * w], [-A - 210, 0], [-A, 0]];
+    const pts = ab.map(([a, b]) => [af.x + a * af.fx + b * af.rx, af.z + a * af.fz + b * af.rz]);
+    // Catmull-Rom through the control points (the end points only steer the tangents at the first and last gate)
+    const path = [];
+    for (let i = 1; i < pts.length - 2; i++) {
+      const p0 = pts[i - 1], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2];
+      for (let k = 0; k < 24; k++) {
+        const t = k / 24, t2 = t * t, t3 = t2 * t;
+        const f = (a, b2, cc, dd) => 0.5 * (2 * b2 + (cc - a) * t + (2 * a - 5 * b2 + 4 * cc - dd) * t2 + (3 * b2 - a - 3 * cc + dd) * t3);
+        path.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
+      }
+    }
+    path.push(pts[pts.length - 2]);
+    const arc = [0]; for (let i = 1; i < path.length; i++) arc.push(arc[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]));
+    const total = arc[arc.length - 1], N = P.N, at = (s) => {
+      let i = 1; while (i < arc.length - 1 && arc[i] < s) i++;
+      const t = (s - arc[i - 1]) / Math.max(1e-6, arc[i] - arc[i - 1]), a = path[i - 1], b2 = path[i], tl = Math.hypot(b2[0] - a[0], b2[1] - a[1]) || 1;
+      return [a[0] + (b2[0] - a[0]) * t, a[1] + (b2[1] - a[1]) * t, (b2[0] - a[0]) / tl, (b2[1] - a[1]) / tl];
+    };
+    // dressed gates: which ones, and with what
+    const kinds = ['pillars', 'henge', 'garch'], dress = new Map();
+    const nd = c.home ? 3 : 2 + Math.round(d * 2);
+    for (let k = 0; k < nd; k++) dress.set(2 + Math.floor((k + 0.5) / nd * (N - 4)) + (rnd.next() < 0.5 ? 0 : 1), kinds[(k + rnd.int(3)) % 3]);
+    for (let k = 1; k < N; k++) {
+      const last = k === N - 1, [x, z, tx, tz] = at(total * k / (N - 1));
+      const g0 = this.floorY(x, z, R), base = last ? Math.max(af.y + 16 + R, g0) : Math.max(g0, Math.max(this.g.climateCached(Math.floor(x), Math.floor(z)).h, SEA) + lerp(30, 16, d) + R + rnd.next() * 10);
+      let placed = null;
+      for (let up = 0; up <= 48 && !placed; up += 6) {
+        const y = base + up;
+        if (this.gateClear(P, x, y, z, tx, tz, R)) placed = this.addGate(P, x, y, z, tx, tz, R);
+      }
+      if (!placed) continue;
+      const kind = dress.get(k);
+      if (kind && !last) this.dressGate(P, placed, kind, rnd);
+    }
+  }
+  // build rock pillars, a stone ring or an arch around a meadow gate (they stand on the ground: skipped when the gate
+  // floats too high above it)
+  dressGate(P, g, kind, rnd) {
+    const ground = this.g.climateCached(Math.floor(g.x), Math.floor(g.z)).h, R = g.R;
+    // a stone ring must fit in clear air (it is wider than the gate); otherwise the gate gets pillars instead
+    if (kind === 'henge') {
+      const ro = R + 3.6 + 3 + 1.5;
+      for (let k = 0; k < 16 && kind === 'henge'; k++) { const t = k / 16 * SKY_TAU; if (this.solidAt(g.x - g.nz * Math.cos(t) * ro, g.y + Math.sin(t) * ro, g.z + g.nx * Math.cos(t) * ro, P)) kind = 'pillars'; }
+    }
+    if (g.y - R - ground > 30 && kind !== 'henge') return;
+    if (kind === 'pillars') P.feats.push({ k: 'pillars', x: g.x, z: g.z, y0: Math.floor(ground) - 3, y1: Math.round(g.y + R + 7), ux: -g.nz, uz: g.nx, off: R + 4.6, pr: 2.6, reach: R + 9 });
+    else if (kind === 'henge') P.feats.push({ k: 'henge', x: g.x, z: g.z, reach: R + 9, h: { x: g.x, y: g.y, z: g.z, Ri: R + 3.6, wr: 3, th: 1.8, nx: g.nx, nz: g.nz, salt: rnd.u32() } });
+    else P.feats.push({ k: 'garch', x: g.x, z: g.z, y0: Math.floor(ground) - 2, yA: g.y + R + 4.5, span: R + 13, nx: g.nx, nz: g.nz, th: 4.5, w: 2.6, reach: R + 15 });
+  }
+  // ---------------------------------------------------------------- canyons: down the centre line, under the arches
+  trackCanyon(P, rnd) {
+    const c = P.c, R = P.R, N = P.N, old = new Map();
+    let from = P.gates[0], lastS = 0, arc0 = 0;
+    // up to three traces in a row: when one runs out (the region ends, or it would double back), the next picks up a
+    // canyon near where it stopped
+    for (let seg = 0; seg < 3 && P.gates.length < N; seg++) {
+      const starts = [], ahead = seg ? 40 : 140;
+      for (let k = 0; k < 90 && starts.length < 6; k++) {
+        const a = k * 2.39996, rad = 30 + k * 8, fam = seg && (k & 1) ? 1 : 0;
+        const q = this.snapCanyon(from.x + from.nx * ahead + Math.cos(a) * rad, from.z + from.nz * ahead + Math.sin(a) * rad, fam);
+        if (!q) continue;
+        const n = this.natCol(q[0], q[1]);
+        if (n.cell !== c || n.tw[SKZ.CANYON] < 0.8 || n.cP - n.cFloor < 30 || old.has(Math.floor(q[0] / 40) * 8192 + Math.floor(q[1] / 40))) continue;
+        if (starts.some(t => Math.hypot(t[0] - q[0], t[1] - q[1]) < 60)) continue;
+        starts.push([q[0], q[1], fam]);
+      }
+      // each start both ways; keep the longest that starts near here and heads on, not back
+      let run = null, bs = -1e9;
+      for (const st of starts) for (const sg of [1, -1]) {
+        const t = this.traceCanyon(P, st, sg, rnd.u32(), old), p = t.pts[Math.min(t.pts.length - 1, 12)];
+        const fwd = ((p[0] - st[0]) * from.nx + (p[1] - st[1]) * from.nz) / (Math.hypot(p[0] - st[0], p[1] - st[1]) || 1);
+        const sc = Math.min(t.len, (N - P.gates.length + 1) * P.gap) - Math.hypot(st[0] - from.x, st[1] - from.z) * 0.5 + fwd * 60;
+        if (sc > bs) { bs = sc; run = t; }
+      }
+      if (!run || run.len < 150) break;
+      for (const p of run.pts) { const k = Math.floor(p[0] / 40) * 8192 + Math.floor(p[1] / 40); if (!old.has(k)) old.set(k, 1); }
+      // gates along the trace, under any arch they pass
+      const pts = run.pts;
+      let next = Math.max(40, P.gap * 0.7 - Math.hypot(pts[0][0] - from.x, pts[0][1] - from.z));
+      for (let i = 1; i < pts.length && P.gates.length < N; i++) {
+        const p = pts[i]; if (p[3] < next) continue;
+        const q = pts[Math.max(0, i - 2)], w = pts[Math.min(pts.length - 1, i + 2)];
+        let tx = w[0] - q[0], tz = w[1] - q[1]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+        let x = p[0], z = p[1], y = null;
+        const n = this.natCol(Math.floor(x), Math.floor(z)), floor = Math.max(n.hn, SEA);
+        const arch = this.archNear(x, z, 34);
+        if (arch) {
+          // straight under the arch if it leaves room, otherwise over it
+          const under = arch.Ya - 1, room = under - Math.max(arch.F, SEA);
+          x = arch.x; z = arch.z; const sgn = tx * arch.tx + tz * arch.tz < 0 ? -1 : 1; tx = arch.tx * sgn; tz = arch.tz * sgn;
+          const cy = room > 2 * (R + 1.8) + 6 ? (Math.max(arch.F, SEA) + under) / 2 : arch.Ya + arch.T + R + 6;
+          if (this.gateClear(P, x, cy, z, tx, tz, R)) y = cy;
+        }
+        if (y === null) for (let yy = floor + R + 4 + rnd.next() * lerp(12, 3, c.d); yy < n.cP + 14; yy += 3) if (this.gateClear(P, x, yy, z, tx, tz, R)) { y = yy; break; }
+        if (y === null) { next = p[3] + 12; continue; }
+        const s = arc0 + p[3];
+        from = this.addGate(P, x, y, z, tx, tz, R, lastS > 0 ? s - lastS : 0);
+        lastS = s; next = p[3] + P.gap * (0.85 + rnd.next() * 0.3);
+      }
+      arc0 += run.len + 200;
+      lastS = 0;
+    }
+  }
+  archNear(x, z, r) {
+    const gi = Math.floor(x / 210), gj = Math.floor(z / 210);
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const a = this.arch(gi + di, gj + dj); if (a && Math.hypot(a.x - x, a.z - z) < r) return a; }
+    return null;
+  }
+  // walk a canyon centre line in 6-block steps, pulled back onto it each step. Where a side canyon crosses, it may
+  // turn into it (always, when the main canyon is about to leave the region). Returns points [x, z, family, arc]
+  traceCanyon(P, st, sg, seed, old) {
+    const rnd = new RNG(seed), c = P.c, pSwitch = 0.2 + c.d * 0.35, want = P.N * P.gap + 200;
+    let x = st[0], z = st[1], fam = st[2] || 0, [, gx, gz] = this.cgrad(x, z, fam), gl = Math.hypot(gx, gz) || 1;
+    let tx = -gz / gl * sg, tz = gx / gl * sg, arc = 0, other = Math.sign(this.cfv(x, z)[1 - fam]) || 1, cool = 0;
+    const pts = [[x, z, fam, 0]], seen = new Map(), cellOf = (px, pz) => Math.floor(px / 40) * 8192 + Math.floor(pz / 40);
+    // somewhere this trace has already been (more than ~120 blocks back along it), or an earlier trace went
+    const been = (px, pz, step) => { const k = cellOf(px, pz), s = seen.get(k); return (s !== undefined && step - s > 20) || (old && old.has(k) && step > 6); };
+    for (let step = 0; step < 1200 && arc < want; step++) {
+      const xi = Math.round(x), zi = Math.round(z);
+      [, gx, gz] = this.cgrad(xi, zi, fam); gl = Math.hypot(gx, gz);
+      if (gl < 1e-7) break;
+      let nx = -gz / gl, nz = gx / gl; if (nx * tx + nz * tz < 0) { nx = -nx; nz = -nz; }
+      tx = nx; tz = nz; x += tx * 6; z += tz * 6; arc += 6;
+      for (let k = 0; k < 2; k++) {
+        const [v, hx, hz] = this.cgrad(Math.round(x), Math.round(z), fam), h2 = hx * hx + hz * hz;
+        if (h2 > 1e-12) { x -= clamp(v * hx / h2, -4, 4); z -= clamp(v * hz / h2, -4, 4); }
+      }
+      const ahead = this.inRegion(P, x + tx * 70, z + tz * 70, 0.75) && !been(x + tx * 50, z + tz * 50, step);
+      if (!this.inRegion(P, x, z, 0.7) || been(x, z, step)) break;
+      const ck = cellOf(x, z); if (!seen.has(ck)) seen.set(ck, step);
+      // crossing the other family's canyon?
+      const o = Math.sign(this.cfv(Math.round(x), Math.round(z))[1 - fam]) || 1;
+      if (o !== other && cool <= 0 && (!ahead || rnd.next() < pSwitch)) {
+        const f2 = 1 - fam, [, ax, az] = this.cgrad(Math.round(x), Math.round(z), f2), al = Math.hypot(ax, az);
+        if (al > 1e-7) {
+          let mx = -az / al, mz = ax / al;
+          // into the region: toward its centre if the old line was leaving, else the smaller turn
+          const tcx = c.x - x, tcz = c.z - z;
+          if (!ahead ? mx * tcx + mz * tcz < 0 : mx * tx + mz * tz < 0) { mx = -mx; mz = -mz; }
+          if (this.inRegion(P, x + mx * 70, z + mz * 70, 0.75) && !been(x + mx * 50, z + mz * 50, step)) { fam = f2; tx = mx; tz = mz; cool = 12; }
+        }
+      }
+      other = Math.sign(this.cfv(Math.round(x), Math.round(z))[1 - fam]) || 1;
+      cool--;
+      pts.push([x, z, fam, arc]);
+    }
+    return { pts, len: arc };
+  }
+  // ---------------------------------------------------------------- the guide: a wobbly loop around the middle of the
+  // region from the start gate, so a course never wanders off. Points every ~8 blocks: [x, z, tx, tz, arc]
+  loopGuide(P, g0, rnd, want) {
+    const c = P.c, p1 = [g0.x + g0.nx * 130, g0.z + g0.nz * 130], a1 = Math.atan2(p1[1] - c.z, p1[0] - c.x);
+    // go round the way the start gate already leans (either way when it points straight out or in)
+    const tan = skyAngle(Math.atan2(g0.z - c.z, g0.x - c.x), a1), dir = Math.abs(tan) > 0.05 ? Math.sign(tan) : (rnd.next() < 0.5 ? 1 : -1);
+    // a gentle bend off the start line into the loop
+    const sx = -g0.nz * dir, sz = g0.nx * dir, side = (sx * (c.x - p1[0]) + sz * (c.z - p1[1])) >= 0 ? 1 : -1;
+    const p2 = [p1[0] + g0.nx * 80 + sx * side * 55, p1[1] + g0.nz * 80 + sz * side * 55];
+    const ctrl = [[g0.x - g0.nx * 60, g0.z - g0.nz * 60], [g0.x, g0.z], p1, p2];
+    // the loop picks up at the radius the bend ends at, then eases toward a comfortable one
+    const r1 = Math.hypot(p2[0] - c.x, p2[1] - c.z), rad = clamp(r1 * 0.75, 190, 300);
+    let a = Math.atan2(p2[1] - c.z, p2[0] - c.x) + dir * 0.5, tot = 0, r = r1;
+    for (let k = 0; k < 12 && tot < want; k++) {
+      r = lerp(r, rad * (0.8 + rnd.next() * 0.4), 0.6);
+      const p = [c.x + Math.cos(a) * r, c.z + Math.sin(a) * r], q = ctrl[ctrl.length - 1];
+      tot += Math.hypot(p[0] - q[0], p[1] - q[1]); ctrl.push(p); a += dir * (0.62 + rnd.next() * 0.3);
+    }
+    const last = ctrl[ctrl.length - 1], prev = ctrl[ctrl.length - 2]; ctrl.push([last[0] * 2 - prev[0], last[1] * 2 - prev[1]]);
+    const out = [];
+    let arc = 0;
+    for (let i = 1; i < ctrl.length - 2; i++) {
+      const p0 = ctrl[i - 1], p1 = ctrl[i], p2 = ctrl[i + 1], p3 = ctrl[i + 2], n = Math.max(2, Math.round(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 8));
+      for (let k = 0; k < n; k++) {
+        const t = k / n, t2 = t * t, t3 = t2 * t, f = (a1, b1, c1, d1) => 0.5 * (2 * b1 + (c1 - a1) * t + (2 * a1 - 5 * b1 + 4 * c1 - d1) * t2 + (3 * b1 - a1 - 3 * c1 + d1) * t3);
+        const x = f(p0[0], p1[0], p2[0], p3[0]), z = f(p0[1], p1[1], p2[1], p3[1]), q = out[out.length - 1];
+        if (q) arc += Math.hypot(x - q[0], z - q[1]);
+        out.push([x, z, 0, 0, arc]);
+      }
+    }
+    for (let i = 0; i < out.length; i++) { const p = out[Math.max(0, i - 1)], q = out[Math.min(out.length - 1, i + 1)], tl = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1; out[i][2] = (q[0] - p[0]) / tl; out[i][3] = (q[1] - p[1]) / tl; }
+    return out;
+  }
+  // a course along the guide: at each slot the most interesting target near it (a gap between rocks, a window, a hoop,
+  // the space under an island...) that the jets can reach from the last gate, else clear air at the slot
+  trackGuided(P, cands, rnd) {
+    const c = P.c, R = P.R, Rt = lerp(110, 70, c.d), guide = this.loopGuide(P, P.gates[0], rnd, P.N * P.gap * 1.25 + 300);
+    // placed gates with the guide slot each was placed for; spots that led into a dead end are banned
+    const stack = [{ g: P.gates[0], si: 0, q: null }], banned = [];
+    const isBanned = (x, z) => banned.some(b => Math.hypot(b.x - x, b.z - z) < 30);
+    let fails = 0, backs = 0;
+    for (let iter = 0; iter < P.N * 4 && P.gates.length < P.N; iter++) {
+      const top = stack[stack.length - 1], g = top.g;
+      let si = top.si; const target = guide[si][4] + P.gap * (1 + fails * 0.45);
+      while (si < guide.length - 1 && guide[si][4] < target) si++;
+      if (guide[si][4] < target - P.gap * 0.5) break;
+      const [sx, sz, tx, tz] = guide[si], scored = [];
+      for (const q of cands) {
+        if (q.used) continue;
+        const ds = Math.hypot(q.x - sx, q.z - sz); if (ds > 75 || isBanned(q.x, q.z)) continue;
+        const vx = q.x - g.x, vz = q.z - g.z, D = Math.hypot(vx, vz); if (D < 60) continue;
+        const ca = (vx * g.nx + vz * g.nz) / D, al = Math.acos(clamp(ca, -1, 1));
+        if (al > 2.8 || D < 2 * Rt * Math.sin(al)) continue;
+        // a jet turning on a circular arc out of the last gate arrives heading along the reflection of its way out
+        // across the chord; gates face between that and the way the course goes on, so they are flown through square
+        // and the line stays smooth
+        const [ax, az] = this.ideal(g, vx / D, vz / D, tx, tz);
+        let nx = q.nx, nz = q.nz;
+        if (nx === undefined) { nx = ax; nz = az; }
+        else { let a2 = nx * ax + nz * az; if (a2 < 0) { nx = -nx; nz = -nz; a2 = -a2; } if (a2 < 0.72) continue; }
+        scored.push({ q, nx, nz, s: (q.bonus || 0) + (1 - ds / 75) * 0.6 + ca * 0.7 + rnd.next() * 0.3 });
+      }
+      scored.sort((a, b) => b.s - a.s);
+      // of the fitting candidates, the one whose way in crosses the fewest rocks (then the best scored)
+      let ok = null, used = null, best = null;
+      for (let m = 0; m < Math.min(12, scored.length) && !(best && best.bad === 0); m++) {
+        const { q, nx, nz } = scored[m], Rg = q.R || R;
+        const ys = q.y !== undefined ? [q.y] : [clamp(g.y + (rnd.next() - 0.5) * 30, q.lo, q.hi), (q.lo + q.hi) / 2, q.lo + (q.hi - q.lo) * 0.2];
+        for (const y of ys) {
+          if (!(y >= SEA) || !this.gateClear(P, q.x, y, q.z, nx, nz, Rg)) continue;
+          const bad = this.arcBad(P, g, q.x, y, q.z, nx, nz);
+          if (bad >= 0 && (!best || bad < best.bad)) best = { q, x: q.x, y, z: q.z, nx, nz, R: Rg, bad };
+          if (bad === 0) break;
+        }
+      }
+      // nothing interesting there (or only ways in through rock): open air at the slot, nudged around until it fits
+      for (let m = 0; m < 8 && !(best && best.bad === 0); m++) {
+        const off = m === 0 ? 0 : (m % 2 ? 1 : -1) * Math.ceil(m / 2) * 14, x = sx - tz * off, z = sz + tx * off, lo = this.floorY(x, z, R);
+        if (isBanned(x, z)) continue;
+        const y = clamp(g.y + (rnd.next() - 0.5) * 24, lo, lo + 40), vx = x - g.x, vz = z - g.z, D = Math.hypot(vx, vz) || 1;
+        const al = Math.acos(clamp((vx * g.nx + vz * g.nz) / D, -1, 1)); if (al > 2.8 || D < 2 * Rt * Math.sin(al)) continue;
+        const [nx, nz] = this.ideal(g, vx / D, vz / D, tx, tz);
+        if (!this.gateClear(P, x, y, z, nx, nz, R)) continue;
+        const bad = this.arcBad(P, g, x, y, z, nx, nz);
+        if (bad >= 0 && (!best || bad + 0.5 < best.bad)) best = { q: null, x, y, z, nx, nz, R, bad };
+      }
+      if (best && best.bad <= this.arcAllow(P, g, best.x, best.z)) { ok = this.addGate(P, best.x, best.y, best.z, best.nx, best.nz, best.R); if (best.q) { best.q.used = true; used = best.q; } }
+      if (ok) { stack.push({ g: ok, si, q: used }); fails = 0; continue; }
+      // a dead end three slots running: take back the last gate and try another way
+      if (++fails >= 3 && stack.length > 1 && backs < 5) {
+        const bad = stack.pop(); P.gates.pop(); banned.push(bad.g); if (bad.q) bad.q.used = false;
+        fails = 0; backs++;
+      }
+    }
+  }
+  // ---------------------------------------------------------------- spire lagoons and stone forests: a slalom
+  trackSpires(P, rnd) {
+    const c = P.c, sv = !!c.sv, G = sv ? 22 : 40, R = P.R, Ro = R + 1.8, list = [];
+    for (let gj = Math.floor((c.z - 620) / G); gj <= Math.floor((c.z + 620) / G); gj++) for (let gi = Math.floor((c.x - 620) / G); gi <= Math.floor((c.x + 620) / G); gi++) {
+      const s = sv ? this.needle(gi, gj) : this.spire(gi, gj);
+      if (s && this.natCol(Math.floor(s.x), Math.floor(s.z)).cell === c) list.push(s);
+    }
+    const cands = [];
+    for (let a = 0; a < list.length; a++) for (let b2 = a + 1; b2 < list.length; b2++) {
+      const s = list[a], t = list[b2], dx = t.x - s.x, dz = t.z - s.z, L = Math.hypot(dx, dz);
+      if (L > 110) continue;
+      const rs = s.r0 * 1.25, rt = t.r0 * 1.25, gap = L - rs - rt;
+      if (gap < 2 * Ro + 6) continue;
+      const ux = dx / L, uz = dz / L, m = rs + gap / 2, x = s.x + ux * m, z = s.z + uz * m;
+      const lo = this.floorY(x, z, R), hi = Math.min(s.top, t.top) - R - 2;
+      if (hi < lo) continue;
+      cands.push({ x, z, lo, hi, nx: -uz, nz: ux, bonus: gap < 2 * Ro + 22 ? 0.35 : 0 });
+    }
+    const near = new Map();
+    for (const s of list) { const k = Math.floor(s.x / 30) * 4096 + Math.floor(s.z / 30); near.set(k, (near.get(k) || 0) + 1); }
+    for (let z = c.z - 560; z <= c.z + 560; z += 26) for (let x = c.x - 560; x <= c.x + 560; x += 26) {
+      const px = x + (hashF2(this.seed ^ 0x51A1, x, z) - 0.5) * 16, pz = z + (hashF2(this.seed ^ 0x51A2, x, z) - 0.5) * 16;
+      if (!this.inRegion(P, px, pz, 0.7)) continue;
+      let cnt = 0; const kx = Math.floor(px / 30), kz = Math.floor(pz / 30);
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) cnt += near.get((kx + dx) * 4096 + kz + dz) || 0;
+      if (cnt < 2) continue;
+      const lo = this.floorY(px, pz, R);
+      cands.push({ x: px, z: pz, lo, hi: lo + 28, bonus: Math.min(0.6, cnt * 0.08) - 0.2 });
+    }
+    for (const s of list) {
+      // through a window
+      if (s.eye && s.eye.r - 2.4 >= 5) { const k = s.eye.y - s.base; cands.push({ x: s.x + s.lx * k, z: s.z + s.lz * k, y: s.eye.y, nx: Math.cos(s.eye.a), nz: Math.sin(s.eye.a), R: Math.min(R, s.eye.r - 2.4), bonus: 1.2 }); }
+      // under a bridge
+      for (let k = 0; k < 2; k++) {
+        const b = this.bridge(s, k); if (!b) continue;
+        const mx = (b.ax + b.bx) / 2, mz = (b.az + b.bz) / 2, top = b.yb - b.T * 0.5 - 1, lo = this.floorY(mx, mz, R);
+        const bl = Math.hypot(b.bx - b.ax, b.bz - b.az) || 1;
+        if (top - R - 2 > lo) cands.push({ x: mx, z: mz, lo, hi: top - R - 2, nx: -(b.bz - b.az) / bl, nz: (b.bx - b.ax) / bl, bonus: 0.9 });
+      }
+    }
+    this.trackGuided(P, cands, rnd);
+  }
+  // ---------------------------------------------------------------- sky archipelagos: hoops, under and between islands
+  trackIsles(P, rnd) {
+    const c = P.c, R = P.R, Ro = R + 1.8, isl = [], cands = [];
+    for (let layer = 0; layer < 2; layer++) {
+      const off = layer ? 38 : 0;
+      for (let gj = Math.floor((c.z - 620 - off) / 76); gj <= Math.floor((c.z + 620 - off) / 76); gj++) for (let gi = Math.floor((c.x - 620 - off) / 76); gi <= Math.floor((c.x + 620 - off) / 76); gi++) {
+        const s = this.island(layer, gi, gj); if (s && this.natCol(Math.floor(s.x), Math.floor(s.z)).cell === c) isl.push(s);
+      }
+    }
+    for (let gj = Math.floor((c.z - 620) / 180); gj <= Math.floor((c.z + 620) / 180); gj++) for (let gi = Math.floor((c.x - 620) / 180); gi <= Math.floor((c.x + 620) / 180); gi++) {
+      const h = this.hoop(gi, gj);
+      if (h && h.Ri - 4 >= 5 && this.natCol(Math.floor(h.x), Math.floor(h.z)).cell === c) cands.push({ x: h.x, z: h.z, y: h.y, nx: h.nx, nz: h.nz, R: Math.min(R, h.Ri - 4), bonus: 1.3 });
+    }
+    for (const s of isl) {
+      const ground = Math.max(this.g.climateCached(Math.floor(s.x), Math.floor(s.z)).h, SEA), bot = s.Y - s.depth - 3;
+      if (bot - ground > 2 * Ro + 12) cands.push({ x: s.x, z: s.z, lo: ground + Ro + 5, hi: bot - Ro - 3, bonus: 0.8 });
+      // skimming past an island's flank
+      for (let k = 0; k < 4; k++) { const a = k * 1.5708 + s.ph1, d = s.R * 1.35 + Ro + 6; cands.push({ x: s.x + Math.cos(a) * d, z: s.z + Math.sin(a) * d, lo: s.Y - 8, hi: s.Y + 2, bonus: 0.25 }); }
+    }
+    for (let a = 0; a < isl.length; a++) for (let b2 = a + 1; b2 < isl.length; b2++) {
+      const s = isl[a], t = isl[b2], dx = t.x - s.x, dz = t.z - s.z, L = Math.hypot(dx, dz);
+      if (L > 120 || Math.abs(s.Y - t.Y) > 30) continue;
+      const gap = L - s.R * 1.3 - t.R * 1.3; if (gap < 2 * Ro + 14) continue;
+      const m = s.R * 1.3 + gap / 2, x = s.x + dx / L * m, z = s.z + dz / L * m, y = (s.Y + t.Y) / 2 - 4;
+      cands.push({ x, z, lo: y - 6, hi: y + 6, nx: -dz / L, nz: dx / L, bonus: 0.5 });
+    }
+    this.trackGuided(P, cands, rnd);
+  }
+  // ---------------------------------------------------------------- peaks: a winding route at valley height; wherever a
+  // ridge is in the way the route is bored through it as a lit tunnel
+  trackPeaks(P, rnd) {
+    const c = P.c, R = P.R, TR = Math.max(R + 3.2, lerp(15.5, 8.6, c.d)), g0 = P.gates[0];
+    const path = this.peakLoop(P, g0, TR, rnd);
+    if (path.length < 10) return;
+    const tube = this.makeTube(path, TR, true, c.d), Rt = Math.min(R, TR - 4.4);
+    P.tubes.push(tube);
+    let lastS = 0, next = P.gap * 0.8;
+    for (let i = 2; i < path.length - 1 && P.gates.length < P.N; i++) {
+      const s = i * 8, mouth = tube.under[i + 2] && !tube.under[i + 1] && !tube.under[i];
+      if (!mouth && s < next) continue;
+      const p = path[i], q = path[i + 1], tx = q[0] - p[0], tz = q[2] - p[2], tl = Math.hypot(tx, tz) || 1;
+      const Rg = tube.under[i] || tube.under[i + 1] || tube.under[i - 1] ? Rt : R;
+      if (this.gateClear(P, p[0], p[1], p[2], tx / tl, tz / tl, Rg)) {
+        this.addGate(P, p[0], p[1], p[2], tx / tl, tz / tl, Rg, s - lastS);
+        lastS = s; next = s + P.gap * (0.85 + rnd.next() * 0.3);
+      }
+    }
+  }
+  // the course route through the peaks: from the start gate around the middle of the region on a wobbly loop (so it
+  // crosses ridge after ridge), at the height of the lowest ground nearby, sloping at most 1:5
+  peakLoop(P, g0, TR, rnd) {
+    const xz = this.loopGuide(P, g0, rnd, (P.N - 1) * P.gap * 1.1);
+    // height: the lowest ground within 120 blocks either way along the route, plus clearance; then slope limits
+    const n = xz.length, gh = xz.map(([x, z]) => Math.max(this.natCol(Math.floor(x), Math.floor(z)).hn, SEA)), ys = new Float64Array(n);
+    for (let i = 0; i < n; i++) { let m = 1e9; for (let k = Math.max(0, i - 15); k <= Math.min(n - 1, i + 15); k++) if (gh[k] < m) m = gh[k]; ys[i] = clamp(m + TR + 8, 80, 150); }
+    ys[0] = g0.y;
+    for (let i = 1; i < n; i++) ys[i] = clamp(ys[i], ys[i - 1] - 1.6, ys[i - 1] + 1.6);
+    for (let i = n - 2; i > 0; i--) ys[i] = clamp(ys[i], ys[i + 1] - 1.6, ys[i + 1] + 1.6);
+    ys[0] = g0.y;
+    return xz.map(([x, z], i) => [x, ys[i], z]);
+  }
+  peakPath(P, x, y, z, hd, TR, rnd, len) {
+    const c = P.c, Rmin = lerp(260, 115, c.d), pts = [[x, y, z]];
+    let k = 0, out = 0;
+    for (let i = 0; i < len / 8 && i < 700; i++) {
+      k += (rnd.next() - 0.5) * 0.0035; k *= 0.96;
+      const dc = Math.hypot(c.x - x, c.z - z);
+      if (dc > 300) k += skyAngle(hd, Math.atan2(c.z - z, c.x - x)) * 0.0005 * (dc - 300) / 40;
+      k = clamp(k, -1 / Rmin, 1 / Rmin);
+      hd += k * 8; x += Math.cos(hd) * 8; z += Math.sin(hd) * 8;
+      // just over the lowest ground in the next 240 blocks, so the ridges in between get tunnelled
+      let gmin = 1e9;
+      for (let s = 0; s <= 240; s += 30) { const h = this.natCol(Math.floor(x + Math.cos(hd) * s), Math.floor(z + Math.sin(hd) * s)).hn; if (h < gmin) gmin = h; }
+      const yt = clamp(Math.max(gmin, SEA) + TR + 8, 80, 150);
+      y += clamp(yt - y, -0.8, 0.8);
+      pts.push([x, y, z]);
+      if (!this.inRegion(P, x, z, 0.5)) { if (++out > 6) break; } else out = 0;
+    }
+    return pts;
+  }
+  // more tunnels through the region that no course uses, to explore
+  freeTunnels(P, rnd) {
+    const c = P.c;
+    for (let k = 0; k < 2; k++) {
+      const a = rnd.next() * SKY_TAU, rad = 120 + rnd.next() * 200, x = c.x + Math.cos(a) * rad, z = c.z + Math.sin(a) * rad;
+      const TR = lerp(14, 9, c.d) + rnd.next() * 3;
+      const path = this.peakPath(P, x, 100, z, rnd.next() * SKY_TAU, TR, rnd, 600 + rnd.next() * 500);
+      if (path.length < 20) continue;
+      const t = this.makeTube(path, TR, true, c.d); t.free = true;
+      if (t.under.some(Boolean)) P.tubes.push(t);
+    }
+  }
+  // a tunnel along a path: where the path runs inside rock it is carved, lit, striped and framed at its mouths;
+  // long underground runs open into a lit cavern halfway
+  makeTube(path, R, lit, d) {
+    const n = path.length, pts = new Float64Array(n * 3), under = new Uint8Array(n);
+    let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+    for (let i = 0; i < n; i++) {
+      const [x, y, z] = path[i]; pts[i * 3] = x; pts[i * 3 + 1] = y; pts[i * 3 + 2] = z;
+      under[i] = this.g.climateCached(Math.floor(x), Math.floor(z)).h > y + R + 2 ? 1 : 0;
+      x0 = Math.min(x0, x - R - 4); z0 = Math.min(z0, z - R - 4); x1 = Math.max(x1, x + R + 4); z1 = Math.max(z1, z + R + 4);
+    }
+    const t = { pts, n, R, under, lit, d, caves: [], x0, z0, x1, z1 };
+    for (let i = 0; i < n;) {
+      if (!under[i]) { i++; continue; }
+      let j = i; while (j < n && under[j]) j++;
+      if (j - i > 28) { const m = (i + j) >> 1, rx = lerp(30, 20, d), ry = rx * 0.55; t.caves.push({ x: pts[m * 3], y: pts[m * 3 + 1] + ry * 0.3, z: pts[m * 3 + 2], rx, ry }); }
+      i = j;
+    }
+    for (const cv of t.caves) { t.x0 = Math.min(t.x0, cv.x - cv.rx - 2); t.z0 = Math.min(t.z0, cv.z - cv.rx - 2); t.x1 = Math.max(t.x1, cv.x + cv.rx + 2); t.z1 = Math.max(t.z1, cv.z + cv.rx + 2); }
+    return t;
+  }
+  inTubes(P, x, y, z) {
+    for (const t of P.tubes) {
+      if (x < t.x0 || x > t.x1 || z < t.z0 || z > t.z1) continue;
+      const p = t.pts, R2 = t.R * t.R;
+      for (let i = 0; i < t.n - 1; i++) {
+        const ax = p[i * 3], ay = p[i * 3 + 1], az = p[i * 3 + 2], dx = p[i * 3 + 3] - ax, dy = p[i * 3 + 4] - ay, dz = p[i * 3 + 5] - az;
+        const L2 = dx * dx + dy * dy + dz * dz, s = clamp(((x - ax) * dx + (y - ay) * dy + (z - az) * dz) / L2, 0, 1);
+        const ex = ax + dx * s - x, ey = ay + dy * s - y, ez = az + dz * s - z;
+        if (ex * ex + ey * ey + ez * ez < R2) return true;
+      }
+      for (const cv of t.caves) { const qx = (x - cv.x) / cv.rx, qy = (y - cv.y) / cv.ry, qz = (z - cv.z) / cv.rx; if (qx * qx + qy * qy + qz * qz < 1) return true; }
+    }
+    return false;
+  }
+  planFeatSolid(P, x, y, z) {
+    for (const f of P.feats) {
+      if (Math.abs(x - f.x) > f.reach || Math.abs(z - f.z) > f.reach) continue;
+      if (f.k === 'pillars') {
+        if (y < f.y0 || y > f.y1 + 1) continue;
+        for (const sd of [-1, 1]) { const px = f.x + f.ux * f.off * sd, pz = f.z + f.uz * f.off * sd; if (Math.hypot(x - px, z - pz) < f.pr + 1) return true; }
+      } else if (f.k === 'henge') {
+        const o = this._hs2 || (this._hs2 = [0, 0, 0, 0]);
+        if (this.hoopSpan(f.h, x, z, o) && ((y >= o[0] - 1 && y <= o[1] + 1) || (o[2] >= 0 && y >= o[2] - 1 && y <= o[3] + 1))) return true;
+      } else { const sp = this.garchSpan(f, x, z); if (sp && y >= sp[0] - 1 && y <= sp[1] + 1) return true; }
+    }
+    return false;
+  }
+  // a ground arch over a meadow gate: feet on the ground either side, the underside clearing the ring
+  garchSpan(f, x, z) {
+    const dx = x - f.x, dz = z - f.z, a = dx * f.nx + dz * f.nz, u = -dx * f.nz + dz * f.nx;
+    if (a > f.w || a < -f.w || u > f.span || u < -f.span) return null;
+    const q = u / f.span, under = f.yA - (f.yA - f.y0) * q * q;
+    return [Math.floor(under), Math.floor(under + f.th + q * q * 3)];
+  }
+  // boost rings on the long legs
+  addBoosts(P, rnd) {
+    const G = P.gates, Rb = Math.max(5, P.R * 0.72);
+    for (let i = 1; i < G.length && P.boosts.length < 4; i++) {
+      const a = G[i - 1], b = G[i], L = Math.hypot(b.x - a.x, b.z - a.z);
+      if (L < 170 || rnd.next() > 0.6 || P.tubes.length) continue;
+      const x = (a.x + b.x) / 2, y = (a.y + b.y) / 2, z = (a.z + b.z) / 2, nx = (b.x - a.x) / L, nz = (b.z - a.z) / L;
+      if (!this.gateClear(P, x, y, z, nx, nz, Rb)) continue;
+      let near = false; for (const g of G) if (Math.hypot(g.x - x, g.y - y, g.z - z) < 50) near = true;
+      if (!near) P.boosts.push({ x, y, z, nx, nz, R: Rb, k: 3 });
+    }
+  }
+  // ================================================================ what the main thread needs about a region
+  info(i, j) {
+    const c = this.cell(i, j), af = this.airfield(c), P = this.plan(c);
+    const r1 = (v) => Math.round(v * 10) / 10;
+    return {
+      i, j, name: c.name, label: c.label, kind: c.kind, lv: c.lv, d: c.d, x: c.x, z: c.z,
+      air: af ? { x: af.x, z: af.z, y: af.y, fx: af.fx, fz: af.fz, rx: af.rx, rz: af.rz, L: af.L, W: af.W, AA: af.AA, AD: af.AD, name: af.name, home: af.home, rwy: this.rwyNum(af.fx, af.fz) } : null,
+      course: P.ok ? { id: i + ',' + j, name: c.courseName, len: Math.round(P.len), par: P.par.map(v => Math.round(v * 10) / 10),
+        gates: P.gates.map(g => [r1(g.x), r1(g.y), r1(g.z), Math.round(g.nx * 1000) / 1000, Math.round(g.nz * 1000) / 1000, r1(g.R), g.k]),
+        boosts: P.boosts.map(g => [r1(g.x), r1(g.y), r1(g.z), Math.round(g.nx * 1000) / 1000, Math.round(g.nz * 1000) / 1000, r1(g.R), g.k]) } : null,
+    };
+  }
+  // where a new player stands: on the home apron, facing the runway (the airfield's service pad is beside it)
+  homeSpawn() {
+    const af = this.airfield(this.cell(0, 0)), a = -af.AA + 22, b = af.W + 12 + 5;
+    return [af.x + a * af.fx + b * af.rx + 0.5, af.y + 1, af.z + a * af.fz + b * af.rz + 0.5, Math.atan2(-af.rx, af.rz)];
+  }
+  // the takeoff spot on the home runway
+  homeRunway() {
+    const af = this.airfield(this.cell(0, 0)), a = -af.L + 34;
+    return [af.x + a * af.fx + 0.5, af.y + 1, af.z + a * af.fz + 0.5, Math.atan2(af.fx, -af.fz)];
+  }
+  // top of the natural ground (villages and other overworld structures stand on it)
+  surfaceY(x, z) { return Math.ceil(this.g.climateCached(x, z).h) - 1; }
+  villageOK(x, z) { return Math.hypot(x, z) > 500 && !this.airspaceAround(x, z, 60, 300); }
+  // ================================================================ chunks
+  generate(cx, cz) {
+    const g = this.g, blocks = new Uint16Array(CVOL), ctx = new ChunkCtx(blocks, cx, cz), x0 = cx << 4, z0 = cz << 4;
+    if (g.cache.size > 40000) g.cache.clear();
+    const C = new Array(324), H = new Float32Array(324), BI = new Uint8Array(324);
+    for (let dz = -1; dz <= 16; dz++) for (let dx = -1; dx <= 16; dx++) {
+      const c = g.climateCached(x0 + dx, z0 + dz), i = (dz + 1) * 18 + dx + 1;
+      C[i] = c; H[i] = c.h; BI[i] = c.biome;
+    }
+    const biomes = new Uint8Array(256), ground = new Int16Array(256);
+    let walls = false;
+    // ---- ground: stone, terracotta bands in the canyons, banded rock in the fjords
+    for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
+      const i = (z + 1) * 18 + x + 1, c = C[i], t = Math.min(CH - 2, Math.ceil(c.h) - 1), banded = c.tw[SKZ.CANYON] > 0.5;
+      biomes[z * 16 + x] = c.biome;
+      for (let y = 0; y <= t; y++) blocks[(y << 8) | (z << 4) | x] = banded && y >= 48 ? this.bandAt(c, x0 + x, y, z0 + z) : B.stone;
+      ground[z * 16 + x] = t;
+      if (c.cs >= 0 && c.tw[SKZ.CANYON] > 0.97) walls = true;
+    }
+    if (walls) this.overhangs(blocks, x0, z0, C, ground);
+    // ---- natural features and the regions' plans
+    const F = this.chunkFeatures(cx, cz);
+    for (const s of F.spires) this.fillSpire(ctx, s);
+    for (const b of F.bridges) this.fillBridge(ctx, b);
+    for (const s of F.islands) this.fillIsland(ctx, s);
+    for (const h of F.hoops) this.fillHoop(ctx, h, true);
+    for (const a of F.arches) this.fillArch(ctx, a);
+    for (const f of F.feats) this.fillFeat(ctx, f);
+    for (const s of F.spires) if (s.eye) this.carveEye(ctx, s);
+    for (const t of F.tubes) this.carveTube(ctx, t);
+    // ---- surface, water, bedrock, rock variety, ores
+    this.surface(ctx, C, H, ground);
+    this.water(ctx, C, ground);
+    for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
+      const wx = x0 + x, wz = z0 + z;
+      blocks[(z << 4) | x] = B.bedrock;
+      for (let y = 1; y <= 4; y++) if (hashF3(this.seed, wx, y, wz) < (5 - y) / 5) blocks[(y << 8) | (z << 4) | x] = B.bedrock;
+      for (let y = 5; y < 16; y++) { const p = (y << 8) | (z << 4) | x; if (blocks[p] === B.stone && (y < 8 || hashF3(this.seed ^ 77, wx, y, wz) < (16 - y) / 8)) blocks[p] = B.deepslate; }
+    }
+    let maxTop = 0;
+    for (let i = 0; i < 256; i++) { let y = CH - 2; const xz = ((i >> 4) << 4) | (i & 15); while (y > 0 && blocks[(y << 8) | xz] === 0) y--; if (y > maxTop) maxTop = y; }
+    g.stoneVariants(blocks, x0, z0, maxTop + 1);
+    const orng = new RNG(hash2(this.seed ^ 0x0E5, cx, cz));
+    g.ores(ctx, orng, maxTop);
+    // ---- built things and decoration
+    for (const t of F.tubes) this.decorTube(ctx, t);
+    for (const s of F.islands) this.decorIsland(ctx, s);
+    for (const s of F.spires) this.vines(ctx, s);
+    for (const af of F.airfields) this.buildAirfield(ctx, af);
+    for (const gt of F.gates) this.buildRing(ctx, gt);
+    // ---- plants
+    this.trees(ctx, F);
+    const top = new Int16Array(256), low = new Int16Array(256);
+    for (let i = 0; i < 256; i++) {
+      const xz = ((i >> 4) << 4) | (i & 15);
+      let y = CH - 2; while (y > 0 && blocks[(y << 8) | xz] === 0) y--;
+      top[i] = y;
+      // the ground under an island or arch gets its own grass and flowers
+      let yg = ground[i]; while (yg > 0 && blocks[(yg << 8) | xz] === 0) yg--;
+      low[i] = y - yg > 3 && blocks[((yg + 1) << 8) | xz] === 0 ? yg : -1;
+    }
+    g.vegetation(ctx, BI, top);
+    g.vegetation(ctx, BI, low);
+    this.snow(ctx, C);
+    this.animals(ctx, C, cx, cz);
+    return { blocks, biomes, be: ctx.be, spawns: ctx.spawns, tags: 0, tints: g.tints(x0, z0) };
+  }
+  // terracotta strata (warm canyons) or grey rock with veins of blue ice (fjords), wobbling a little with position
+  bandAt(c, x, y, z) {
+    const w = Math.round(this.g.nPatch.n2(x / 30, z / 30) * 2);
+    if (c.cold > 0.5) { const p = this.fjordPal; return p[(((y + w) >> 2) % p.length + p.length) % p.length]; }
+    return this.g.bands[clamp(y + w, 0, CH - 1)];
+  }
+  // canyon walls: a coarse 3D noise displaces the wall profile, carving ledges, overhangs and alcoves
+  overhangs(blocks, x0, z0, C, ground) {
+    const Y0 = 36, NY = 32, grid = new Float32Array(5 * 5 * NY);
+    for (let gy = 0; gy < NY; gy++) for (let gz = 0; gz < 5; gz++) for (let gx = 0; gx < 5; gx++)
+      grid[(gy * 5 + gz) * 5 + gx] = this.nOver.n3((x0 + gx * 4) / 15, (Y0 + gy * 4) / 10, (z0 + gz * 4) / 15);
+    for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
+      const c = C[(z + 1) * 18 + x + 1];
+      if (c.cs < 0 || c.tw[SKZ.CANYON] <= 0.97) continue;
+      const n = c.nat, F = c.nat.cF, Pp = n.cP, s = c.cs;
+      const ylo = Math.max(Math.floor(F), Y0), yhi = Math.min(Math.ceil(Pp) + 1, Y0 + (NY - 1) * 4 - 1, CH - 2);
+      const gx = x >> 2, gz = z >> 2, fx = (x & 3) / 4, fz = (z & 3) / 4;
+      let t = ground[z * 16 + x];
+      for (let y = ylo; y <= yhi; y++) {
+        const gy = (y - Y0) >> 2, fy = ((y - Y0) & 3) / 4, i0 = (gy * 5 + gz) * 5 + gx, i1 = i0 + 25;
+        const a = lerp(lerp(grid[i0], grid[i0 + 1], fx), lerp(grid[i0 + 5], grid[i0 + 6], fx), fz);
+        const b = lerp(lerp(grid[i1], grid[i1 + 1], fx), lerp(grid[i1 + 5], grid[i1 + 6], fx), fz);
+        const solid = y < F + (Pp - F) * skyProf(clamp(s + lerp(a, b, fy) * 0.12, 0, 1)), p = (y << 8) | (z << 4) | x;
+        if (solid) { if (!blocks[p]) blocks[p] = this.bandAt(c, x0 + x, y, z0 + z); if (y > t) t = y; }
+        else blocks[p] = 0;
+      }
+      while (t > 0 && !blocks[(t << 8) | (z << 4) | x]) t--;
+      ground[z * 16 + x] = t;
+    }
+  }
+  // everything that reaches into a chunk
+  chunkFeatures(cx, cz) {
+    const x0 = cx << 4, z0 = cz << 4, F = { spires: [], bridges: [], islands: [], hoops: [], arches: [], feats: [], tubes: [], gates: [], airfields: [], tgates: [], tfeats: [], tsegs: [] };
+    const xc = x0 + 8, zc = z0 + 8, n = this.natCol(xc, zc), tw = n.tw;
+    const over = (ax, az, bx, bz) => bx >= x0 && ax <= x0 + 15 && bz >= z0 && az <= z0 + 15;
+    // spires and needles (and the bridges between spires, which can reach 80 blocks)
+    let spT = 0, ndT = 0;
+    for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) { const q = this.natCol(xc + di * 40, zc + dj * 40); spT = Math.max(spT, q.tw[SKZ.SPIRES] * (1 - q.sv)); ndT = Math.max(ndT, q.tw[SKZ.SPIRES] * q.sv); }
+    if (spT > 0) {
+      for (let gj = Math.floor((z0 - 82) / 40); gj <= Math.floor((z0 + 97) / 40); gj++) for (let gi = Math.floor((x0 - 82) / 40); gi <= Math.floor((x0 + 97) / 40); gi++) {
+        const s = this.spire(gi, gj); if (!s) continue;
+        const rm = this.spireProf(s).rmax + 8;
+        if (over(s.x - rm, s.z - rm, s.x + rm, s.z + rm)) F.spires.push(s);
+        for (let k = 0; k < 2; k++) { const b = this.bridge(s, k); if (b && over(Math.min(b.ax, b.bx) - 3, Math.min(b.az, b.bz) - 3, Math.max(b.ax, b.bx) + 3, Math.max(b.az, b.bz) + 3)) F.bridges.push(b); }
+      }
+    }
+    if (ndT > 0) {
+      for (let gj = Math.floor((z0 - 16) / 22); gj <= Math.floor((z0 + 31) / 22); gj++) for (let gi = Math.floor((x0 - 16) / 22); gi <= Math.floor((x0 + 31) / 22); gi++) {
+        const s = this.needle(gi, gj); if (!s) continue;
+        const rm = this.spireProf(s).rmax;
+        if (over(s.x - rm, s.z - rm, s.x + rm, s.z + rm)) F.spires.push(s);
+      }
+    }
+    // islands (with their debris clouds)
+    for (let layer = 0; layer < 2; layer++) {
+      const off = layer ? 38 : 0;
+      for (let gj = Math.floor((z0 - 92 - off) / 76); gj <= Math.floor((z0 + 107 - off) / 76); gj++) for (let gi = Math.floor((x0 - 92 - off) / 76); gi <= Math.floor((x0 + 107 - off) / 76); gi++) {
+        const s = this.island(layer, gi, gj); if (!s) continue;
+        let r = s.R * 1.32 + 9;
+        if (s.debris) for (const q of s.debris) r = Math.max(r, Math.hypot(q.x - s.x, q.z - s.z) + q.r + 1);
+        if (over(s.x - r, s.z - r, s.x + r, s.z + r)) F.islands.push(s);
+      }
+    }
+    for (let gj = Math.floor((z0 - 32) / 180); gj <= Math.floor((z0 + 47) / 180); gj++) for (let gi = Math.floor((x0 - 32) / 180); gi <= Math.floor((x0 + 47) / 180); gi++) {
+      const h = this.hoop(gi, gj); if (h) { const r = h.Ri + h.wr + 1; if (over(h.x - r, h.z - r, h.x + r, h.z + r)) F.hoops.push(h); }
+    }
+    if (tw[SKZ.CANYON] > 0 || this.natCol(xc + 100, zc).tw[SKZ.CANYON] > 0 || this.natCol(xc - 100, zc).tw[SKZ.CANYON] > 0 || this.natCol(xc, zc + 100).tw[SKZ.CANYON] > 0 || this.natCol(xc, zc - 100).tw[SKZ.CANYON] > 0) {
+      for (let gj = Math.floor((z0 - 100) / 210); gj <= Math.floor((z0 + 115) / 210); gj++) for (let gi = Math.floor((x0 - 100) / 210); gi <= Math.floor((x0 + 115) / 210); gi++) {
+        const a = this.arch(gi, gj); if (a) { const r = a.hs + a.W; if (over(a.x - r, a.z - r, a.x + r, a.z + r)) F.arches.push(a); }
+      }
+    }
+    // region plans: courses, tunnels, course features (only regions whose centre is close enough to reach here)
+    const gi = Math.floor(xc / SKY_CELL + 0.5), gj = Math.floor(zc / SKY_CELL + 0.5);
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      const c = this.cell(gi + di, gj + dj);
+      if (Math.hypot(c.x - xc, c.z - zc) > 1020) continue;
+      const P = this.plan(c), bx = this.planBox(P);
+      if (!over(bx[0], bx[1], bx[2], bx[3])) continue;
+      for (const g of P.gates.concat(P.boosts)) {
+        const r = g.R + 3; if (over(g.x - r, g.z - r, g.x + r, g.z + r)) F.gates.push(g);
+        if (over(g.x - 50, g.z - 50, g.x + 50, g.z + 50)) F.tgates.push(g);
+      }
+      for (const f of P.feats) { const r = f.reach; if (over(f.x - r, f.z - r, f.x + r, f.z + r)) F.feats.push(f); if (over(f.x - r - 14, f.z - r - 14, f.x + r + 14, f.z + r + 14)) F.tfeats.push(f); }
+      for (const t of P.tubes) if (over(t.x0, t.z0, t.x1, t.z1)) F.tubes.push(t);
+      // the corridors trees keep out of: between consecutive gates, and along every tunnel's bore
+      const seg = (ax, ay, az, bx, by, bz, w, r) => { const m = w + 14; if (over(Math.min(ax, bx) - m, Math.min(az, bz) - m, Math.max(ax, bx) + m, Math.max(az, bz) + m)) F.tsegs.push([ax, ay, az, bx, by, bz, w, r]); };
+      for (let i = 1; i < P.gates.length; i++) { const a = P.gates[i - 1], b = P.gates[i]; seg(a.x, a.y, a.z, b.x, b.y, b.z, Math.max(a.R, b.R) + 5, Math.min(a.R, b.R)); }
+      for (const t of P.tubes) { const p = t.pts; for (let i = 0; i < t.n - 1; i++) seg(p[i * 3], p[i * 3 + 1], p[i * 3 + 2], p[i * 3 + 3], p[i * 3 + 4], p[i * 3 + 5], t.R + 6, t.R); }
+    }
+    for (const af of this.airfieldsNear(xc, zc)) {
+      const e = af.padA + 70;
+      const ax = af.x - Math.abs(af.fx) * e - Math.abs(af.rx) * 90, bx2 = af.x + Math.abs(af.fx) * e + Math.abs(af.rx) * 90;
+      const az = af.z - Math.abs(af.fz) * e - Math.abs(af.rz) * 90, bz2 = af.z + Math.abs(af.fz) * e + Math.abs(af.rz) * 90;
+      if (over(ax, az, bx2, bz2)) F.airfields.push(af);
+    }
+    return F;
+  }
+  // ---------------------------------------------------------------- feature fills
+  fillSpire(ctx, s) {
+    const b = ctx.b, x0 = ctx.x0, z0 = ctx.z0, P = this.spireProf(s), n = P.r.length, rm = P.rmax, pal = s.needle ? this.needlePal : this.spirePal;
+    const xa = Math.max(x0, Math.floor(s.x - rm)), xb = Math.min(x0 + 15, Math.ceil(s.x + rm)), za = Math.max(z0, Math.floor(s.z - rm)), zb = Math.min(z0 + 15, Math.ceil(s.z + rm));
+    for (let z = za; z <= zb; z++) for (let x = xa; x <= xb; x++) {
+      const px = x + 0.5 - s.x, pz = z + 0.5 - s.z, th = Math.atan2(pz, px), s3 = Math.sin(3 * th), c3 = Math.cos(3 * th), m5 = 1 + 0.06 * Math.sin(5 * th + s.ph2);
+      const col = ((z - z0) << 4) | (x - x0);
+      let topY = -1;
+      for (let k = 0; k < n; k++) {
+        const y = s.base + k; if (y < 1 || y >= CH - 2) continue;
+        const dx = px - s.lx * k, dz = pz - s.lz * k, rr = P.r[k] * (m5 + 0.12 * (s3 * P.cp[k] + c3 * P.sp[k]));
+        if (dx * dx + dz * dz >= rr * rr) continue;
+        b[(y << 8) | col] = pal[(Math.floor((y + s.mat * 5) / 5) % pal.length + pal.length) % pal.length];
+        topY = y;
+      }
+      if (topY < 0) continue;
+      // grassy cap, mossy below it
+      b[(topY << 8) | col] = B.grass_block;
+      for (let y = topY - 1; y >= topY - 2; y--) b[(y << 8) | col] = B.dirt;
+      for (let y = topY - 3; y >= Math.max(1, topY - 16); y--) { const p = (y << 8) | col; if (b[p] && hashF3(this.seed ^ 0x3055, x, y, z) < 0.3) b[p] = B.moss_block; }
+    }
+  }
+  carveEye(ctx, s) {
+    const e = s.eye, b = ctx.b, x0 = ctx.x0, z0 = ctx.z0, k = e.y - s.base, cx = s.x + s.lx * k, cz = s.z + s.lz * k, r = s.r0 * 1.5 + 2;
+    for (let z = Math.max(z0, Math.floor(cz - r)); z <= Math.min(z0 + 15, Math.ceil(cz + r)); z++) for (let x = Math.max(x0, Math.floor(cx - r)); x <= Math.min(x0 + 15, Math.ceil(cx + r)); x++)
+      for (let y = Math.floor(e.y - e.r - 1); y <= Math.ceil(e.y + e.r + 1); y++) if (this.inEye(s, x + 0.5, y + 0.5, z + 0.5)) b[(y << 8) | ((z - z0) << 4) | (x - x0)] = 0;
+  }
+  fillBridge(ctx, br) {
+    const b = ctx.b, x0 = ctx.x0, z0 = ctx.z0;
+    for (let z = z0; z < z0 + 16; z++) for (let x = x0; x < x0 + 16; x++) {
+      const sp = this.bridgeSpan(br, x + 0.5, z + 0.5); if (!sp) continue;
+      const col = ((z - z0) << 4) | (x - x0);
+      for (let y = Math.max(1, sp[0]); y <= Math.min(CH - 2, sp[1]); y++) b[(y << 8) | col] = y === sp[1] ? B.grass_block : y === sp[1] - 1 ? B.dirt : hashF3(this.seed ^ 0xB4, x, y, z) < 0.3 ? B.andesite : B.stone;
+    }
+  }
+  fillIsland(ctx, s) {
+    const b = ctx.b, x0 = ctx.x0, z0 = ctx.z0, r = s.R * 1.32 + 1;
+    for (let z = Math.max(z0, Math.floor(s.z - r)); z <= Math.min(z0 + 15, Math.ceil(s.z + r)); z++) for (let x = Math.max(x0, Math.floor(s.x - r)); x <= Math.min(x0 + 15, Math.ceil(s.x + r)); x++) {
+      const sp = this.isleSpan(s, x + 0.5, z + 0.5); if (!sp) continue;
+      const col = ((z - z0) << 4) | (x - x0);
+      for (let y = Math.max(1, sp[0]); y <= Math.min(CH - 3, sp[1]); y++) b[(y << 8) | col] = y === sp[1] ? B.grass_block : y >= sp[1] - 3 ? B.dirt : B.stone;
+    }
+    if (s.debris) for (const q of s.debris) {
+      const rr = q.r + 0.5;
+      for (let z = Math.max(z0, Math.floor(q.z - rr)); z <= Math.min(z0 + 15, Math.floor(q.z + rr)); z++) for (let x = Math.max(x0, Math.floor(q.x - rr)); x <= Math.min(x0 + 15, Math.floor(q.x + rr)); x++)
+        for (let y = Math.max(1, Math.floor(q.y - rr)); y <= Math.min(CH - 2, Math.floor(q.y + rr)); y++) {
+          const dx = x + 0.5 - q.x, dy = y + 0.5 - q.y, dz = z + 0.5 - q.z, hh = hashF3(s.salt, x, y, z);
+          if (dx * dx + dy * dy + dz * dz < q.r * q.r * (0.75 + hh * 0.5)) b[(y << 8) | ((z - z0) << 4) | (x - x0)] = hh < 0.4 ? B.tuff : hh < 0.75 ? B.andesite : B.cobbled_deepslate;
+        }
+    }
+  }
+  // stone rings: mossy rock, with a few glowing crystals set into the inside of the ring
+  fillHoop(ctx, h, crystals) {
+    const b = ctx.b, x0 = ctx.x0, z0 = ctx.z0, o = [0, 0, 0, 0], r = h.Ri + h.wr + 1;
+    for (let z = Math.max(z0, Math.floor(h.z - r)); z <= Math.min(z0 + 15, Math.ceil(h.z + r)); z++) for (let x = Math.max(x0, Math.floor(h.x - r)); x <= Math.min(x0 + 15, Math.ceil(h.x + r)); x++) {
+      if (!this.hoopSpan(h, x + 0.5, z + 0.5, o)) continue;
+      const col = ((z - z0) << 4) | (x - x0);
+      for (let run = 0; run < (o[2] >= 0 ? 2 : 1); run++) {
+        const ya = o[run * 2], yb = o[run * 2 + 1];
+        for (let y = Math.max(1, ya); y <= Math.min(CH - 2, yb); y++) {
+          const hh = hashF3(h.salt, x, y, z);
+          b[(y << 8) | col] = y === yb && hh < 0.6 ? B.moss_block : hh < 0.25 ? B.mossy_cobblestone : hh < 0.45 ? B.andesite : B.stone;
+        }
+      }
+    }
+    if (!crystals) return;
+    for (let k = 0; k < 6; k++) {
+      const t = (k + 0.5) / 6 * SKY_TAU, rr = h.Ri + 0.5, x = Math.floor(h.x - h.nz * Math.cos(t) * rr), y = Math.floor(h.y + Math.sin(t) * rr), z = Math.floor(h.z + h.nx * Math.cos(t) * rr);
+      if (ctx.inside(x, z) && ctx.get(x, y, z) > 0) ctx.set(x, y, z, k & 1 ? B.ochre_froglight : B.pearlescent_froglight);
+    }
+  }
+  fillArch(ctx, a) {
+    const b = ctx.b, x0 = ctx.x0, z0 = ctx.z0;
+    const c = this.g.climateCached(Math.floor(a.x), Math.floor(a.z));
+    for (let z = z0; z < z0 + 16; z++) for (let x = x0; x < x0 + 16; x++) {
+      const sp = this.archSpan(a, x + 0.5, z + 0.5); if (!sp) continue;
+      const col = ((z - z0) << 4) | (x - x0);
+      for (let y = Math.max(1, sp[0]); y <= Math.min(CH - 2, sp[1]); y++) b[(y << 8) | col] = y === sp[1] && c.cold < 0.5 ? B.red_sand : this.bandAt(c, x, y, z);
+    }
+  }
+  fillFeat(ctx, f) {
+    const b = ctx.b, x0 = ctx.x0, z0 = ctx.z0, sd = this.seed ^ 0xFEA7;
+    if (f.k === 'henge') { this.fillHoop(ctx, f.h, true); return; }
+    if (f.k === 'pillars') {
+      for (const s of [-1, 1]) {
+        const px = f.x + f.ux * f.off * s, pz = f.z + f.uz * f.off * s, r = f.pr + 0.6;
+        for (let z = Math.max(z0, Math.floor(pz - r)); z <= Math.min(z0 + 15, Math.floor(pz + r)); z++) for (let x = Math.max(x0, Math.floor(px - r)); x <= Math.min(x0 + 15, Math.floor(px + r)); x++) {
+          const dd = Math.hypot(x + 0.5 - px, z + 0.5 - pz); if (dd > f.pr) continue;
+          const col = ((z - z0) << 4) | (x - x0);
+          for (let y = Math.max(1, f.y0); y <= Math.min(CH - 3, f.y1); y++) { const hh = hashF3(sd, x, y, z); b[(y << 8) | col] = y === f.y1 ? B.moss_block : hh < 0.3 ? B.mossy_stone_bricks : hh < 0.4 ? B.cracked_stone_bricks : B.stone_bricks; }
+          if (dd < 0.9 && f.y1 + 1 < CH - 1) b[((f.y1 + 1) << 8) | col] = B.sea_lantern;
+        }
+      }
+      return;
+    }
+    for (let z = z0; z < z0 + 16; z++) for (let x = x0; x < x0 + 16; x++) {
+      const sp = this.garchSpan(f, x + 0.5, z + 0.5); if (!sp) continue;
+      const col = ((z - z0) << 4) | (x - x0);
+      for (let y = Math.max(1, sp[0]); y <= Math.min(CH - 2, sp[1]); y++) b[(y << 8) | col] = y === sp[1] ? B.moss_block : hashF3(sd, x, y, z) < 0.3 ? B.mossy_cobblestone : B.stone;
+    }
+  }
+  // ---------------------------------------------------------------- tunnels
+  carveTube(ctx, t) {
+    const b = ctx.b, x0 = ctx.x0, z0 = ctx.z0, p = t.pts, R = t.R, R2 = R * R;
+    if (t.x1 < x0 || t.x0 > x0 + 15 || t.z1 < z0 || t.z0 > z0 + 15) return;
+    for (let i = 0; i < t.n - 1; i++) {
+      const ax = p[i * 3], ay = p[i * 3 + 1], az = p[i * 3 + 2], bx = p[i * 3 + 3], by = p[i * 3 + 4], bz = p[i * 3 + 5];
+      if (Math.max(ax, bx) + R < x0 || Math.min(ax, bx) - R > x0 + 15 || Math.max(az, bz) + R < z0 || Math.min(az, bz) - R > z0 + 15) continue;
+      const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1;
+      const xa = Math.max(x0, Math.floor(Math.min(ax, bx) - R)), xb = Math.min(x0 + 15, Math.ceil(Math.max(ax, bx) + R));
+      const za = Math.max(z0, Math.floor(Math.min(az, bz) - R)), zb = Math.min(z0 + 15, Math.ceil(Math.max(az, bz) + R));
+      for (let z = za; z <= zb; z++) for (let x = xa; x <= xb; x++) {
+        const s = clamp(((x + 0.5 - ax) * dx + (z + 0.5 - az) * dz) / L2, 0, 1), ex = ax + dx * s - x - 0.5, ez = az + dz * s - z - 0.5, d2 = ex * ex + ez * ez;
+        if (d2 >= R2) continue;
+        const yc = ay + (by - ay) * s, half = Math.sqrt(R2 - d2), col = ((z - z0) << 4) | (x - x0);
+        for (let y = Math.max(2, Math.ceil(yc - half - 0.5)); y <= Math.min(CH - 2, Math.floor(yc + half - 0.5)); y++) b[(y << 8) | col] = 0;
+      }
+    }
+    for (const cv of t.caves) {
+      if (cv.x + cv.rx < x0 || cv.x - cv.rx > x0 + 15 || cv.z + cv.rx < z0 || cv.z - cv.rx > z0 + 15) continue;
+      for (let z = Math.max(z0, Math.floor(cv.z - cv.rx)); z <= Math.min(z0 + 15, Math.ceil(cv.z + cv.rx)); z++) for (let x = Math.max(x0, Math.floor(cv.x - cv.rx)); x <= Math.min(x0 + 15, Math.ceil(cv.x + cv.rx)); x++) {
+        const qx = (x + 0.5 - cv.x) / cv.rx, qz = (z + 0.5 - cv.z) / cv.rx, q = 1 - qx * qx - qz * qz; if (q <= 0) continue;
+        const half = cv.ry * Math.sqrt(q), col = ((z - z0) << 4) | (x - x0);
+        for (let y = Math.max(2, Math.ceil(cv.y - half)); y <= Math.min(CH - 2, Math.floor(cv.y + half)); y++) b[(y << 8) | col] = 0;
+      }
+    }
+  }
+  // lights along the walls, a dashed stripe down the floor, hazard-striped frames at the mouths, lamps hanging in the
+  // caverns (and on the hard maps, stalactites to dodge)
+  decorTube(ctx, t) {
+    if (!t.lit || t.x1 < ctx.x0 || t.x0 > ctx.x0 + 15 || t.z1 < ctx.z0 || t.z0 > ctx.z0 + 15) return;
+    const p = t.pts, R = t.R, every = Math.max(1, Math.round(lerp(2, 3, t.d)));
+    const setIfSolid = (x, y, z, v) => { x = Math.floor(x); y = Math.floor(y); z = Math.floor(z); if (!ctx.inside(x, z)) return true; const c = ctx.get(x, y, z); if (c > 0 && SOLID[c & 4095] && !FLUID[c & 4095]) { ctx.set(x, y, z, v); return true; } return false; };
+    // a lamp set into the wall at an angle from the top (a little deeper if the bore's edge is right there)
+    const lamp = (x, y, z, lx, lz, a, v) => { for (const rr of [R + 0.8, R + 1.6, R + 2.4]) if (setIfSolid(x + lx * Math.sin(a) * rr, y + Math.cos(a) * rr, z + lz * Math.sin(a) * rr, v)) return; };
+    for (let i = 1; i < t.n - 1; i++) {
+      const x = p[i * 3], y = p[i * 3 + 1], z = p[i * 3 + 2];
+      if (x + R + 4 < ctx.x0 || x - R - 4 > ctx.x0 + 15 || z + R + 4 < ctx.z0 || z - R - 4 > ctx.z0 + 15) continue;
+      let tx = p[i * 3 + 3] - p[i * 3 - 3], tz = p[i * 3 + 5] - p[i * 3 - 3 + 2]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+      const lx = -tz, lz = tx;
+      if (t.under[i]) {
+        if (i % every === 0) for (const s of [-1, 1]) lamp(x, y, z, lx * s, lz * s, 0.87, t.free ? B.shroomlight : B.sea_lantern);
+        // a dashed centre line down the floor with a glowing stud in every other dash
+        for (let k = 0; k < 8; k += 4) for (let m = 0; m < 2; m++) for (const rr of [R + 0.4, R + 1.2]) if (setIfSolid(x + tx * (k + m), y - rr, z + tz * (k + m), k === 0 && m === 0 && (i & 1) ? B.ochre_froglight : B.yellow_concrete)) break;
+      }
+      // a frame where the tunnel enters the rock
+      if (t.under[i] !== t.under[i - 1] && (t.under[i] || t.under[i - 1])) this.portalRing(ctx, x, y, z, tx, tz, R, t.free);
+    }
+    const d = t.d;
+    for (const cv of t.caves) {
+      for (let gz = Math.floor((cv.z - cv.rx) / 6); gz <= Math.floor((cv.z + cv.rx) / 6); gz++) for (let gx = Math.floor((cv.x - cv.rx) / 6); gx <= Math.floor((cv.x + cv.rx) / 6); gx++) {
+        const hh = hashF2(this.seed ^ 0xCA7E, gx, gz), x = gx * 6 + Math.floor(hh * 5), z = gz * 6 + Math.floor(hashF2(this.seed ^ 0xCA7F, gx, gz) * 5);
+        if (!ctx.inside(x, z)) continue;
+        const qx = (x + 0.5 - cv.x) / cv.rx, qz = (z + 0.5 - cv.z) / cv.rx, q = 1 - qx * qx - qz * qz; if (q <= 0.05) continue;
+        const ceil = Math.floor(cv.y + cv.ry * Math.sqrt(q));
+        if (hh < 0.45) { for (let k = 0; k < 1 + (hh * 7 | 0) % 3; k++) if (ctx.get(x, ceil - k, z) === 0) ctx.set(x, ceil - k, z, B.glowstone); }
+        else if (hh < 0.45 + d * 0.35) {
+          // a stalactite hanging into the flight path
+          const len = 3 + Math.floor(hashF2(this.seed ^ 0x57A1, gx, gz) * cv.ry * 0.6);
+          for (let k = 0; k < len; k++) if (ctx.get(x, ceil - k, z) === 0) ctx.set(x, ceil - k, z, k === len - 1 ? B.pointed_dripstone : B.dripstone_block);
+        }
+      }
+    }
+  }
+  portalRing(ctx, x, y, z, tx, tz, R, free) {
+    const r0 = R + 0.3, r1 = R + 2.6, ext = Math.ceil(r1) + 1;
+    for (let zz = Math.max(ctx.z0, Math.floor(z - ext)); zz <= Math.min(ctx.z0 + 15, Math.floor(z + ext)); zz++) for (let xx = Math.max(ctx.x0, Math.floor(x - ext)); xx <= Math.min(ctx.x0 + 15, Math.floor(x + ext)); xx++) {
+      const dx = xx + 0.5 - x, dz = zz + 0.5 - z, a = dx * tx + dz * tz; if (a < -1.2 || a > 1.2) continue;
+      const u = -dx * tz + dz * tx;
+      for (let yy = Math.max(2, Math.floor(y - r1)); yy <= Math.min(CH - 2, Math.ceil(y + r1)); yy++) {
+        const v = yy + 0.5 - y, rr = u * u + v * v; if (rr < r0 * r0 || rr > r1 * r1) continue;
+        const seg = Math.floor((Math.atan2(v, u) / SKY_TAU + 1) * 16) & 1;
+        ctx.set(xx, yy, zz, free ? (seg ? B.polished_andesite : B.stone_bricks) : seg ? B.yellow_concrete : B.black_concrete);
+      }
+    }
+  }
+  // ---------------------------------------------------------------- course gates and boost rings
+  buildRing(ctx, g) {
+    const R = g.R, Ro = R + 1.8, th = 1.0, ext = Math.ceil(Ro) + 2, M = this.gateMats[g.k], nseg = g.k === 2 ? 16 : 8;
+    for (let z = Math.max(ctx.z0, Math.floor(g.z - ext)); z <= Math.min(ctx.z0 + 15, Math.floor(g.z + ext)); z++) for (let x = Math.max(ctx.x0, Math.floor(g.x - ext)); x <= Math.min(ctx.x0 + 15, Math.floor(g.x + ext)); x++) {
+      const dx = x + 0.5 - g.x, dz = z + 0.5 - g.z, a = dx * g.nx + dz * g.nz; if (a < -th || a > th) continue;
+      const u = -dx * g.nz + dz * g.nx; if (u > Ro || u < -Ro) continue;
+      for (let y = Math.max(2, Math.floor(g.y - Ro)); y <= Math.min(CH - 2, Math.ceil(g.y + Ro)); y++) {
+        const v = y + 0.5 - g.y, rr = u * u + v * v; if (rr < R * R || rr > Ro * Ro) continue;
+        ctx.set(x, y, z, M[Math.floor((Math.atan2(v, u) / SKY_TAU + 1) * nseg) & 1]);
+      }
+    }
+    const nl = g.k === 3 ? 6 : 12, Rm = R + 0.9;
+    for (let k = 0; k < nl; k++) {
+      const t = (k + 0.5) / nl * SKY_TAU, x = Math.floor(g.x - g.nz * Math.cos(t) * Rm), z = Math.floor(g.z + g.nx * Math.cos(t) * Rm), y = Math.floor(g.y + Math.sin(t) * Rm);
+      if (ctx.inside(x, z)) ctx.set(x, y, z, M[2]);
+    }
+  }
+  // ---------------------------------------------------------------- islands: waterfalls, chains, hanging vines
+  decorIsland(ctx, s) {
+    if (s.fall !== undefined) {
+      const ca = Math.cos(s.fall), sa = Math.sin(s.fall);
+      let last = null, first = null, stream = [];
+      for (let t = 0; t < s.R * 1.4; t += 0.5) {
+        const x = Math.floor(s.x + ca * t), z = Math.floor(s.z + sa * t), sp = this.isleSpan(s, x + 0.5, z + 0.5);
+        if (sp) { last = [x, z, sp[1]]; if (t > s.R * 0.5) stream.push(last); }
+        else if (last) { first = [x, z]; break; }
+      }
+      if (last && first) {
+        for (const [x, z, y] of stream) if (ctx.inside(x, z) && y === last[2] && (ctx.get(x, y, z) & 4095) === B.grass_block) ctx.set(x, y, z, B.water);
+        if (ctx.inside(first[0], first[1])) {
+          const [x, z] = first;
+          for (let y = last[2]; y > 1; y--) {
+            const id = ctx.get(x, y, z) & 4095;
+            if (id === 0 || PLANT[id] || LEAVES[id]) { ctx.set(x, y, z, B.water | (8 << 12)); continue; }
+            if (!FLUID[id]) { ctx.set(x, y, z, B.water); for (let f = 0; f < 4; f++) { const ax = x + FACING_DX[f], az = z + FACING_DZ[f]; if (ctx.inside(ax, az) && OPAQUE[ctx.get(ax, y, az) & 4095] && ctx.get(ax, y + 1, az) === 0) ctx.set(ax, y, az, B.water); } }
+            break;
+          }
+        }
+      }
+    }
+    if (s.chains) for (const [a, rf] of s.chains) {
+      const x = Math.floor(s.x + Math.cos(a) * s.R * rf), z = Math.floor(s.z + Math.sin(a) * s.R * rf);
+      if (!ctx.inside(x, z)) continue;
+      const sp = this.isleSpan(s, x + 0.5, z + 0.5); if (!sp) continue;
+      for (let y = sp[0] - 1; y > 2 && ctx.get(x, y, z) === 0; y--) ctx.set(x, y, z, B.chain);
+    }
+    // vines down the rim
+    const nv = Math.floor(s.R * 0.8);
+    for (let k = 0; k < nv; k++) {
+      const a = hashF2(s.salt, k, 1) * SKY_TAU, ca = Math.cos(a), sa = Math.sin(a);
+      let x = Math.floor(s.x + ca * s.R * 0.6), z = Math.floor(s.z + sa * s.R * 0.6), sp = null;
+      for (let t = s.R * 0.6; t < s.R * 1.4; t += 0.5) {
+        const xx = Math.floor(s.x + ca * t), zz = Math.floor(s.z + sa * t), q = this.isleSpan(s, xx + 0.5, zz + 0.5);
+        if (q) { x = xx; z = zz; sp = q; } else break;
+      }
+      if (!sp) continue;
+      const f = Math.abs(ca) > Math.abs(sa) ? (ca > 0 ? 1 : 3) : (sa > 0 ? 2 : 0), vx = x + FACING_DX[f], vz = z + FACING_DZ[f];
+      if (!ctx.inside(vx, vz)) continue;
+      const len = 3 + Math.floor(hashF2(s.salt, k, 2) * 9), meta = VINE_META_TOWARD[(f + 2) & 3];
+      for (let i = 0; i < len; i++) { const y = sp[1] - 1 - i; if (ctx.get(vx, y, vz) !== 0) break; ctx.set(vx, y, vz, B.vine | (meta << 12)); }
+    }
+  }
+  // vines hanging off spire caps
+  vines(ctx, s) {
+    if (s.needle) return;
+    const P = this.spireProf(s), k0 = s.top - s.base, rt = P.r[k0], cx = s.x + s.lx * k0, cz = s.z + s.lz * k0, nv = Math.floor(rt * 1.4);
+    for (let k = 0; k < nv; k++) {
+      const a = hashF2(this.seed ^ 0x71E5, s.gi * 64 + k, s.gj) * SKY_TAU, ca = Math.cos(a), sa = Math.sin(a);
+      const f = Math.abs(ca) > Math.abs(sa) ? (ca > 0 ? 1 : 3) : (sa > 0 ? 2 : 0);
+      let x = -1, z = -1;
+      for (let t = rt * 0.5; t < rt * 1.6; t += 0.5) {
+        const xx = Math.floor(cx + ca * t), zz = Math.floor(cz + sa * t);
+        if (!this.spireSolid(s, xx + 0.5, s.top - 1 + 0.5, zz + 0.5)) break;
+        x = xx; z = zz;
+      }
+      if (x < 0 && z < 0) continue;
+      const vx = x + FACING_DX[f], vz = z + FACING_DZ[f];
+      if (!ctx.inside(vx, vz)) continue;
+      const len = 4 + Math.floor(hashF2(this.seed ^ 0x71E6, s.gi * 64 + k, s.gj) * 22), meta = VINE_META_TOWARD[(f + 2) & 3];
+      for (let i = 0; i < len; i++) { const y = s.top - 1 - i; if (y < 2 || ctx.get(vx, y, vz) !== 0) break; ctx.set(vx, y, vz, B.vine | (meta << 12)); }
+    }
+  }
+  // ---------------------------------------------------------------- the airfields
+  buildAirfield(ctx, af) {
+    const b = ctx.b, x0 = ctx.x0, z0 = ctx.z0, Y = af.y, L = af.L, W = af.W, AB0 = W + 12, AD = af.AD, AA = af.AA;
+    const put = (a, h, bb, v) => ctx.set(af.x + a * af.fx + bb * af.rx, Y + h, af.z + a * af.fz + bb * af.rz, v);
+    const num0 = this.rwyNum(af.fx, af.fz), num1 = this.rwyNum(-af.fx, -af.fz), cs = af.home ? 2 : 1, rs = af.home ? 3 : 2;
+    // a runway designator digit pixel, read by a pilot landing toward +a from the a = -L end (or -a from the other)
+    const digit = (num, u, v) => {
+      if (u < 0 || u >= 5 * rs) return false;
+      const row = 4 - Math.floor(u / rs), w = 3 * cs, gap = cs, tot = 2 * w + gap; v += tot >> 1;
+      if (v < 0 || v >= tot) return false;
+      const di = v < w ? 0 : v >= w + gap ? 1 : -1; if (di < 0) return false;
+      const col = Math.floor((v - (di ? w + gap : 0)) / cs);
+      return SKY_DIGITS[+num[di]][row * 3 + col] === '1';
+    };
+    for (let z = z0; z < z0 + 16; z++) for (let x = x0; x < x0 + 16; x++) {
+      const dx = x - af.x, dz = z - af.z, a = dx * af.fx + dz * af.fz, bb = dx * af.rx + dz * af.rz;
+      if (Math.abs(a) > af.padA + 70 || bb < -W - 12 || bb > af.padB1) continue;
+      const col = ((z - z0) << 4) | (x - x0), ab = Math.abs(bb);
+      let v = 0;
+      if (Math.abs(a) <= L && ab <= W) {
+        const aa = a + L, ae = L - a;
+        v = B.gray_concrete;
+        if (ab === W) v = B.white_concrete;
+        else if ((aa >= 2 && aa <= 8 || ae >= 2 && ae <= 8) && ab <= W - 2 && bb !== 0 && ((bb + W) & 1) === 0) v = B.white_concrete;
+        else if (digit(num0, aa - 12, bb) || digit(num1, ae - 12, -bb)) v = B.white_concrete;
+        else if ((aa >= 12 + 5 * rs + 12 && aa < 12 + 5 * rs + 24 || ae >= 12 + 5 * rs + 12 && ae < 12 + 5 * rs + 24) && ab >= W - 3 && ab <= W - 2) v = B.white_concrete;
+        else if (bb === 0 && aa > 12 + 5 * rs + 2 && ae > 12 + 5 * rs + 2 && ((aa - 12) % 14) < 8) v = B.white_concrete;
+      } else if (ab === W + 1 && Math.abs(a) <= L && (a + L) % 8 === 0) v = B.sea_lantern;
+      else if ((a === -L - 1 || a === L + 1) && ab <= W && (bb & 1) === 0) v = a < 0 ? B.verdant_froglight : B.ochre_froglight;
+      else if (bb > W && bb < AB0) { for (const ta of af.home ? [0, -AA + 8, AA - 8] : [0]) if (Math.abs(a - ta) <= 3) v = a === ta ? B.yellow_concrete : B.light_gray_concrete; }
+      else if (bb >= AB0 && bb <= AB0 + AD && Math.abs(a) <= AA) {
+        const pa = a - (-AA + 9), pb = bb - (AB0 + 8);
+        if (Math.abs(pa) <= 6 && Math.abs(pb) <= 6) {
+          // the service pad: land or taxi onto it and stop to repair and rearm
+          if (Math.max(Math.abs(pa), Math.abs(pb)) >= 5) v = ((pa + pb) & 2) ? B.yellow_concrete : B.black_concrete;
+          else if ((Math.abs(pa) <= 1 && Math.abs(pb) <= 3) || (Math.abs(pb) <= 1 && Math.abs(pa) <= 3)) v = B.red_concrete;
+          else v = B.white_concrete;
+        } else if (bb === AB0 || (((a + AA) % 16) === 0 && bb > AB0 + 2 && bb < AB0 + AD - 2)) v = B.yellow_concrete;
+        else v = B.light_gray_concrete;
+      }
+      if (v) {
+        b[(Y << 8) | col] = v;
+        // nothing growing or standing on the pavement
+        for (let y = Y + 1; y < Math.min(CH - 1, Y + 6); y++) { const id = b[(y << 8) | col] & 4095; if (id && (PLANT[id] || LEAVES[id] || id === B.snow_layer)) b[(y << 8) | col] = 0; }
+      }
+    }
+    // approach lights off both ends: a row of lamps on posts with a crossbar, down at runway height
+    for (const e of [-1, 1]) for (let k = 0; k < 10; k++) {
+      const a = e * (L + 6 + k * 6);
+      for (const bb of k === 5 ? [-6, -4, -2, 0, 2, 4, 6] : [0]) {
+        const x = af.x + a * af.fx + bb * af.rx, z = af.z + a * af.fz + bb * af.rz; if (!ctx.inside(x, z)) continue;
+        let gy = CH - 2; while (gy > 1 && !SOLID[ctx.get(x, gy, z) & 4095]) gy--;
+        const ly = Math.max(gy + 1, Y);
+        for (let y = gy + 1; y < ly; y++) ctx.set(x, y, z, B.cobblestone_wall);
+        ctx.set(x, ly, z, e < 0 ? B.sea_lantern : B.ochre_froglight);
+      }
+    }
+    // windsock by the threshold
+    const wa = -L + 20, wb = -W - 7;
+    for (let h = 1; h <= 6; h++) put(wa, h, wb, B.oak_fence);
+    put(wa + 1, 6, wb, B.orange_wool); put(wa + 2, 6, wb, B.white_wool); put(wa + 3, 6, wb, B.orange_wool);
+    // hangars along the back of the apron
+    const hb = AB0 + AD + 1;
+    if (af.home) { this.hangar(put, -38, hb, 11, af.HD - 1); this.hangar(put, -12, hb, 11, af.HD - 1); this.tower(put, 30, hb + 8); this.tanks(put, 50, hb + 4); }
+    else { this.hangar(put, -12, hb, 6, af.HD - 1); for (let h = 1; h <= 14; h++) put(AA + 3, h, AB0 + 2, B.cobblestone_wall); put(AA + 3, 15, AB0 + 2, B.sea_lantern); put(AA + 3, 16, AB0 + 2, B.end_rod); }
+    // parked aircraft facing the runway (spawn once, with the chunk they stand in)
+    const yaw = Math.atan2(-af.rx, af.rz), park = af.home ? [['jet', -40], ['jet', -22], ['fighter', -4], ['bomber', 16], ['gunship', 36]] : this.stripPlane(af);
+    for (const [kind, a] of park) {
+      const bb = AB0 + (af.home ? 16 : 9), x = af.x + a * af.fx + bb * af.rx + 0.5, z = af.z + a * af.fz + bb * af.rz + 0.5;
+      if (ctx.inside(Math.floor(x), Math.floor(z))) ctx.spawn('vehicle', x, Y + 1.05, z, { kind, yaw });
+    }
+  }
+  stripPlane(af) {
+    const h = hashF2(this.seed ^ 0x9A4C, af.i, af.j);
+    if (h > 0.45) return [];
+    return [[h < 0.32 ? 'jet' : h < 0.39 ? 'fighter' : 'bomber', 6]];
+  }
+  // a quonset hangar: a half-cylinder shell along b, open toward the runway
+  hangar(put, ac, b0, Rh, depth) {
+    for (let a = -Rh; a <= Rh; a++) for (let bb = 0; bb <= depth; bb++) {
+      const u = Math.abs(a), yr = Math.floor(Math.sqrt(Math.max(0, Rh * Rh - u * u))), yIn = u > 0 ? Math.floor(Math.sqrt(Math.max(0, Rh * Rh - (u - 1) * (u - 1)))) : yr;
+      put(ac + a, 0, b0 + bb, B.smooth_stone);
+      for (let h = 1; h <= yr; h++) put(ac + a, h, b0 + bb, bb === depth ? B.light_gray_concrete : 0);
+      for (let h = yr; h <= Math.max(yr, yIn - 1); h++) put(ac + a, h + 1, b0 + bb, bb % 6 === 0 ? B.white_concrete : B.light_gray_concrete);
+      if (a === 0 && bb % 6 === 3) put(ac, yr, b0 + bb, B.sea_lantern);
+    }
+  }
+  // control tower with a glass cab and a beacon
+  tower(put, ta, tb) {
+    for (let a = -3; a <= 3; a++) for (let b = -3; b <= 3; b++) {
+      const edge = Math.abs(a) === 3 || Math.abs(b) === 3, corner = Math.abs(a) === 3 && Math.abs(b) === 3;
+      for (let h = 1; h <= 18; h++) put(ta + a, h, tb + b, !edge ? 0 : corner ? B.quartz_pillar : (h % 5 === 3 && Math.abs(a) + Math.abs(b) < 5 ? B.glass : B.white_concrete));
+    }
+    put(ta, 1, tb - 3, 0); put(ta, 2, tb - 3, 0);
+    for (let a = -4; a <= 4; a++) for (let b = -4; b <= 4; b++) {
+      const edge = Math.abs(a) === 4 || Math.abs(b) === 4;
+      put(ta + a, 19, tb + b, B.smooth_quartz);
+      for (let h = 20; h <= 22; h++) put(ta + a, h, tb + b, edge ? B.glass : 0);
+      put(ta + a, 23, tb + b, edge ? B.white_concrete : B.light_gray_concrete);
+    }
+    put(ta, 24, tb, B.sea_lantern); put(ta, 25, tb, B.end_rod); put(ta, 26, tb, B.end_rod);
+  }
+  tanks(put, ta, tb) {
+    for (const ob of [0, 10]) for (let a = -3; a <= 3; a++) for (let b = -3; b <= 3; b++) {
+      if (a * a + b * b > 11) continue;
+      for (let h = 1; h <= 6; h++) put(ta + a, h, tb + ob + b, h === 4 ? B.red_concrete : h === 6 ? B.light_gray_concrete : B.white_concrete);
+    }
+  }
+  // ---------------------------------------------------------------- surface, water, snow
+  surface(ctx, C, H, ground) {
+    const b = ctx.b, x0 = ctx.x0, z0 = ctx.z0, nS = this.g.nSurf;
+    for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
+      const i = (z + 1) * 18 + x + 1, c = C[i], n = c.nat, t = ground[z * 16 + x], xz = (z << 4) | x;
+      if (t < 1 || (b[((t + 1) << 8) | xz] && !FLUID[b[((t + 1) << 8) | xz] & 4095])) continue;   // a feature stands on it
+      const slope = Math.max(Math.abs(H[i + 1] - H[i - 1]), Math.abs(H[i + 18] - H[i - 18])), sn = nS.n2((x0 + x) / 12, (z0 + z) / 12);
+      let depth = -1;
+      for (let y = t; y >= Math.max(1, t - 6); y--) {
+        const p = (y << 8) | xz, id = b[p];
+        if (!id) { depth = -1; continue; }
+        if (++depth > 4) break;
+        const v = this.surfBlock(c, n, y, depth, slope, sn, t);
+        if (v) b[p] = v;
+      }
+    }
+  }
+  surfBlock(c, n, y, depth, slope, sn, t) {
+    const under = t < SEA, dirt = depth === 0 ? B.grass_block : depth < 3 ? B.dirt : 0;
+    switch (n.zt) {
+      case SKZ.CANYON:
+        if (n.cold > 0.5) { if (under) return depth < 2 ? (sn > 0.3 ? B.sand : B.gravel) : 0; return slope > 2.4 ? 0 : dirt; }
+        if (under) return depth < 3 ? (sn > 0.45 ? B.gravel : B.sand) : 0;
+        if (t <= SEA + 1 && n.eA < Math.max(3, n.fwA * 0.4) * 1.7) return depth < 3 ? B.sand : 0;
+        if (slope > 2.2) return 0;
+        if (t > n.cF + (n.cP - n.cF) * 0.85) return depth === 0 ? (sn > 0.55 ? B.coarse_dirt : sn < -0.45 ? B.grass_block : B.red_sand) : depth < 3 ? (sn < -0.45 ? B.dirt : B.red_sand) : 0;
+        return depth === 0 ? (sn > 0.2 ? B.grass_block : sn < -0.4 ? B.coarse_dirt : B.red_sand) : depth < 3 ? B.dirt : 0;
+      case SKZ.SPIRES:
+        if (under) return depth < 3 ? (sn > 0.5 ? B.gravel : sn < -0.55 ? B.clay : B.sand) : 0;
+        if (n.sv < 0.5 && t <= SEA + 2) return depth < 3 ? B.sand : 0;
+        return depth === 0 && n.sv >= 0.5 && sn > 0.45 ? B.podzol : dirt;
+      case SKZ.PEAKS:
+        if (under) return depth < 2 ? B.gravel : 0;
+        if (t > 152 + n.det * 8) return depth < 2 ? B.snow : 0;
+        if (slope > 2.3) return depth === 0 && sn > 0.55 ? B.gravel : 0;
+        if (t > 130 + n.det * 6 && sn > 0.15) return 0;
+        return depth === 0 && sn > 0.6 ? B.coarse_dirt : dirt;
+      default:
+        if (under) return depth < 3 ? (sn > 0.4 ? B.gravel : sn < -0.5 ? B.clay : B.sand) : 0;
+        if (t <= SEA + 1 && c.h < SEA + 1.4 && sn > -0.3) return depth < 3 ? B.sand : 0;
+        return slope > 3.2 ? 0 : dirt;
+    }
+  }
+  water(ctx, C, ground) {
+    const b = ctx.b;
+    for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
+      const t = ground[z * 16 + x]; if (t >= SEA) continue;
+      const c = C[(z + 1) * 18 + x + 1], frozen = c.cold > 0.5 && (c.zt !== SKZ.CANYON || hashF2(this.seed ^ 0x1CE, ctx.x0 + x, ctx.z0 + z) < 0.3 + this.nVar.n2((ctx.x0 + x) / 18, (ctx.z0 + z) / 18) * 0.5);
+      for (let y = t + 1; y <= SEA; y++) { const p = (y << 8) | (z << 4) | x; if (!b[p]) b[p] = y === SEA && frozen ? B.ice : B.water; }
+    }
+  }
+  snow(ctx, C) {
+    const b = ctx.b;
+    for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
+      const c = C[(z + 1) * 18 + x + 1], bio = BIOMES[c.biome];
+      let y = CH - 2; while (y > 0 && b[(y << 8) | (z << 4) | x] === 0) y--;
+      const cold = bio.snowy || c.cold > 0.5 || (c.zt === SKZ.PEAKS && y > 148 + c.nat.det * 8);
+      if (!cold || y >= CH - 2) continue;
+      const p = (y << 8) | (z << 4) | x, id = b[p] & 4095;
+      if (id === B.water && (b[p] >> 12) === 0) { b[p] = B.ice; continue; }
+      if ((OPAQUE[id] || LEAVES[id]) && id !== B.ice && id !== B.packed_ice && id !== B.blue_ice && !EMIT[id]) b[p + 256] = B.snow_layer;
+    }
+  }
+  // ---------------------------------------------------------------- trees
+  // ground trees per 16x16 cell (from the 3x3 neighbourhood, so crowns cross chunk borders), never on airfields, in
+  // approach corridors or near a gate; and trees on spire caps and island tops
+  trees(ctx, F) {
+    for (let ncz = ctx.cz - 1; ncz <= ctx.cz + 1; ncz++) for (let ncx = ctx.cx - 1; ncx <= ctx.cx + 1; ncx++) {
+      const r = new RNG(hash2(this.seed ^ 0x7EE5, ncx, ncz)), b0 = BIOMES[this.g.climateCached(ncx * 16 + 8, ncz * 16 + 8).biome];
+      let n = Math.floor(b0.trees); if (r.next() < b0.trees - n) n++;
+      for (let k = 0; k < n; k++) {
+        const lx = r.int(16), lz = r.int(16), r2 = r.u32(), r3 = r.next(), wx = ncx * 16 + lx, wz = ncz * 16 + lz;
+        if (wx < ctx.x0 - 9 || wx > ctx.x0 + 24 || wz < ctx.z0 - 9 || wz > ctx.z0 + 24) continue;
+        const c = this.g.climateCached(wx, wz), bio = BIOMES[c.biome];
+        if (!bio.treeTypes || c.af || c.h < SEA + 0.5 || c.cs >= 0) continue;
+        const y = Math.ceil(c.h) - 1;
+        if (Math.abs(this.g.climateCached(wx + 1, wz).h - this.g.climateCached(wx - 1, wz).h) > 2.4 || Math.abs(this.g.climateCached(wx, wz + 1).h - this.g.climateCached(wx, wz - 1).h) > 2.4) continue;
+        if (this.airspace(wx, wz, y + 14) || this.treeBlocked(F, wx, wz, y + 16)) continue;
+        const type = weightedPick(bio.treeTypes, r3);
+        if ((type === 'mega_jungle' || type === 'big_oak') && this.featSolid(wx, y + 12, wz, c, false)) continue;
+        placeTree(ctx, type, new RNG(r2), wx, y + 1, wz);
+      }
+    }
+    for (const s of F.islands) {
+      const r = new RNG(s.salt ^ 0x7EE), n = Math.floor(s.R * s.R / 110 + r.next() * 2);
+      for (let k = 0; k < n; k++) {
+        const a = r.next() * SKY_TAU, d = Math.sqrt(r.next()) * s.R * 0.6, wx = Math.floor(s.x + Math.cos(a) * d), wz = Math.floor(s.z + Math.sin(a) * d), r2 = r.u32(), r3 = r.next();
+        const sp = this.isleSpan(s, wx + 0.5, wz + 0.5); if (!sp || this.treeBlocked(F, wx, wz, sp[1] + 14)) continue;
+        placeTree(ctx, s.cold ? (r3 < 0.6 ? 'spruce' : 'pine') : weightedPick([['oak', 40], ['birch', 25], ['cherry', 18], ['big_oak', 17]], r3), new RNG(r2), wx, sp[1] + 1, wz);
+      }
+    }
+    for (const s of F.spires) {
+      if (s.needle) continue;
+      const P = this.spireProf(s), k0 = s.top - s.base, rt = P.r[k0] * 0.85; if (rt < 4) continue;
+      const r = new RNG(hash2(this.seed ^ 0x5B7EE, s.gi, s.gj)), n = 1 + Math.floor(rt / 4.5);
+      for (let k = 0; k < n; k++) {
+        const a = r.next() * SKY_TAU, d = r.next() * rt * 0.45, wx = Math.floor(s.x + s.lx * k0 + Math.cos(a) * d), wz = Math.floor(s.z + s.lz * k0 + Math.sin(a) * d), r2 = r.u32(), r3 = r.next();
+        if (!this.spireSolid(s, wx + 0.5, s.top + 0.5, wz + 0.5) || this.treeBlocked(F, wx, wz, s.top + 14)) continue;
+        placeTree(ctx, weightedPick([['jungle_bush', 45], ['oak', 30], ['jungle', 25]], r3), new RNG(r2), wx, s.top + 1, wz);
+      }
+    }
+  }
+  // would a tree up to height y at (x, z) reach into a gate's ring or its approach?
+  treeBlocked(F, x, z, y) {
+    for (const g of F.tgates) {
+      const dx = x + 0.5 - g.x, dz = z + 0.5 - g.z, a = dx * g.nx + dz * g.nz, u = -dx * g.nz + dz * g.nx;
+      if (Math.abs(a) < 30 && Math.abs(u) < g.R + 8 && y > g.y - g.R - 6) return true;
+    }
+    for (const f of F.tfeats) if (Math.abs(x - f.x) < f.reach + 4 && Math.abs(z - f.z) < f.reach + 4) return true;
+    const px = x + 0.5, pz = z + 0.5;
+    for (const s of F.tsegs) {
+      const dx = s[3] - s[0], dz = s[5] - s[2], L2 = dx * dx + dz * dz || 1, t = clamp(((px - s[0]) * dx + (pz - s[2]) * dz) / L2, 0, 1);
+      const ex = s[0] + dx * t - px, ez = s[2] + dz * t - pz;
+      if (ex * ex + ez * ez < s[6] * s[6] && y > s[1] + (s[4] - s[1]) * t - s[7] - 4) return true;
+    }
+    return false;
+  }
+  animals(ctx, C, cx, cz) {
+    if (hashF2(this.seed ^ 0xA11, cx, cz) >= 0.12) return;
+    const bio = BIOMES[C[9 * 18 + 9].biome]; if (!bio.animals) return;
+    const b = ctx.b, ar = new RNG(hash2(this.seed ^ 0xA12, cx, cz)), type = ar.pick(bio.animals), n = ar.range(2, 4);
+    for (let k = 0; k < n; k++) {
+      const x = ar.range(2, 13), z = ar.range(2, 13);
+      let y = CH - 2; while (y > 0 && b[(y << 8) | (z << 4) | x] === 0) y--;
+      const id = b[(y << 8) | (z << 4) | x] & 4095;
+      if (id === B.grass_block || id === B.snow_layer) ctx.spawn(type, ctx.x0 + x + 0.5, y + 1, ctx.z0 + z + 0.5);
+    }
+  }
+}
+
 // ===== shared/22_structures.js =====
 // ============================================================================
 //  Structures: deterministic, region-planned, applied per chunk (clipped).
@@ -1810,6 +3701,8 @@ class Structures {
         case 'end_city': p = this.planEndCity(c); break;
       }
     }
+    // Skyways: nothing built on airfields or under their approach paths
+    if (p && this.gen.sky && type !== 'stronghold' && type !== 'mineshaft' && type !== 'fortress' && type !== 'end_city' && !this.gen.sky.villageOK((p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2)) p = null;
     this.cache.set(k, p);
     return p;
   }
@@ -3800,6 +5693,12 @@ self.onmessage = (e) => {
       case 'mesh': {
         const r = MESHER.mesh(m.pb, m.pl, m.tints, m.ox, m.oy, m.oz, m.opts);
         self.postMessage({ t: 'mesh', id: m.id, key: m.key, sy: m.sy, ver: m.ver, layers: r.layers, counts: r.counts, vis: r.vis }, r.layers);
+        break;
+      }
+      case 'skyinfo': {
+        // a Skyways region's name, airfield and course, for the main thread's races and markers
+        const s = GENS.overworld.sky;
+        self.postMessage({ t: 'skyinfo', id: m.id, res: s ? s.info(m.i, m.j) : null });
         break;
       }
       case 'locate': {
@@ -6752,7 +8651,7 @@ class World {
   waterColorAt(x, z) { const c = this.chunks.get(ckey(x >> 4, z >> 4)); return c ? c.tints.water[((z & 15) << 4) | (x & 15)] : 0x3F76E4; }
   isSnowyAt(x, z, y) { const b = BIOMES[this.biomeAt(x, z)]; return !!(b && (b.snowy || (b.id === BIO.MOUNTAINS && y > 128))); }
   canSeeSky(x, y, z) { return y >= this.heightAt(x, z); }
-  isRainingAt(x, y, z) { if (this.dim !== 'overworld' || this.game.rainLevel < 0.2) return false; if (!this.canSeeSky(x, y, z)) return false; const b = BIOMES[this.biomeAt(x, z)]; return !(b.id === BIO.DESERT || b.id === BIO.SAVANNA || b.id === BIO.BADLANDS); }
+  isRainingAt(x, y, z) { if (this.dim !== 'overworld' || this.game.rainLevel < 0.2) return false; if (!this.canSeeSky(x, y, z)) return false; return !BIOMES[this.biomeAt(x, z)].dry; }
   getBE(x, y, z) { const c = this.chunks.get(ckey(x >> 4, z >> 4)); return c ? c.be.get((y << 8) | ((z & 15) << 4) | (x & 15)) : undefined; }
   setBE(x, y, z, be) {
     const c = this.chunks.get(ckey(x >> 4, z >> 4)); if (!c) return;
@@ -7031,7 +8930,11 @@ class World {
       for (const e of rec.ents || []) this.game.spawnSaved(e);
     } else {
       for (const be of d.be || []) { const i = (be.y << 8) | ((be.z & 15) << 4) | (be.x & 15); c.be.set(i, be); if (be.t === 'spawner') { be.delay = 200; this.activeBE.add(be); } }
-      for (const s of d.spawns || []) this.game.spawnMob(s.type, s.x, s.y, s.z, s.data, true);
+      for (const s of d.spawns || []) {
+        // aircraft parked on Skyways airfields arrive with their chunk
+        if (s.type === 'vehicle') spawnVehicle(this, s.data.kind, s.x, s.y, s.z, s.data.yaw);
+        else this.game.spawnMob(s.type, s.x, s.y, s.z, s.data, true);
+      }
       if (d.spawns && d.spawns.length) c.modified = true;
     }
   }
@@ -10528,7 +12431,7 @@ Desktop launcher: ${LAUNCH.browser || 'browser'}${LAUNCH.angle ? ', ANGLE ' + LA
     // drawn at the far plane: the depth test then skips every terrain pixel before the raymarch runs.
     // At or above the deck clouds can hide terrain and need per-pixel depth (which disables that early-out).
     const base = SETTINGS.cloudHeight + 38;
-    const below = this.camY < base - 4 && !(game.gen && game.gen.amplified);
+    const below = this.camY < base - 4 && !(game.gen && game.gen.tall);
     const gl = this.gl, pr = below ? this.progs.scloud : this.progs.scloudDepth, u = pr.u;
     gl.useProgram(pr.p); this.setEnvUniforms(pr);
     gl.uniform3fv(u.uSunDir, env.sunDir);
@@ -12372,6 +14275,8 @@ class Jet extends Vehicle {
       const px = nx + _v3[0], py = ny + yo + _v3[1], pz = nz + _v3[2];
       if (this.pointSolid(px, py, pz) || (i === 4 && FLUID[w.getId(Math.floor(px), Math.floor(py), Math.floor(pz))] === 1)) { hit = i; hx = px; hy = py; hz = pz; break; }
     }
+    // a Skyways race gate's frame gives like an air-race pylon: scraped through for a hull hit and a time penalty
+    if (hit >= 0 && this.game.skyways && this.game.skyways.ringAt(hx, hy, hz)) { this.x = nx; this.y = ny; this.z = nz; this.game.skyways.ringHit(this, hx, hy, hz); return; }
     if (hit >= 0) {
       const vy = v[1], level = u[1] > 0.85 && Math.abs(f[1]) < 0.33;
       const gy = this.groundUnder(nx, nz, ny + 2.5, 4.5);
@@ -16675,6 +18580,14 @@ class Audio {
       case 'veh_hop': this.noise(dst, t, 0.35, 'lowpass', 900, 1, 0.5, 0.01, true); this.tone(dst, t, 'sine', 140, 60, 0.3, 0.35); break;
       case 'veh_land': this.noise(dst, t, 0.4, 'lowpass', 600, 1, 0.6, 0.005, true); this.tone(dst, t, 'sine', 80, 40, 0.35, 0.5); break;
       case 'veh_liftoff': { const s = this.noise(dst, t, 1.2, 'bandpass', 500, 0.7, 0.4, 0.2); s.frequency.exponentialRampToValueAtTime(1600, t + 1); break; }
+      // Skyways races
+      case 'sky_gate': this.tone(dst, t, 'sine', 988, 988, 0.14, 0.2); this.tone(dst, t + 0.07, 'sine', 1480, 1480, 0.22, 0.17); this.tone(dst, t + 0.07, 'triangle', 740, 740, 0.2, 0.06); break;
+      case 'sky_start': [660, 880, 1320].forEach((f, i) => this.tone(dst, t + i * 0.11, 'square', f, f, 0.1 + (i === 2 ? 0.18 : 0), 0.07)); break;
+      case 'sky_done': [523, 659, 784, 1046, 1318].forEach((f, i) => { this.tone(dst, t + i * 0.09, 'triangle', f, f, 0.5 - i * 0.04, 0.16); this.tone(dst, t + i * 0.09, 'sine', f * 2, f * 2, 0.3, 0.05); }); break;
+      case 'sky_fail': this.tone(dst, t, 'square', 440, 330, 0.18, 0.07); this.tone(dst, t + 0.2, 'square', 330, 196, 0.3, 0.07); break;
+      case 'sky_boost': { const s = this.noise(dst, t, 0.7, 'bandpass', 500, 0.8, 0.45, 0.02); s.frequency.exponentialRampToValueAtTime(3200, t + 0.5); this.tone(dst, t, 'sawtooth', 220, 880, 0.4, 0.06); break; }
+      case 'sky_zone': [392, 494, 587, 784].forEach((f, i) => this.tone(dst, t + i * 0.05, 'sine', f, f, 1.8, 0.05, 0.25)); break;
+      case 'sky_service': for (let i = 0; i < 5; i++) this.noise(dst, t + i * 0.07, 0.04, 'bandpass', 2400, 3, 0.18); this.tone(dst, t, 'sine', 300, 600, 0.5, 0.08, 0.1); break;
       case 'veh_overheat': this.noise(dst, t, 0.6, 'highpass', 4000, 0.7, 0.3, 0.02); this.tone(dst, t, 'square', 440, 220, 0.4, 0.1); break;
       case 'bomb_drop': this.tone(dst, t, 'sine', 1500, 420, 1.8, 0.1, 0.25); this.noise(dst, t, 0.3, 'bandpass', 900, 1, 0.2, 0.01); break;
       case 'cannon': this.noise(dst, t, 1.3, 'lowpass', 900, 0.8, 1.0, 0.003, true); this.tone(dst, t, 'sine', 72, 28, 0.9, 0.9); this.noise(dst, t, 0.16, 'bandpass', 2600, 0.8, 0.5); break;
@@ -16986,6 +18899,352 @@ class Audio {
   }
 }
 
+// ===== main/51_skyways.js =====
+// ============================================================================
+//  SKYWAYS runtime: region banners, the races (start gates, gate order, timer, splits against your best, medals,
+//  records saved with the world), boost rings, repairs on airfield pavement, and the HUD markers for all of it.
+//  Region plans (airfield + course) come from a worker ('skyinfo'); the gates match the blocks it built.
+// ============================================================================
+const SKY_MEDALS = ['GOLD', 'SILVER', 'BRONZE'], SKY_MEDAL_COL = ['#FFD447', '#D8E2EA', '#E0995A'];
+function skyTime(t) { const m = Math.floor(t / 60), s = t - m * 60; return m + ':' + (s < 10 ? '0' : '') + s.toFixed(2); }
+class SkyRuntime {
+  constructor(game) {
+    this.g = game; this.info = new Map(); this.pending = new Set();
+    this.run = null; this.zoneCell = null; this.msg = null; this.prev = null; this.t = 0; this.lastCheck = -1; this.svcT = 0; this.boostT = -9;
+    let el = document.getElementById('skybanner');
+    if (!el) { el = h('div', { id: 'skybanner' }, h('div', { class: 'sbt' }), h('div', { class: 'sbs' })); game.ui.root.appendChild(el); }
+    this.bannerEl = el; el.classList.remove('show');
+  }
+  get sky() { return this.g.gen && this.g.gen.sky; }
+  records() { const m = this.g.meta; if (!m.sky) m.sky = {}; return m.sky.records || (m.sky.records = {}); }
+  // ---------------------------------------------------------------- region plans from the workers
+  fetch(x, z) {
+    const i0 = Math.floor(x / SKY_CELL + 0.5), j0 = Math.floor(z / SKY_CELL + 0.5);
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      const i = i0 + di, j = j0 + dj, k = i + ',' + j;
+      if (this.info.has(k) || this.pending.has(k)) continue;
+      this.pending.add(k);
+      this.g.jobs.post({ t: 'skyinfo', i, j }, null, (m) => { this.pending.delete(k); if (m.res) this.info.set(k, this.unpack(m.res)); });
+    }
+  }
+  unpack(r) {
+    const gate = (a) => ({ x: a[0], y: a[1], z: a[2], nx: a[3], nz: a[4], R: a[5], k: a[6] });
+    if (r.course) { r.course.gates = r.course.gates.map(gate); r.course.boosts = r.course.boosts.map(gate); r.course.inf = r; }
+    return r;
+  }
+  nearestCourse(x, z) {
+    let best = null, bd = 1e18;
+    for (const inf of this.info.values()) { const C = inf.course; if (!C) continue; const g = C.gates[0], d = Math.hypot(g.x - x, g.z - z); if (d < bd) { bd = d; best = C; } }
+    return best ? { course: best, dist: bd } : null;
+  }
+  nearestAirfield(x, z) {
+    let best = null, bd = 1e18;
+    for (const inf of this.info.values()) { const a = inf.air; if (!a) continue; const d = Math.hypot(a.x - x, a.z - z); if (d < bd) { bd = d; best = a; } }
+    return best ? { air: best, dist: bd } : null;
+  }
+  // ---------------------------------------------------------------- per frame
+  frame(dt) {
+    const g = this.g, p = g.player;
+    if (!this.sky || !p || !g.world || g.world.dim !== 'overworld') return;
+    this.t += dt;
+    if (this.msg && (this.msg.t -= dt) <= 0) this.msg = null;
+    if (g.state !== 'playing') { this.prev = null; return; }
+    if (this.t - this.lastCheck > 0.25) { this.lastCheck = this.t; this.fetch(p.x, p.z); this.checkZone(p); }
+    const v = p.vehicle && !p.vehicle.removed ? p.vehicle : null;
+    if (v) {
+      const c = v.center([0, 0, 0]);
+      if (this.prev) this.crossings(this.prev, c, v);
+      this.prev = c;
+    } else this.prev = null;
+    if (this.hold) this.holdTick(v);
+    if (this.run) this.runTick(v, dt);
+    this.service(dt, v);
+  }
+  checkZone(p) {
+    const z = this.sky.zoneAt(p.x, p.z);
+    if (z.inside < 0.3 || z.cell === this.zoneCell) return;
+    this.zoneCell = z.cell;
+    const c = z.cell;
+    this.banner(c.name.toUpperCase(), c.label + '  ·  Level ' + c.lv + ' ' + SKY_LEVELS[c.lv - 1]);
+    if (this.t > 1) this.g.audio.play('sky_zone', {});
+  }
+  banner(title, sub) {
+    const el = this.bannerEl;
+    el.children[0].textContent = title; el.children[1].textContent = sub;
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+    clearTimeout(this.bannerTO); this.bannerTO = setTimeout(() => el.classList.remove('show'), 4200);
+  }
+  flash(text, sub, col, dur) { this.msg = { text, sub: sub || '', col: col || '#FFFFFF', t: dur || 2.4, d: dur || 2.4 }; }
+  // ---------------------------------------------------------------- gates
+  // did the segment a -> b pass forward (or either way) through a ring?
+  through(g, a, b, both) {
+    const sa = (a[0] - g.x) * g.nx + (a[2] - g.z) * g.nz, sb = (b[0] - g.x) * g.nx + (b[2] - g.z) * g.nz;
+    if (!(sa < 0 && sb >= 0) && !(both && sa > 0 && sb <= 0)) return false;
+    const t = sa / (sa - sb), x = a[0] + (b[0] - a[0]) * t - g.x, y = a[1] + (b[1] - a[1]) * t - g.y, z = a[2] + (b[2] - a[2]) * t - g.z;
+    return x * x + y * y + z * z <= (g.R + 0.6) * (g.R + 0.6);
+  }
+  crossings(a, b, v) {
+    for (const inf of this.info.values()) {
+      const C = inf.course; if (!C) continue;
+      for (const r of C.boosts) if (this.through(r, a, b, true)) this.boostRing(v, r);
+      if (this.through(C.gates[0], a, b) && !(this.run && this.run.course === C && this.run.i === 1 && this.t - this.run.t0 < 1.5)) { this.start(C, v); return; }
+    }
+    const R = this.run;
+    if (R) { const gt = R.course.gates[R.i]; if (gt && this.through(gt, a, b)) this.passGate(v); }
+  }
+  start(C, v) {
+    this.run = { course: C, i: 1, t0: this.t, splits: [], vehicle: v, gone: 0 };
+    this.lastCourse = C; this.lastKind = v.kind;
+    const rec = this.records()[C.id];
+    this.flash(C.name.toUpperCase(), rec ? 'BEST ' + skyTime(rec.t) + (rec.medal ? '  ·  ' + rec.medal : '') : 'GOLD ' + skyTime(C.par[0]) + '  ·  ' + (C.gates.length - 1) + ' GATES', '#7CFF8A', 2.6);
+    this.g.audio.play('sky_start', {});
+  }
+  passGate(v) {
+    const R = this.run, C = R.course, t = this.t - R.t0, rec = this.records()[C.id];
+    R.splits.push(Math.round(t * 1000) / 1000);
+    const last = R.i === C.gates.length - 1, prevBest = rec && rec.splits && rec.splits[R.i - 1];
+    if (last) { this.finish(t); return; }
+    const delta = prevBest !== undefined ? t - prevBest : null;
+    this.flash('GATE ' + R.i + ' / ' + (C.gates.length - 1), delta === null ? skyTime(t) : (delta <= 0 ? '-' : '+') + Math.abs(delta).toFixed(2), delta === null ? '#FFFFFF' : delta <= 0 ? '#7CFF8A' : '#FF8A6A', 1.3);
+    R.i++;
+    this.g.audio.play('sky_gate', {});
+  }
+  finish(t) {
+    const R = this.run, C = R.course, recs = this.records(), rec = recs[C.id];
+    const mi = t <= C.par[0] ? 0 : t <= C.par[1] ? 1 : t <= C.par[2] ? 2 : -1, medal = mi >= 0 ? SKY_MEDALS[mi] : '';
+    const isNew = !rec || t < rec.t;
+    if (isNew) recs[C.id] = { t: Math.round(t * 1000) / 1000, splits: R.splits.slice(), medal: rec && rec.medal && (mi < 0 || SKY_MEDALS.indexOf(rec.medal) < mi) ? rec.medal : medal, name: C.name, runs: (rec ? rec.runs : 0) + 1 };
+    else rec.runs = (rec.runs || 0) + 1;
+    this.flash('FINISH  ' + skyTime(t), (isNew ? (rec ? 'NEW RECORD  -' + (rec.t - t).toFixed(2) : 'FIRST RECORD') : 'BEST ' + skyTime(rec.t)) + (medal ? '  ·  ' + medal : '  ·  ' + skyTime(C.par[2]) + ' FOR BRONZE'), mi >= 0 ? SKY_MEDAL_COL[mi] : '#FFFFFF', 6);
+    this.g.ui.message(`${C.name}: ${skyTime(t)}${medal ? ' (' + medal.toLowerCase() + ')' : ''}${isNew ? ' - new record!' : ''}`, mi >= 0 ? SKY_MEDAL_COL[mi] : '#fff');
+    this.g.audio.play(mi >= 0 || isNew ? 'sky_done' : 'sky_gate', {});
+    this.run = null;
+    if (this.g.meta) this.g.save.putWorld(this.g.meta);
+  }
+  abort(why) { if (!this.run) return; this.flash('RUN ABANDONED', why, '#FF8A6A', 2.6); this.g.audio.play('sky_fail', {}); this.run = null; }
+  canRetry() { const g = this.g; return !!(g.player && (g.player.creative || (g.meta && g.meta.cheats))); }
+  runTick(v, dt) {
+    const R = this.run;
+    if (R.vehicle.dead && !R.crashed) {
+      R.crashed = true;
+      this.g.ui.message(this.canRetry() ? 'Crashed! Press Backspace to retry ' + R.course.name + '.' : 'Crashed!', '#ff9a7a');
+    }
+    if (!v || v !== R.vehicle) { if ((R.gone += dt) > 1.5) this.abort(v ? 'you changed aircraft' : R.crashed ? 'crashed' : 'you left the aircraft'); return; }
+    R.gone = 0;
+    const g = R.course.gates[R.i];
+    if (g && Math.hypot(g.x - v.x, g.z - v.z) > 1800) this.abort('too far off the course');
+    else if (this.t - R.t0 > 1200) this.abort('out of time');
+  }
+  // is (x, y, z) in the frame of a course gate or boost ring?
+  ringAt(x, y, z) {
+    for (const inf of this.info.values()) {
+      const C = inf.course; if (!C) continue;
+      for (const list of [C.gates, C.boosts]) for (const g of list) {
+        const dx = x - g.x, dy = y - g.y, dz = z - g.z; if (dx * dx + dy * dy + dz * dz > (g.R + 4) * (g.R + 4)) continue;
+        const a = dx * g.nx + dz * g.nz; if (a < -1.8 || a > 1.8) continue;
+        const u = -dx * g.nz + dz * g.nx, r = Math.hypot(u, dy);
+        if (r > g.R - 1 && r < g.R + 2.8) return g;
+      }
+    }
+    return null;
+  }
+  ringHit(v, x, y, z) {
+    if (this.t - (this.ringT || -9) < 0.4) return;
+    this.ringT = this.t;
+    const g = this.g, R = this.run;
+    v.hurt(Math.max(5, v.def.hull * 0.05), { type: 'scrape' });
+    g.shake = Math.max(g.shake || 0, 0.45);
+    const b = g.world.getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
+    for (let i = 0; i < 4; i++) g.particles.blockHit(Math.floor(x), Math.floor(y), Math.floor(z), 2, b || B.orange_concrete);
+    g.audio.play('hit', { vol: 1 }); g.audio.play('sky_fail', {});
+    if (R && R.vehicle === v) { R.t0 -= 2; this.flash('GATE HIT', '+2.00', '#FF8A6A', 1.3); }
+    else this.flash('GATE HIT', '', '#FF8A6A', 1);
+  }
+  boostRing(v, r) {
+    if (this.t - this.boostT < 0.6) return;
+    this.boostT = this.t;
+    const f = v.fwd, sp = v.speed, add = Math.min(34, Math.max(0, 185 - sp));
+    v.vel[0] += f[0] * add; v.vel[1] += f[1] * add; v.vel[2] += f[2] * add;
+    v.boost = 1; if (v.fovS !== undefined) v.fovS += 10;
+    this.g.shake = Math.max(this.g.shake || 0, 0.25);
+    this.flash('BOOST', '', '#7FE8FF', 0.8);
+    this.g.audio.play('sky_boost', {});
+  }
+  // ---------------------------------------------------------------- airfield servicing: stop on any runway or apron
+  onPavement(x, z) {
+    for (const inf of this.info.values()) {
+      const a = inf.air; if (!a) continue;
+      const dx = Math.floor(x) - a.x, dz = Math.floor(z) - a.z, al = dx * a.fx + dz * a.fz, b = dx * a.rx + dz * a.rz;
+      if ((Math.abs(al) <= a.L + 1 && Math.abs(b) <= a.W + 1) || (b >= a.W + 1 && b <= a.W + 12 + a.AD && Math.abs(al) <= a.AA)) return a;
+    }
+    return null;
+  }
+  service(dt, v) {
+    this.svc = null;
+    if (!v || !v.onGround || v.speed > 1.5 || v.dead) { this.svcT = 0; this.svcNeed = 0; return; }
+    const a = this.onPavement(v.x, v.z); if (!a) { this.svcT = 0; this.svcNeed = 0; return; }
+    this.svcT += dt;
+    if (this.svcT < 1) return;
+    const full = v.hull >= v.def.hull;
+    // the readout shows while something was actually repaired or reloaded, and for a couple of seconds after
+    if (!full || (v.missiles !== undefined && v.missiles < 8) || (v.bombs !== undefined && v.bombs < 12) || (v.rockets !== undefined && v.rockets < 16) || v.heat > 0.05) this.svcNeed = 2.5;
+    else if (this.svcNeed > 0) this.svcNeed -= dt;
+    v.hull = Math.min(v.def.hull, v.hull + v.def.hull * 0.3 * dt);
+    v.heat = 0; v.overheat = 0; v.boost = 1;
+    if (v.missiles !== undefined) v.missiles = 8;
+    if (v.bombs !== undefined) v.bombs = 12;
+    if (v.rockets !== undefined) v.rockets = 16;
+    if (v.sng !== undefined && typeof SNG !== 'undefined') v.sng = SNG.max;
+    if (!full && this.svcT - dt < 1) this.g.audio.play('sky_service', {});
+    this.svc = { air: a, f: v.hull / v.def.hull, need: this.svcNeed > 0 };
+  }
+  // ---------------------------------------------------------------- HUD (drawn on the vehicle HUD canvas)
+  // screen position of a world point, or a spot on an ellipse near the screen edge pointing at it
+  aim(H, x, y, z) {
+    const R = this.g.renderer, m = R.vp, rx = x - R.camX, ry = y - R.camY, rz = z - R.camZ;
+    const cw = m[3] * rx + m[7] * ry + m[11] * rz + m[15], cx = m[0] * rx + m[4] * ry + m[8] * rz + m[12], cy = m[1] * rx + m[5] * ry + m[9] * rz + m[13];
+    if (cw > 0.05) {
+      const sx = (cx / cw * 0.5 + 0.5) * H.w, sy = (0.5 - cy / cw * 0.5) * H.h;
+      if (sx > 40 && sx < H.w - 40 && sy > 40 && sy < H.h - 40) return { x: sx, y: sy, on: true };
+    }
+    let dx = cx * Math.sign(cw || 1), dy = -cy * Math.sign(cw || 1);
+    if (cw <= 0.05 && Math.abs(dx) + Math.abs(dy) < 1e-6) dy = 1;
+    const a = Math.atan2(dy, dx);
+    return { x: H.w / 2 + Math.cos(a) * (H.w / 2 - 46), y: H.h / 2 + Math.sin(a) * (H.h / 2 - 46), on: false, a };
+  }
+  marker(H, g, label, col, size, faint) {
+    const s = this.aim(H, g.x, g.y, g.z), c = H.ctx, old = H.col;
+    H.col = col;
+    c.globalAlpha = faint ? 0.45 : 1;
+    if (s.on) {
+      const q = size;
+      H.poly([s.x, s.y - q, s.x + q, s.y, s.x, s.y + q, s.x - q, s.y], true);
+      if (!faint) { H.line(s.x - q - 6, s.y, s.x - q - 2, s.y); H.line(s.x + q + 2, s.y, s.x + q + 6, s.y); }
+      if (label) H.text(label, s.x, s.y - q - H.fs * 0.9, 'center', H.fs * 0.85, col);
+    } else if (!faint) {
+      const a = s.a, k = 13;
+      H.poly([s.x + Math.cos(a) * k, s.y + Math.sin(a) * k, s.x + Math.cos(a + 2.5) * k, s.y + Math.sin(a + 2.5) * k, s.x + Math.cos(a - 2.5) * k, s.y + Math.sin(a - 2.5) * k], true);
+      if (label) H.text(label, s.x - Math.cos(a) * 30, s.y - Math.sin(a) * 18, 'center', H.fs * 0.8, col);
+    }
+    c.globalAlpha = 1; H.col = old;
+    return s;
+  }
+  drawHUD(H, v) {
+    if (!this.sky || this.g.world.dim !== 'overworld') return;
+    const fs = H.fs, W = H.w, Hh = H.h, R = this.run, dist = (g) => Math.hypot(g.x - v.x, g.y - v.y, g.z - v.z), km = (d) => d >= 1000 ? (d / 1000).toFixed(1) + 'km' : Math.round(d) + 'm';
+    if (R) {
+      const C = R.course, n = C.gates.length - 1, g = C.gates[R.i], g2 = C.gates[R.i + 1];
+      if (g2) {
+        const a = this.aim(H, g.x, g.y, g.z), b = this.aim(H, g2.x, g2.y, g2.z);
+        if (a.on && b.on) { const c = H.ctx; c.save(); c.setLineDash([6, 8]); c.globalAlpha = 0.5; H.col = '#FFD27A'; H.line(a.x, a.y, b.x, b.y); c.restore(); }
+        this.marker(H, g2, '', '#FFD27A', 7, true);
+      }
+      if (g) this.marker(H, g, (g.k === 2 ? 'FINISH' : 'GATE ' + R.i) + '  ' + km(dist(g)), g.k === 2 ? '#FFFFFF' : '#FFB347', clamp(900 / Math.max(dist(g), 1), 9, 26));
+      // the run panel, top right
+      const x = W - fs * 1.4, y = fs * 5.2, t = this.t - R.t0, rec = this.records()[C.id];
+      const c = H.ctx; c.globalAlpha = 0.45; c.fillStyle = '#05080a'; c.fillRect(x - fs * 15, y - fs * 1.3, fs * 15.4, fs * (rec ? 6.4 : 5.2)); c.globalAlpha = 1;
+      H.text(C.name.toUpperCase(), x, y, 'right', fs * 0.8, '#FFD27A');
+      H.text(skyTime(t), x, y + fs * 1.6, 'right', fs * 1.6, '#FFFFFF');
+      H.text('GATE ' + Math.min(R.i, n) + ' / ' + n, x, y + fs * 3.2, 'right', fs * 0.85, '#FFB347');
+      if (rec) H.text('BEST ' + skyTime(rec.t), x, y + fs * 4.4, 'right', fs * 0.8, '#A8D8FF');
+    } else {
+      // courses to try: the nearest start gate named, the others just marked
+      const n = this.nearestCourse(v.x, v.z);
+      for (const inf of this.info.values()) {
+        const C = inf.course; if (!C) continue;
+        const g = C.gates[0], d = dist(g), near = n && n.course === C;
+        if (near && d < 2500) { const rec = this.records()[C.id]; this.marker(H, g, '▶ ' + C.name.toUpperCase() + '  ' + km(d) + (rec ? '  ★ ' + skyTime(rec.t) : ''), '#7CFF8A', clamp(700 / Math.max(d, 1), 7, 18), false); }
+        else if (d < 1100) this.marker(H, g, '', '#7CFF8A', 6, true);
+      }
+    }
+    for (const inf of this.info.values()) {
+      const C = inf.course; if (!C) continue;
+      for (const r of C.boosts) { const d = dist(r); if (d < 450 && d > 20) this.marker(H, r, '', '#7FE8FF', 6, true); }
+    }
+    // the nearest airfield, while flying
+    if (!v.onGround) {
+      const n = this.nearestAirfield(v.x, v.z);
+      if (n && n.dist > 250) { const a = n.air; this.marker(H, { x: a.x, y: a.y + 2, z: a.z }, '✈ RWY ' + a.rwy + '  ' + km(n.dist), '#9FD3FF', 6, n.dist > 2500); }
+    }
+    if (this.svc && this.svc.need) H.text(this.svc.f < 1 ? 'SERVICING  HULL ' + Math.round(this.svc.f * 100) + '%' : 'SERVICED  ·  READY', W / 2, Hh * 0.62, 'center', fs * 1.1, this.svc.f < 1 ? '#FFD27A' : '#7CFF8A');
+    // centre flash
+    const m = this.msg;
+    if (m) {
+      const a = Math.min(1, m.t / 0.35, (m.d - m.t) / 0.12 + 0.2), c = H.ctx;
+      c.globalAlpha = a; H.text(m.text, W / 2, Hh * 0.27, 'center', fs * 2.0, m.col);
+      if (m.sub) H.text(m.sub, W / 2, Hh * 0.27 + fs * 2.1, 'center', fs * 1.15, m.col);
+      c.globalAlpha = 1;
+    }
+  }
+  // ---------------------------------------------------------------- commands: /course, /airfield, /skyways
+  command(c, a) {
+    const g = this.g, ui = g.ui, p = g.player, S = this.sky;
+    if (c === 'skyways') { const z = S.zoneAt(p.x, p.z).cell; ui.message(`Skyways map level ${S.level} (${SKY_LEVELS[S.level - 1]})${S.varied ? ', difficulty varies by region' : ''}. You are in ${z.name}: ${z.label}, level ${z.lv}.`, '#afa'); return; }
+    if (!this.info.size) throw 'Still charting the area, try again in a moment';
+    if (c === 'airfield') { const n = this.nearestAirfield(p.x, p.z); if (!n) throw 'No airfield charted nearby yet'; ui.message([`${n.air.name} (runway ${n.air.rwy}) is at `, ui.tpLink(n.air.x, n.air.z), ` (${Math.round(n.dist)} blocks away)`], '#afa'); return; }
+    const sub = a[1];
+    if (sub === 'stop' || sub === 'reset') { ui.message(this.run ? 'Run cancelled' : 'No run in progress'); this.run = null; return; }
+    if (sub === 'go') {
+      // a jet lined up on the nearest start gate, held in the air until the ground around it has loaded
+      const n = this.nearestCourse(p.x, p.z); if (!n) throw 'No course charted nearby yet';
+      const kind = { jet: 'jet', stormcrow: 'jet', fighter: 'fighter', eclipse: 'fighter', bomber: 'bomber', wraith: 'bomber', gunship: 'gunship', mantis: 'gunship' }[a[2]] || (p.vehicle && VEH_DEFS[p.vehicle.kind] ? p.vehicle.kind : 'jet');
+      if (this.lineUp(n.course, kind)) ui.message('Lined up on ' + n.course.name + '. Fly through the green gate to start; Backspace retries.', '#7CFF8A');
+      return;
+    }
+    const list = [...this.info.values()].filter(i => i.course).map(i => ({ C: i.course, d: Math.hypot(i.course.gates[0].x - p.x, i.course.gates[0].z - p.z) })).sort((q, r) => q.d - r.d);
+    for (const { C, d } of list.slice(0, 5)) {
+      const rec = this.records()[C.id], g0 = C.gates[0];
+      ui.message([`${C.name}: ${C.gates.length - 1} gates, ${(C.len / 1000).toFixed(1)} km, gold ${skyTime(C.par[0])}${rec ? ', best ' + skyTime(rec.t) + (rec.medal ? ' ' + rec.medal.toLowerCase() : '') : ''}. Start gate `, ui.tpLink(Math.round(g0.x), Math.round(g0.z)), ` (${Math.round(d)} blocks)`], '#cfe6ff');
+    }
+    ui.message('/course go lines you up on the nearest start gate in a jet; /course stop cancels a run.', '#aaa');
+  }
+  // Backspace: back to the start of the last course in a fresh aircraft of the same kind (creative, or commands on)
+  retry() {
+    const g = this.g, p = g.player, C = this.lastCourse;
+    if (!C || g.state !== 'playing' || g.ui.open || g.ui.chatOpen || !p || p.dead || g.world.dim !== 'overworld') return;
+    if (!this.canRetry()) { g.ui.message('Retrying a course needs creative mode or commands', '#f88'); return; }
+    this.lineUp(C, this.lastKind || 'jet');
+  }
+  // a fresh aircraft just short of a course's start gate, held in the air until the ground around it has loaded
+  lineUp(C, kind) {
+    const g = this.g, p = g.player, g0 = C.gates[0], x = g0.x - g0.nx * 45, z = g0.z - g0.nz * 45, yaw = Math.atan2(g0.nx, -g0.nz);
+    const old = p.vehicle;
+    if (old) { old.dismount(true); if (old === this.retryVeh) old.removed = true; }
+    else if (this.retryVeh && !this.retryVeh.rider) this.retryVeh.removed = true;
+    g.putPlayer(x, g0.y, z);
+    const v = spawnVehicle(g.world, kind, x, g0.y - 0.8, z, yaw); if (!v) return null;
+    v.onGround = false; v.gear = 0; v.throttle = 0.8; v.vel[0] = g0.nx * 70; v.vel[2] = g0.nz * 70; v.mount(p); v.mountT = 0;
+    this.hold = { v, x: v.x, y: v.y, z: v.z, vel: v.vel.slice(), q: v.q.slice(), t: 0 };
+    this.retryVeh = v; this.run = null; this.lastCourse = C; this.lastKind = kind;
+    this.flash(C.name.toUpperCase(), 'THROUGH THE GREEN GATE TO START', '#7CFF8A', 2);
+    return v;
+  }
+  // keep a freshly placed jet still until the chunks around it are ready
+  holdTick(v) {
+    const H = this.hold, w = this.g.world;
+    if (!v || v !== H.v) { this.hold = null; return; }
+    let ready = true;
+    const cx = Math.floor(H.x) >> 4, cz = Math.floor(H.z) >> 4;
+    for (let dz = -2; dz <= 2 && ready; dz++) for (let dx = -2; dx <= 2; dx++) { const c = w.getChunk(cx + dx, cz + dz); if (!c || !c.meshable) { ready = false; break; } }
+    H.t += 1 / 60;
+    if (ready || H.t > 20) { this.hold = null; return; }
+    v.x = v.lx = H.x; v.y = v.ly = H.y; v.z = v.lz = H.z; v.vel[0] = H.vel[0]; v.vel[1] = H.vel[1]; v.vel[2] = H.vel[2];
+    v.q[0] = H.q[0]; v.q[1] = H.q[1]; v.q[2] = H.q[2]; v.q[3] = H.q[3]; v.updateAxes();
+    if (v.rider) v.syncRider(v.rider);
+  }
+  // ---------------------------------------------------------------- the first flight: sat on the home runway
+  async cockpitStart() {
+    const g = this.g, p = g.player, S = this.sky; if (!S) return;
+    const [x, y, z, yaw] = S.homeRunway(), w = g.world, af = S.airfield(S.cell(0, 0));
+    for (const e of w.entities) if (e.isVehicle && !e.removed && Math.hypot(e.x - x, e.z - z) < 8) e.removed = true;
+    const v = spawnVehicle(w, 'jet', x, y + 0.02, z, yaw);
+    if (!v) return;
+    v.mount(p); v.mountT = 12;
+    g.ui.message(`Cleared for takeoff, runway ${S.rwyNum(af.fx, af.fz)}: W for throttle, hold Ctrl for afterburner, pull up past 190 kph. Fly through the green gate ahead to start ${S.cell(0, 0).courseName}.`, '#ffd24a');
+    g.ui.message('F leaves the jet, F5 switches to the cockpit. Land on any runway or apron and stop to repair and rearm.', '#cfe6ff');
+  }
+}
+
 // ===== main/55_input.js =====
 // ============================================================================
 //  Input: keyboard/mouse (pointer lock), touch controls, gamepad
@@ -17042,6 +19301,7 @@ class Input {
     if (e.code === KEYS.hud) { SETTINGS.hudHidden = !SETTINGS.hudHidden; ui.applyHudVisibility(); }
     if (e.code === KEYS.perspective) this.cycleCamera(p);
     if (e.code === KEYS.vehicle && !e.repeat) g.toggleVehicle();
+    if (e.code === 'Backspace' && !e.repeat && g.skyways) g.skyways.retry();
     if (e.code === KEYS.screenshot) g.screenshot();
     if (e.code === KEYS.chat) { e.preventDefault(); ui.openChat(''); }
     if (e.code === KEYS.command) { e.preventDefault(); ui.openChat('/'); }
@@ -17549,7 +19809,7 @@ class UI {
       if (!worlds.length) list.append(h('div', { class: 'empty' }, 'No worlds yet — create one!'));
       for (const w of worlds) {
         const it = h('div', { class: 'witem' + (w.id === sel ? ' sel' : '') },
-          h('div', { class: 'wname' }, w.name), h('div', { class: 'wsub' }, `${titleCase(w.mode)} · ${['Peaceful', 'Easy', 'Normal', 'Hard'][w.difficulty]} · ${fmtTime(w.lastPlayed || w.created)}`), h('div', { class: 'wsub' }, `Seed: ${w.seed}` + (w.type !== 'default' ? ' · ' + titleCase(w.type) : '')));
+          h('div', { class: 'wname' }, w.name), h('div', { class: 'wsub' }, `${titleCase(w.mode)} · ${['Peaceful', 'Easy', 'Normal', 'Hard'][w.difficulty]} · ${fmtTime(w.lastPlayed || w.created)}`), h('div', { class: 'wsub' }, `Seed: ${w.seed}` + (w.type !== 'default' ? ' · ' + (w.type === 'skyways' && w.sky ? 'Skyways · Lv ' + w.sky.level + ' ' + SKY_LEVELS[w.sky.level - 1] + (w.sky.varied ? ' (mixed)' : '') : titleCase(w.type)) : '')));
         it.addEventListener('click', () => { sel = w.id; draw(); });
         it.addEventListener('dblclick', () => g.playWorld(w));
         list.appendChild(it);
@@ -17599,18 +19859,36 @@ class UI {
     const opt = (vals, cur) => { const s = h('select'); for (const [v, l] of vals) s.appendChild(h('option', { value: v, selected: v === cur }, l)); return s; };
     const mode = opt([['survival', 'Survival'], ['creative', 'Creative']], 'survival');
     const diff = opt([['0', 'Peaceful'], ['1', 'Easy'], ['2', 'Normal'], ['3', 'Hard']], '2');
-    const type = opt([['default', 'Default'], ['amplified', 'Amplified'], ['flat', 'Superflat']], 'default');
+    const type = opt([['default', 'Default'], ['amplified', 'Amplified'], ['flat', 'Superflat'], ['skyways', 'Skyways (flight)']], 'default');
     const structs = h('input', { type: 'checkbox', checked: true });
     const cheats = h('input', { type: 'checkbox', checked: true });
     const bonus = h('input', { type: 'checkbox' });
     const field = (l, el) => h('label', { class: 'field' }, h('span', null, l), el);
+    // Skyways: how hard the terrain is to fly through (one level for the map, or rolled per region)
+    const lvl = h('input', { type: 'range', min: 1, max: 10, step: 1, value: 5 }), lvLab = h('span', { class: 'skylv' }), lvDesc = h('div', { class: 'skydesc' });
+    const varied = h('input', { type: 'checkbox' }), cockpit = h('input', { type: 'checkbox', checked: true });
+    const showLv = () => { const v = +lvl.value; lvLab.textContent = v + ' · ' + SKY_LEVELS[v - 1]; lvDesc.textContent = SKY_LEVEL_DESC[v - 1]; };
+    lvl.addEventListener('input', showLv); showLv();
+    let rolling = null;
+    const dice = h('button', { class: 'mbtn dice', title: 'Roll a random difficulty' }, '🎲');
+    dice.addEventListener('click', (e) => {
+      e.preventDefault(); g.audio.init(); clearInterval(rolling);
+      let n = 0; const final = randInt(1, 10);
+      rolling = setInterval(() => { lvl.value = ++n >= 9 ? final : randInt(1, 10); showLv(); g.audio.play('click', {}); if (n >= 9) { clearInterval(rolling); lvDesc.classList.remove('rolled'); void lvDesc.offsetWidth; lvDesc.classList.add('rolled'); } }, 55 + n * 6);
+    });
+    const skyBox = h('div', { class: 'skyopts', style: { display: 'none' } },
+      field('Map Difficulty', h('div', { class: 'skyrow' }, lvl, lvLab, dice)), lvDesc,
+      field('Vary Difficulty by Region', varied), field('Start in the Cockpit', cockpit));
+    let modeSet = false;
+    mode.addEventListener('change', () => { modeSet = true; });
+    type.addEventListener('change', () => { const sky = type.value === 'skyways'; skyBox.style.display = sky ? '' : 'none'; if (sky && !modeSet) mode.value = 'creative'; });
     this.screen.append(this.panel('Create New World',
-      field('World Name', name), field('Seed', seed), field('Game Mode', mode), field('Difficulty', diff), field('World Type', type),
+      field('World Name', name), field('Seed', seed), field('Game Mode', mode), field('Difficulty', diff), field('World Type', type), skyBox,
       field('Generate Structures', structs), field('Allow Commands', cheats), field('Bonus Chest', bonus),
       h('div', { class: 'row' },
         this.btn('Create World', () => {
-          const s = seedFromString(seed.value);
-          g.createWorld({ name: name.value.trim() || 'New World', seed: s, seedText: seed.value || String(s), mode: mode.value, difficulty: +diff.value, type: type.value, structures: structs.checked, cheats: cheats.checked, bonus: bonus.checked });
+          const s = seedFromString(seed.value), sky = type.value === 'skyways' ? { level: +lvl.value, varied: varied.checked, cockpit: cockpit.checked, records: {} } : undefined;
+          g.createWorld({ name: name.value.trim() || 'New World', seed: s, seedText: seed.value || String(s), mode: mode.value, difficulty: +diff.value, type: type.value, structures: structs.checked, cheats: cheats.checked, bonus: bonus.checked, sky });
         }, 'primary'),
         this.btn('Cancel', () => this.showWorlds()))));
     setTimeout(() => name.select(), 50);
@@ -17680,8 +19958,8 @@ class UI {
     const rows = [['Move', 'W A S D'], ['Jump / Swim up / Fly up', 'Space (double-tap to fly in Creative)'], ['Sneak / Fly down', 'Shift'], ['Sprint', 'Ctrl or double-tap W'], ['Mine / Attack', 'Left mouse (hold)'], ['Place / Use / Eat', 'Right mouse'], ['Pick block', 'Middle mouse'], ['Hotbar', '1–9 or mouse wheel'], ['Inventory', 'E'], ['Drop item', 'Q (Ctrl+Q whole stack)'], ['Chat / Commands', 'T or /'], ['Perspective', 'F5'], ['Debug info', 'F3'], ['Hide HUD', 'F1'], ['Screenshot', 'F2'], ['Pause', 'Esc']];
     const touch = [['Move', 'Left joystick (push fully forward to sprint)'], ['Look', 'Drag on the right side'], ['Place / Use / Attack', 'Tap on a block or mob'], ['Mine', 'Hold your finger on a block'], ['Jump', '⬆ button (double-tap to fly in Creative)'], ['Sneak', '⇩ toggle'], ['Inventory', '⋯ button'], ['Drop', 'Long-press the selected hotbar slot']];
     const tbl = (r) => h('table', { class: 'ctl' }, ...r.map(([a, b]) => h('tr', null, h('td', null, a), h('td', null, b))));
-    const cmds = h('div', { class: 'cmds' }, 'Commands: /help, /vehicle <jet|bomber|fighter|gunship|bike|tank|mech|sub|drill>, /gamemode <survival|creative|spectator>, /time set <day|night|noon|midnight|n>, /weather <clear|rain|thunder>, /tp x y z, /give <item> [n], /summon <mob>, /locate <village|pyramid|jungle_temple|igloo|witch_hut|ruined_portal|mineshaft|fortress|stronghold|end_city>, /dimension <overworld|nether|end>, /seed, /kill, /difficulty <0-3>, /spawnpoint, /gamerule <keepInventory|mobGriefing|doDaylightCycle|fireSpread> <true|false>, /clear, /xp <n>, /heal, /feed');
-    this.screen.append(this.panel('Controls & Help', h('div', { class: 'scroll' }, h('h3', null, 'Keyboard & Mouse'), tbl(rows), h('h3', null, 'Vehicles'), tbl([['Board / exit', 'F next to a vehicle (or right-click it)'], ['Camera', 'F5 cycles chase, cockpit and far chase; mouse wheel zooms'], ['Stormcrow jet', 'Mouse steers, W/S throttle, Ctrl afterburner, A/D roll, Shift airbrake, LMB plasma cannons, RMB Hydra missile (hold the nose on a target to lock)'], ['Mantis VTOL', 'Mouse aims, WASD move, Space/Shift climb and descend, Ctrl boost, LMB cutting laser (burns through blocks), RMB rocket salvo'], ['Viper hover bike', 'Mouse steers, W/S throttle, A/D strafe, Space hop, Ctrl boost, LMB twin blasters, RMB hold to charge a fusion shot'], ['Wraith bomber', 'Flies like the jet; hold RMB to open the bay and drop plasma bombs on the yellow CCIP ring'], ['Eclipse fighter', 'Flies like the jets (simulator cockpit included), only faster and sharper. Space is the grav-lift: lift straight off the ground, and below flying speed it hovers (Space climbs, Shift sinks). Ctrl hyperdrive: the wings sweep back and you break the sound barrier. LMB hypervelocity rail cannon: slugs punch through mobs and blast craters. RMB singularity warhead: point at the ground (or lock a target) and click; a micro black hole swallows everything around it, then bursts. Keep 48 blocks away'], ['Jet cockpits', 'F5 to the cockpit and the Stormcrow, Wraith and Eclipse fly like a simulator: the mouse pitches and rolls the airframe directly and nothing levels it for you, so loops, rolls and inverted flight all work. A/D is the rudder, hold C or the middle mouse button to look around, the wheel zooms. The flight computer holds your flight path when you let go, even upside down. The chase cameras keep the assisted mouse aim. Pull hard for too long and the view greys out'], ['Bastion hover tank', 'Mouse aims the turret, W/S drive, A/D turn the hull, Ctrl boost, LMB coax blaster, RMB arcing plasma cannon (the ring shows where the shell lands)'], ['Titan mech', 'WASD walks toward where you aim (the legs turn by themselves), mouse twists the torso, Ctrl runs, Space fires the jump jets (landing hard pounds the ground), LMB twin autocannons, RMB eight-rocket salvo'], ['Nautilus submarine', 'Underwater the mouse steers and dives, W/S propeller, Space/Shift ballast, Ctrl boost, LMB pulse laser, RMB torpedo. Headlights light up the deep; on the surface it floats'], ['Mole tunnel borer', 'W/S drive, A/D turn, hold LMB to spin the drill and bore a 3x3 tunnel; look up or down to bore at an angle. Ores go straight into your inventory. Ctrl overdrive, RMB seismic charge'], ['Get one', 'Creative inventory Vehicles tab, /vehicle jet|bomber|fighter|gunship|bike|tank|mech|sub|drill, or craft with iron, diamonds, redstone, glass and gunpowder (the Eclipse needs netherite, an end crystal and an eye of ender)']]), h('h3', null, 'The End'), tbl([['Find it', 'Craft eyes of ender (ember powder + ender pearl) and throw them; they fly toward the nearest stronghold'], ['Open the portal', 'Put an eye in each of the 12 frames in the stronghold\'s portal room'], ['The fight', 'Destroy the end crystals on the obsidian pillars (they heal the dragon), then hit its head — it takes the most damage there. Arrows and vehicle weapons work too'], ['Going home', 'When the dragon falls the exit portal lights up; an end gateway opens to the outer islands'], ['Endermen', 'They attack if you look them in the eye; a carved pumpkin worn as a helmet keeps you safe. They hate water'], ['Elytra', 'Found on end ships. Wear it in the chest slot, jump, then press jump again in mid-air to glide; use fireworks to boost']]), h('h3', null, 'Touch'), tbl(touch), h('h3', null, 'Gamepad'), h('p', null, 'Left stick move · Right stick look · A jump · B sneak · RT mine/attack · LT use/place · LB/RB hotbar · Y inventory · Start pause · L3 sprint'), cmds), this.btn('Done', back, 'primary')));
+    const cmds = h('div', { class: 'cmds' }, 'Commands: /help, /vehicle <jet|bomber|fighter|gunship|bike|tank|mech|sub|drill>, /gamemode <survival|creative|spectator>, /time set <day|night|noon|midnight|n>, /weather <clear|rain|thunder>, /tp x y z, /give <item> [n], /summon <mob>, /locate <village|pyramid|jungle_temple|igloo|witch_hut|ruined_portal|mineshaft|fortress|stronghold|end_city>, /dimension <overworld|nether|end>, /seed, /kill, /difficulty <0-3>, /spawnpoint, /gamerule <keepInventory|mobGriefing|doDaylightCycle|fireSpread> <true|false>, /clear, /xp <n>, /heal, /feed. Skyways worlds: /course [go|stop], /airfield, /skyways');
+    this.screen.append(this.panel('Controls & Help', h('div', { class: 'scroll' }, h('h3', null, 'Keyboard & Mouse'), tbl(rows), h('h3', null, 'Vehicles'), tbl([['Board / exit', 'F next to a vehicle (or right-click it)'], ['Camera', 'F5 cycles chase, cockpit and far chase; mouse wheel zooms'], ['Stormcrow jet', 'Mouse steers, W/S throttle, Ctrl afterburner, A/D roll, Shift airbrake, LMB plasma cannons, RMB Hydra missile (hold the nose on a target to lock)'], ['Mantis VTOL', 'Mouse aims, WASD move, Space/Shift climb and descend, Ctrl boost, LMB cutting laser (burns through blocks), RMB rocket salvo'], ['Viper hover bike', 'Mouse steers, W/S throttle, A/D strafe, Space hop, Ctrl boost, LMB twin blasters, RMB hold to charge a fusion shot'], ['Wraith bomber', 'Flies like the jet; hold RMB to open the bay and drop plasma bombs on the yellow CCIP ring'], ['Eclipse fighter', 'Flies like the jets (simulator cockpit included), only faster and sharper. Space is the grav-lift: lift straight off the ground, and below flying speed it hovers (Space climbs, Shift sinks). Ctrl hyperdrive: the wings sweep back and you break the sound barrier. LMB hypervelocity rail cannon: slugs punch through mobs and blast craters. RMB singularity warhead: point at the ground (or lock a target) and click; a micro black hole swallows everything around it, then bursts. Keep 48 blocks away'], ['Jet cockpits', 'F5 to the cockpit and the Stormcrow, Wraith and Eclipse fly like a simulator: the mouse pitches and rolls the airframe directly and nothing levels it for you, so loops, rolls and inverted flight all work. A/D is the rudder, hold C or the middle mouse button to look around, the wheel zooms. The flight computer holds your flight path when you let go, even upside down. The chase cameras keep the assisted mouse aim. Pull hard for too long and the view greys out'], ['Bastion hover tank', 'Mouse aims the turret, W/S drive, A/D turn the hull, Ctrl boost, LMB coax blaster, RMB arcing plasma cannon (the ring shows where the shell lands)'], ['Titan mech', 'WASD walks toward where you aim (the legs turn by themselves), mouse twists the torso, Ctrl runs, Space fires the jump jets (landing hard pounds the ground), LMB twin autocannons, RMB eight-rocket salvo'], ['Nautilus submarine', 'Underwater the mouse steers and dives, W/S propeller, Space/Shift ballast, Ctrl boost, LMB pulse laser, RMB torpedo. Headlights light up the deep; on the surface it floats'], ['Mole tunnel borer', 'W/S drive, A/D turn, hold LMB to spin the drill and bore a 3x3 tunnel; look up or down to bore at an angle. Ores go straight into your inventory. Ctrl overdrive, RMB seismic charge'], ['Get one', 'Creative inventory Vehicles tab, /vehicle jet|bomber|fighter|gunship|bike|tank|mech|sub|drill, or craft with iron, diamonds, redstone, glass and gunpowder (the Eclipse needs netherite, an end crystal and an eye of ender)']]), h('h3', null, 'The End'), tbl([['Find it', 'Craft eyes of ender (ember powder + ender pearl) and throw them; they fly toward the nearest stronghold'], ['Open the portal', 'Put an eye in each of the 12 frames in the stronghold\'s portal room'], ['The fight', 'Destroy the end crystals on the obsidian pillars (they heal the dragon), then hit its head — it takes the most damage there. Arrows and vehicle weapons work too'], ['Going home', 'When the dragon falls the exit portal lights up; an end gateway opens to the outer islands'], ['Endermen', 'They attack if you look them in the eye; a carved pumpkin worn as a helmet keeps you safe. They hate water'], ['Elytra', 'Found on end ships. Wear it in the chest slot, jump, then press jump again in mid-air to glide; use fireworks to boost']]), h('h3', null, 'Skyways worlds'), tbl([['Races', 'Every region has a course: fly through the green-and-white start gate to start the clock, then the orange gates in order; the black-and-white gate finishes. Gold, silver or bronze against the par time, and your records stay with the world'], ['Retry', 'Backspace puts you back at the start of the last course in a fresh aircraft (creative mode, or commands on)'], ['Gates and boosts', 'Clipping a gate costs some hull and 2 seconds instead of the jet. Cyan boost rings throw you forward and refill the afterburner'], ['Airfields', 'Stop on any runway or apron to repair and rearm. The HUD points to the nearest airfield and course start']]), h('h3', null, 'Touch'), tbl(touch), h('h3', null, 'Gamepad'), h('p', null, 'Left stick move · Right stick look · A jump · B sneak · RT mine/attack · LT use/place · LB/RB hotbar · Y inventory · Start pause · L3 sprint'), cmds), this.btn('Done', back, 'primary')));
   }
   // ------------------------------------------------------------------ settings
   showSettings(back) {
@@ -18319,6 +20597,7 @@ class VehicleHUD {
     else if (v.kind === 'sub') this.sub(c, v, dt);
     else if (v.kind === 'drill') this.drill(c, v, dt);
     else this.bike(c, v, dt);
+    if (g.skyways) g.skyways.drawHUD(this, v);
     if (v.mountT > 0) this.controls(v);
   }
   // ------------------------------------------------------------ primitives
@@ -19384,7 +21663,8 @@ class Game {
   // ---------------------------------------------------------------- menu panorama world
   startMenuWorld() {
     this.state = 'menu';
-    this.meta = null; this.player = null;
+    this.meta = null; this.player = null; this.skyways = null;
+    const sb = document.getElementById('skybanner'); if (sb) sb.classList.remove('show');
     this.jobs.broadcast({ t: 'init', seed: MENU_SEED, opts: {} });
     this.gen = new OverworldGen(MENU_SEED, {});
     const s = this.findSpawn(this.gen);
@@ -19395,6 +21675,7 @@ class Game {
     this.time = 5200; this.rainLevel = 0;
   }
   findSpawn(gen) {
+    if (gen.sky) { const s = gen.sky.homeSpawn(); return [s[0], s[1], s[2]]; }   // Skyways: on the home airbase apron
     for (let r = 0; r < 2000; r += 16) {
       for (let a = 0; a < Math.max(1, r / 4); a++) {
         const an = a / Math.max(1, r / 4) * TAU, x = Math.round(Math.cos(an) * r), z = Math.round(Math.sin(an) * r);
@@ -19416,8 +21697,10 @@ class Game {
     if (this.chunkCache.world !== meta.id) { this.chunkCache.clear(); this.chunkCache.world = meta.id; }
     this.meta = meta; this.save.worldId = meta.id;
     meta.lastPlayed = Date.now();
-    this.jobs.broadcast({ t: 'init', seed: meta.seed, opts: { worldType: meta.type, structures: meta.structures !== false } });
-    this.gen = new OverworldGen(meta.seed, { worldType: meta.type, structures: meta.structures !== false });
+    const gopts = { worldType: meta.type, structures: meta.structures !== false, sky: meta.sky };
+    this.jobs.broadcast({ t: 'init', seed: meta.seed, opts: gopts });
+    this.gen = new OverworldGen(meta.seed, gopts);
+    this.skyways = this.gen.sky ? new SkyRuntime(this) : null;
     this.time = meta.time || 0; this.difficulty = meta.difficulty; this.gameRules = Object.assign({}, this.gameRules, meta.rules || {});
     this.weather = meta.weather || { rain: false, thunder: false, timer: 12000 }; this.rainLevel = this.weather.rain ? 1 : 0; this.thunderLevel = this.weather.thunder ? 1 : 0;
     const p = this.player = new Player(this);
@@ -19433,6 +21716,8 @@ class Game {
       const sp = meta.spawn || this.findSpawn(this.gen);
       meta.spawn = sp;
       p.x = sp[0]; p.y = sp[1] + 2; p.z = sp[2]; p.yaw = Math.random() * TAU;
+      // Skyways starting in the cockpit: load the world around the runway instead
+      if (this.skyways && meta.sky && meta.sky.cockpit !== false) { const rw = this.gen.sky.homeRunway(); p.x = rw[0]; p.y = rw[1] + 2; p.z = rw[2]; p.yaw = rw[3]; }
     }
     p.savePrev();
     await this.enterDimension(dim, p.x, p.z, fresh ? 'Generating world' : 'Loading world');
@@ -19444,7 +21729,12 @@ class Game {
         p.savePrev();
         meta.spawn = [p.x, p.y, p.z];
         if (meta.bonus && p.mode === 'survival') this.placeBonusChest(bx + 2, bz);
-        if (p.mode === 'creative') this.ui.message('Creative mode: double-tap jump to fly. Press E for all blocks.', '#ffd24a');
+        if (this.skyways) {
+          const hs = this.gen.sky.homeSpawn(); meta.spawn = [hs[0], hs[1], hs[2]];
+          if (meta.sky && meta.sky.cockpit !== false) this.skyways.cockpitStart();
+          else { p.yaw = hs[3]; p.savePrev(); this.ui.message('Welcome to Skyhaven Airbase! The aircraft on the apron are yours: walk up to one and press F.', '#ffd24a'); }
+        }
+        else if (p.mode === 'creative') this.ui.message('Creative mode: double-tap jump to fly. Press E for all blocks.', '#ffd24a');
         else this.ui.message('Welcome! Punch a tree to get started. Press E for your inventory & recipe book.', '#ffd24a');
         this.saveAll();
       }
@@ -19587,6 +21877,7 @@ class Game {
     }
     this.alpha = clamp((this.acc || 0) / 0.05, 0, 1);
     if (playing || this.state === 'dead') this.updateVehicles(dt);
+    if (this.skyways) this.skyways.frame(dt);
     w.update(p.x, p.z, playing ? 4 : 8);
     this.jobs.pump(this.frameMs);
     this.updateCamera(dt);
@@ -20419,6 +22710,7 @@ class Game {
     }
   }
   // ---------------------------------------------------------------- commands
+  skyCommand(c, a) { if (!this.skyways || !this.world || this.world.dim !== 'overworld') throw 'That only works in the overworld of a Skyways world'; this.skyways.command(c, a); }
   runCommand(cmd) {
     const ui = this.ui, p = this.player, w = this.world;
     if (!this.meta || !this.meta.cheats) { ui.message('Commands are disabled in this world', '#f88'); return; }
@@ -20426,7 +22718,8 @@ class Game {
     const num = (s, base) => s && s.startsWith('~') ? base + (s.length > 1 ? +s.slice(1) : 0) : +s;
     try {
       switch (c) {
-        case 'help': ui.message('Commands: gamemode, time, weather, tp (x y z, or x z for surface), give, summon, vehicle, locate, dimension, seed, kill, difficulty, spawnpoint, gamerule, clear, xp, heal, feed'); break;
+        case 'help': ui.message('Commands: gamemode, time, weather, tp (x y z, or x z for surface), give, summon, vehicle, locate, dimension, seed, kill, difficulty, spawnpoint, gamerule, clear, xp, heal, feed' + (this.skyways ? ', course, airfield, skyways' : '')); break;
+        case 'course': case 'courses': case 'airfield': case 'skyways': this.skyCommand(c, a); break;
         case 'vehicle': case 'v': { const k = { jet: 'jet', stormcrow: 'jet', gunship: 'gunship', vtol: 'gunship', mantis: 'gunship', bike: 'bike', viper: 'bike', hoverbike: 'bike', bomber: 'bomber', wraith: 'bomber', tank: 'tank', bastion: 'tank', mech: 'mech', titan: 'mech', walker: 'mech', sub: 'sub', submarine: 'sub', nautilus: 'sub', drill: 'drill', mole: 'drill', borer: 'drill', fighter: 'fighter', eclipse: 'fighter', hypersonic: 'fighter' }[a[1]]; if (!k) throw 'Usage: /vehicle jet | bomber | fighter | gunship | bike | tank | mech | sub | drill'; const d = p.lookVec(), hl = Math.hypot(d[0], d[2]) || 1; const dist = k === 'bike' ? 4 : k === 'drill' ? 7 : 10, x = p.x + d[0] / hl * dist, z = p.z + d[2] / hl * dist; const y = Math.max(w.heightAt(Math.floor(x), Math.floor(z)), Math.floor(p.y)); spawnVehicle(w, k, x, y + 0.05, z, p.yaw); ui.message('Deployed ' + VEH_DEFS[k].name + '. Walk up and press F to board.', '#afa'); break; }
         case 'gamemode': case 'gm': { const m = { survival: 'survival', s: 'survival', 0: 'survival', creative: 'creative', c: 'creative', 1: 'creative', spectator: 'spectator', sp: 'spectator', 3: 'spectator' }[a[1]]; if (!m) throw 'Unknown mode'; p.mode = m; p.flying = m === 'spectator' ? true : (m === 'creative' ? p.flying : false); ui.message('Game mode set to ' + titleCase(m)); break; }
         case 'time': { if (a[1] === 'set') { const v = { day: 1000, noon: 6000, night: 13000, midnight: 18000, sunrise: 23000, sunset: 12000 }[a[2]]; const t = v !== undefined ? v : +a[2]; this.time = Math.floor(this.time / 24000) * 24000 + t; ui.message('Set the time to ' + t); } else if (a[1] === 'add') { this.time += +a[2]; } else ui.message('Day ' + Math.floor(this.time / 24000) + ', time ' + Math.floor(this.time % 24000)); break; }

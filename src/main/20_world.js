@@ -67,7 +67,7 @@ class World {
   waterColorAt(x, z) { const c = this.chunks.get(ckey(x >> 4, z >> 4)); return c ? c.tints.water[((z & 15) << 4) | (x & 15)] : 0x3F76E4; }
   isSnowyAt(x, z, y) { const b = BIOMES[this.biomeAt(x, z)]; return !!(b && (b.snowy || (b.id === BIO.MOUNTAINS && y > 128))); }
   canSeeSky(x, y, z) { return y >= this.heightAt(x, z); }
-  isRainingAt(x, y, z) { if (this.dim !== 'overworld' || this.game.rainLevel < 0.2) return false; if (!this.canSeeSky(x, y, z)) return false; const b = BIOMES[this.biomeAt(x, z)]; return !(b.id === BIO.DESERT || b.id === BIO.SAVANNA || b.id === BIO.BADLANDS); }
+  isRainingAt(x, y, z) { if (this.dim !== 'overworld' || this.game.rainLevel < 0.2) return false; if (!this.canSeeSky(x, y, z)) return false; return !BIOMES[this.biomeAt(x, z)].dry; }
   getBE(x, y, z) { const c = this.chunks.get(ckey(x >> 4, z >> 4)); return c ? c.be.get((y << 8) | ((z & 15) << 4) | (x & 15)) : undefined; }
   setBE(x, y, z, be) {
     const c = this.chunks.get(ckey(x >> 4, z >> 4)); if (!c) return;
@@ -346,7 +346,11 @@ class World {
       for (const e of rec.ents || []) this.game.spawnSaved(e);
     } else {
       for (const be of d.be || []) { const i = (be.y << 8) | ((be.z & 15) << 4) | (be.x & 15); c.be.set(i, be); if (be.t === 'spawner') { be.delay = 200; this.activeBE.add(be); } }
-      for (const s of d.spawns || []) this.game.spawnMob(s.type, s.x, s.y, s.z, s.data, true);
+      for (const s of d.spawns || []) {
+        // aircraft parked on Skyways airfields arrive with their chunk
+        if (s.type === 'vehicle') spawnVehicle(this, s.data.kind, s.x, s.y, s.z, s.data.yaw);
+        else this.game.spawnMob(s.type, s.x, s.y, s.z, s.data, true);
+      }
       if (d.spawns && d.spawns.length) c.modified = true;
     }
   }

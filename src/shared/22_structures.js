@@ -104,6 +104,8 @@ class Structures {
         case 'end_city': p = this.planEndCity(c); break;
       }
     }
+    // Skyways: nothing built on airfields or under their approach paths
+    if (p && this.gen.sky && type !== 'stronghold' && type !== 'mineshaft' && type !== 'fortress' && type !== 'end_city' && !this.gen.sky.villageOK((p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2)) p = null;
     this.cache.set(k, p);
     return p;
   }

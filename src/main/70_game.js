@@ -72,7 +72,8 @@ class Game {
   // ---------------------------------------------------------------- menu panorama world
   startMenuWorld() {
     this.state = 'menu';
-    this.meta = null; this.player = null;
+    this.meta = null; this.player = null; this.skyways = null;
+    const sb = document.getElementById('skybanner'); if (sb) sb.classList.remove('show');
     this.jobs.broadcast({ t: 'init', seed: MENU_SEED, opts: {} });
     this.gen = new OverworldGen(MENU_SEED, {});
     const s = this.findSpawn(this.gen);
@@ -83,6 +84,7 @@ class Game {
     this.time = 5200; this.rainLevel = 0;
   }
   findSpawn(gen) {
+    if (gen.sky) { const s = gen.sky.homeSpawn(); return [s[0], s[1], s[2]]; }   // Skyways: on the home airbase apron
     for (let r = 0; r < 2000; r += 16) {
       for (let a = 0; a < Math.max(1, r / 4); a++) {
         const an = a / Math.max(1, r / 4) * TAU, x = Math.round(Math.cos(an) * r), z = Math.round(Math.sin(an) * r);
@@ -104,8 +106,10 @@ class Game {
     if (this.chunkCache.world !== meta.id) { this.chunkCache.clear(); this.chunkCache.world = meta.id; }
     this.meta = meta; this.save.worldId = meta.id;
     meta.lastPlayed = Date.now();
-    this.jobs.broadcast({ t: 'init', seed: meta.seed, opts: { worldType: meta.type, structures: meta.structures !== false } });
-    this.gen = new OverworldGen(meta.seed, { worldType: meta.type, structures: meta.structures !== false });
+    const gopts = { worldType: meta.type, structures: meta.structures !== false, sky: meta.sky };
+    this.jobs.broadcast({ t: 'init', seed: meta.seed, opts: gopts });
+    this.gen = new OverworldGen(meta.seed, gopts);
+    this.skyways = this.gen.sky ? new SkyRuntime(this) : null;
     this.time = meta.time || 0; this.difficulty = meta.difficulty; this.gameRules = Object.assign({}, this.gameRules, meta.rules || {});
     this.weather = meta.weather || { rain: false, thunder: false, timer: 12000 }; this.rainLevel = this.weather.rain ? 1 : 0; this.thunderLevel = this.weather.thunder ? 1 : 0;
     const p = this.player = new Player(this);
@@ -121,6 +125,8 @@ class Game {
       const sp = meta.spawn || this.findSpawn(this.gen);
       meta.spawn = sp;
       p.x = sp[0]; p.y = sp[1] + 2; p.z = sp[2]; p.yaw = Math.random() * TAU;
+      // Skyways starting in the cockpit: load the world around the runway instead
+      if (this.skyways && meta.sky && meta.sky.cockpit !== false) { const rw = this.gen.sky.homeRunway(); p.x = rw[0]; p.y = rw[1] + 2; p.z = rw[2]; p.yaw = rw[3]; }
     }
     p.savePrev();
     await this.enterDimension(dim, p.x, p.z, fresh ? 'Generating world' : 'Loading world');
@@ -132,7 +138,12 @@ class Game {
         p.savePrev();
         meta.spawn = [p.x, p.y, p.z];
         if (meta.bonus && p.mode === 'survival') this.placeBonusChest(bx + 2, bz);
-        if (p.mode === 'creative') this.ui.message('Creative mode: double-tap jump to fly. Press E for all blocks.', '#ffd24a');
+        if (this.skyways) {
+          const hs = this.gen.sky.homeSpawn(); meta.spawn = [hs[0], hs[1], hs[2]];
+          if (meta.sky && meta.sky.cockpit !== false) this.skyways.cockpitStart();
+          else { p.yaw = hs[3]; p.savePrev(); this.ui.message('Welcome to Skyhaven Airbase! The aircraft on the apron are yours: walk up to one and press F.', '#ffd24a'); }
+        }
+        else if (p.mode === 'creative') this.ui.message('Creative mode: double-tap jump to fly. Press E for all blocks.', '#ffd24a');
         else this.ui.message('Welcome! Punch a tree to get started. Press E for your inventory & recipe book.', '#ffd24a');
         this.saveAll();
       }
@@ -275,6 +286,7 @@ class Game {
     }
     this.alpha = clamp((this.acc || 0) / 0.05, 0, 1);
     if (playing || this.state === 'dead') this.updateVehicles(dt);
+    if (this.skyways) this.skyways.frame(dt);
     w.update(p.x, p.z, playing ? 4 : 8);
     this.jobs.pump(this.frameMs);
     this.updateCamera(dt);
@@ -1107,6 +1119,7 @@ class Game {
     }
   }
   // ---------------------------------------------------------------- commands
+  skyCommand(c, a) { if (!this.skyways || !this.world || this.world.dim !== 'overworld') throw 'That only works in the overworld of a Skyways world'; this.skyways.command(c, a); }
   runCommand(cmd) {
     const ui = this.ui, p = this.player, w = this.world;
     if (!this.meta || !this.meta.cheats) { ui.message('Commands are disabled in this world', '#f88'); return; }
@@ -1114,7 +1127,8 @@ class Game {
     const num = (s, base) => s && s.startsWith('~') ? base + (s.length > 1 ? +s.slice(1) : 0) : +s;
     try {
       switch (c) {
-        case 'help': ui.message('Commands: gamemode, time, weather, tp (x y z, or x z for surface), give, summon, vehicle, locate, dimension, seed, kill, difficulty, spawnpoint, gamerule, clear, xp, heal, feed'); break;
+        case 'help': ui.message('Commands: gamemode, time, weather, tp (x y z, or x z for surface), give, summon, vehicle, locate, dimension, seed, kill, difficulty, spawnpoint, gamerule, clear, xp, heal, feed' + (this.skyways ? ', course, airfield, skyways' : '')); break;
+        case 'course': case 'courses': case 'airfield': case 'skyways': this.skyCommand(c, a); break;
         case 'vehicle': case 'v': { const k = { jet: 'jet', stormcrow: 'jet', gunship: 'gunship', vtol: 'gunship', mantis: 'gunship', bike: 'bike', viper: 'bike', hoverbike: 'bike', bomber: 'bomber', wraith: 'bomber', tank: 'tank', bastion: 'tank', mech: 'mech', titan: 'mech', walker: 'mech', sub: 'sub', submarine: 'sub', nautilus: 'sub', drill: 'drill', mole: 'drill', borer: 'drill', fighter: 'fighter', eclipse: 'fighter', hypersonic: 'fighter' }[a[1]]; if (!k) throw 'Usage: /vehicle jet | bomber | fighter | gunship | bike | tank | mech | sub | drill'; const d = p.lookVec(), hl = Math.hypot(d[0], d[2]) || 1; const dist = k === 'bike' ? 4 : k === 'drill' ? 7 : 10, x = p.x + d[0] / hl * dist, z = p.z + d[2] / hl * dist; const y = Math.max(w.heightAt(Math.floor(x), Math.floor(z)), Math.floor(p.y)); spawnVehicle(w, k, x, y + 0.05, z, p.yaw); ui.message('Deployed ' + VEH_DEFS[k].name + '. Walk up and press F to board.', '#afa'); break; }
         case 'gamemode': case 'gm': { const m = { survival: 'survival', s: 'survival', 0: 'survival', creative: 'creative', c: 'creative', 1: 'creative', spectator: 'spectator', sp: 'spectator', 3: 'spectator' }[a[1]]; if (!m) throw 'Unknown mode'; p.mode = m; p.flying = m === 'spectator' ? true : (m === 'creative' ? p.flying : false); ui.message('Game mode set to ' + titleCase(m)); break; }
         case 'time': { if (a[1] === 'set') { const v = { day: 1000, noon: 6000, night: 13000, midnight: 18000, sunrise: 23000, sunset: 12000 }[a[2]]; const t = v !== undefined ? v : +a[2]; this.time = Math.floor(this.time / 24000) * 24000 + t; ui.message('Set the time to ' + t); } else if (a[1] === 'add') { this.time += +a[2]; } else ui.message('Day ' + Math.floor(this.time / 24000) + ', time ' + Math.floor(this.time % 24000)); break; }

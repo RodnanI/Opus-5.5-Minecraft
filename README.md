@@ -4,6 +4,67 @@ Open `minecraft.html` in Chrome, Edge or Firefox. It is a single standalone file
 
 On Windows 10 and 11 there is also a desktop edition: `dist/VoxelCraft-Windows/VoxelCraft.exe` (built by `node build.js`, see Update 5), which runs the same game without the browser's frame-rate limit and with every engine setting under your control.
 
+## Update 7: Skyways, a world type built for flying
+
+Choose **Skyways (flight)** as the World Type when you create a world. The terrain is laid out for the jets instead of for walking:
+- canyon mazes, lagoons of rock spires, floating archipelagos and peaks bored through by lit tunnels;
+- an airbase at spawn and an airstrip in every region;
+- a race course through each region.
+
+**Map difficulty**
+- A slider from 1 (Sightseer) to 10 (Impossible) sets how hard the terrain is to fly through. It controls canyon and tunnel widths, gate sizes, how close together and how big the spires are, how low the rock arches hang, the debris around the islands and the stalactites in the tunnel caverns.
+- 🎲 rolls a random level. **Vary Difficulty by Region** rolls a level for each region instead, around the one you chose, so an easy valley can sit next to a brutal slot canyon.
+- **Start in the Cockpit** (on by default) puts you in a Stormcrow on the home runway. Choosing Skyways also switches the game mode to Creative; switch it back for survival.
+
+**Regions**
+Each region is about 720 blocks across and has a generated name (Ember Canyons, Jade Pillars, Halcyon Isles…). Flying into one shows its name, terrain and level. Neighbouring regions blend into each other.
+- **Canyonlands.** A stepped mesa cut by two networks of winding canyons:
+  - wide canyons with a river along the floor;
+  - narrower side canyons whose floors hang partway up the walls.
+
+  The walls are banded terracotta with ledges and overhangs. Natural rock arches span the canyons: on hard maps they hang low and thick, and some roof a gorge over. Cold regions are **glacier fjords** instead: flooded canyons with veins of blue ice in the cliffs.
+- **Spire lagoons.** Turquoise water crowded with limestone towers that have grassy, tree-topped caps and hanging vines. Rock bridges join some pairs, and some big spires have a window to fly through. Some regions are a **stone forest** of thinner needles over a jungle floor instead.
+- **Sky archipelagos.** Floating islands in two layers, with trees, waterfalls pouring off the edges and chains hanging below. From level 4, clouds of loose rock drift around them. Giant stone hoops float between them.
+- **Tunnel peaks.** Sharp ranges with deep valleys. The course runs at valley height, and every ridge in its way is bored through:
+  - round tunnels with hazard-striped portals and lamps along the walls;
+  - a glowing centre line on the floor;
+  - in the long tunnels, a lit cavern halfway, with stalactites on harder maps.
+
+  A few more tunnels in each region are there just to explore.
+- **Meadows.** Rolling lowland with lakes, the classic biomes and the odd floating island.
+
+**Airfields**
+- **Skyhaven Airbase** is at spawn. It has:
+  - a 209-block runway with designators, threshold and touchdown markings, edge and approach lights;
+  - taxiways, an apron, two hangars, a control tower, fuel tanks and a windsock;
+  - two Stormcrows, an Eclipse, a Wraith and a Mantis parked on the apron.
+- Every other region has an airstrip with a hangar and a beacon, sometimes with an aircraft parked on it. Strips can sit on a mesa top or on a mountaintop, and in a lagoon the strip is its own island. The approaches off both ends of every runway are kept clear of terrain and of anything floating.
+- To repair the hull and reload missiles, bombs, rockets or warheads, stop on any runway or apron.
+
+**Races**
+- Every region has a course of 10 to 20 ring gates. Depending on the terrain, it runs:
+  - down a canyon and under its arches;
+  - in a slalom between spires and through their windows;
+  - through hoops and under islands;
+  - through the tunnels;
+  - or in a loop over the meadows, past gates framed by rock pillars, stone rings and arches.
+
+  Every gate is checked for clear air around it and on the curve leading into it.
+- **Gate colours:** fly through the green-and-white start gate to start the clock, then the orange gates in order. The black-and-white gate is the finish.
+- **HUD:** it marks the next gate and the one after it, and shows your time and your splits against your best run.
+- **Results:** each finish earns gold, silver or bronze against the course's par times, and your records are saved with the world.
+- Clipping a gate's frame doesn't destroy the jet. It costs some hull and adds 2 seconds.
+- Cyan **boost rings** on the long legs throw you forward and refill the afterburner.
+- **Backspace** restarts the last course in a fresh aircraft, lined up on its start gate. It works in creative mode, or with commands on.
+- Outside a race, the HUD points to the nearest course start and the nearest airfield.
+
+**Commands**
+- `/course` lists the nearby courses and your records.
+- `/course go [jet|fighter|bomber|gunship]` lines you up on the nearest one.
+- `/course stop` cancels a run.
+- `/airfield` gives the nearest airfield's coordinates.
+- `/skyways` shows the map level and the region you're in.
+
 ## Update 6: the Eclipse hypersonic fighter
 
 A third jet. It flies like the Stormcrow and the Wraith (mouse-aim chase cameras, and the simulator cockpit on F5), only faster and sharper, and its weapons come from a century or two ahead. Get it with `/vehicle fighter`, from the Vehicles tab, or craft it from diamonds, an end crystal, netherite ingots, an eye of ender, iron and glass.

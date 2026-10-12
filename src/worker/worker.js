@@ -45,6 +45,12 @@ self.onmessage = (e) => {
         self.postMessage({ t: 'mesh', id: m.id, key: m.key, sy: m.sy, ver: m.ver, layers: r.layers, counts: r.counts, vis: r.vis }, r.layers);
         break;
       }
+      case 'skyinfo': {
+        // a Skyways region's name, airfield and course, for the main thread's races and markers
+        const s = GENS.overworld.sky;
+        self.postMessage({ t: 'skyinfo', id: m.id, res: s ? s.info(m.i, m.j) : null });
+        break;
+      }
       case 'locate': {
         const g = GENS[m.dim];
         const res = g.structs.locate(m.type, m.x, m.z, 14);

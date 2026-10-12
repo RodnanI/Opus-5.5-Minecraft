@@ -53,6 +53,7 @@ class Input {
     if (e.code === KEYS.hud) { SETTINGS.hudHidden = !SETTINGS.hudHidden; ui.applyHudVisibility(); }
     if (e.code === KEYS.perspective) this.cycleCamera(p);
     if (e.code === KEYS.vehicle && !e.repeat) g.toggleVehicle();
+    if (e.code === 'Backspace' && !e.repeat && g.skyways) g.skyways.retry();
     if (e.code === KEYS.screenshot) g.screenshot();
     if (e.code === KEYS.chat) { e.preventDefault(); ui.openChat(''); }
     if (e.code === KEYS.command) { e.preventDefault(); ui.openChat('/'); }

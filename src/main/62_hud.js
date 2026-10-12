@@ -46,6 +46,7 @@ class VehicleHUD {
     else if (v.kind === 'sub') this.sub(c, v, dt);
     else if (v.kind === 'drill') this.drill(c, v, dt);
     else this.bike(c, v, dt);
+    if (g.skyways) g.skyways.drawHUD(this, v);
     if (v.mountT > 0) this.controls(v);
   }
   // ------------------------------------------------------------ primitives

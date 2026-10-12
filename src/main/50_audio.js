@@ -201,6 +201,14 @@ class Audio {
       case 'veh_hop': this.noise(dst, t, 0.35, 'lowpass', 900, 1, 0.5, 0.01, true); this.tone(dst, t, 'sine', 140, 60, 0.3, 0.35); break;
       case 'veh_land': this.noise(dst, t, 0.4, 'lowpass', 600, 1, 0.6, 0.005, true); this.tone(dst, t, 'sine', 80, 40, 0.35, 0.5); break;
       case 'veh_liftoff': { const s = this.noise(dst, t, 1.2, 'bandpass', 500, 0.7, 0.4, 0.2); s.frequency.exponentialRampToValueAtTime(1600, t + 1); break; }
+      // Skyways races
+      case 'sky_gate': this.tone(dst, t, 'sine', 988, 988, 0.14, 0.2); this.tone(dst, t + 0.07, 'sine', 1480, 1480, 0.22, 0.17); this.tone(dst, t + 0.07, 'triangle', 740, 740, 0.2, 0.06); break;
+      case 'sky_start': [660, 880, 1320].forEach((f, i) => this.tone(dst, t + i * 0.11, 'square', f, f, 0.1 + (i === 2 ? 0.18 : 0), 0.07)); break;
+      case 'sky_done': [523, 659, 784, 1046, 1318].forEach((f, i) => { this.tone(dst, t + i * 0.09, 'triangle', f, f, 0.5 - i * 0.04, 0.16); this.tone(dst, t + i * 0.09, 'sine', f * 2, f * 2, 0.3, 0.05); }); break;
+      case 'sky_fail': this.tone(dst, t, 'square', 440, 330, 0.18, 0.07); this.tone(dst, t + 0.2, 'square', 330, 196, 0.3, 0.07); break;
+      case 'sky_boost': { const s = this.noise(dst, t, 0.7, 'bandpass', 500, 0.8, 0.45, 0.02); s.frequency.exponentialRampToValueAtTime(3200, t + 0.5); this.tone(dst, t, 'sawtooth', 220, 880, 0.4, 0.06); break; }
+      case 'sky_zone': [392, 494, 587, 784].forEach((f, i) => this.tone(dst, t + i * 0.05, 'sine', f, f, 1.8, 0.05, 0.25)); break;
+      case 'sky_service': for (let i = 0; i < 5; i++) this.noise(dst, t + i * 0.07, 0.04, 'bandpass', 2400, 3, 0.18); this.tone(dst, t, 'sine', 300, 600, 0.5, 0.08, 0.1); break;
       case 'veh_overheat': this.noise(dst, t, 0.6, 'highpass', 4000, 0.7, 0.3, 0.02); this.tone(dst, t, 'square', 440, 220, 0.4, 0.1); break;
       case 'bomb_drop': this.tone(dst, t, 'sine', 1500, 420, 1.8, 0.1, 0.25); this.noise(dst, t, 0.3, 'bandpass', 900, 1, 0.2, 0.01); break;
       case 'cannon': this.noise(dst, t, 1.3, 'lowpass', 900, 0.8, 1.0, 0.003, true); this.tone(dst, t, 'sine', 72, 28, 0.9, 0.9); this.noise(dst, t, 0.16, 'bandpass', 2600, 0.8, 0.5); break;

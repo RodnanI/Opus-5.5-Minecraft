@@ -29,11 +29,11 @@ biomeDef(12, 'Flower Forest', { grass: 0x79C05A, foliage: 0x59AE30, trees: 5, tr
 biomeDef(13, 'Taiga', { grass: 0x86B783, foliage: 0x68A464, water: 0x287082, trees: 9, treeTypes: [['spruce', 70], ['pine', 30]], grassD: 0.1, fern: 0.6, flowerD: 0.003, animals: ['sheep', 'pig', 'chicken'] });
 biomeDef(14, 'Snowy Taiga', { grass: 0x80B497, foliage: 0x60A17B, water: 0x205E83, snowy: true, trees: 6, treeTypes: [['spruce', 70], ['pine', 30]], grassD: 0.05, fern: 0.7, flowerD: 0 });
 biomeDef(15, 'Snowy Plains', { grass: 0x80B497, foliage: 0x60A17B, water: 0x3D57D6, snowy: true, trees: 0.2, treeTypes: [['spruce', 100]], grassD: 0.02, flowerD: 0 });
-biomeDef(16, 'Desert', { grass: 0xBFB755, foliage: 0xAEA42A, water: 0x32A598, top: 'sand', filler: 'sand', grassD: 0, flowerD: 0, sky: 0x6EB1FF });
-biomeDef(17, 'Savanna', { grass: 0xBFB755, foliage: 0xAEA42A, water: 0x2C8B9C, trees: 1.2, treeTypes: [['acacia', 85], ['oak', 15]], grassD: 0.35, flowerD: 0.004, animals: ['cow', 'sheep', 'chicken'], sky: 0x6EB1FF });
+biomeDef(16, 'Desert', { grass: 0xBFB755, foliage: 0xAEA42A, water: 0x32A598, top: 'sand', filler: 'sand', grassD: 0, flowerD: 0, sky: 0x6EB1FF, dry: true });
+biomeDef(17, 'Savanna', { grass: 0xBFB755, foliage: 0xAEA42A, water: 0x2C8B9C, trees: 1.2, treeTypes: [['acacia', 85], ['oak', 15]], grassD: 0.35, flowerD: 0.004, animals: ['cow', 'sheep', 'chicken'], sky: 0x6EB1FF, dry: true });
 biomeDef(18, 'Jungle', { grass: 0x59C93C, foliage: 0x30BB0B, water: 0x14A2C5, trees: 22, treeTypes: [['jungle', 28], ['mega_jungle', 10], ['jungle_bush', 52], ['big_oak', 10]], grassD: 0.3, fern: 0.3, flowerD: 0.005, animals: ['chicken', 'pig'] });
 biomeDef(19, 'Swamp', { grass: 0x6A7039, foliage: 0x6A7039, water: 0x617B64, trees: 2, treeTypes: [['swamp_oak', 100]], grassD: 0.08, flowerD: 0.01, flowers: ['blue_orchid'], fog: 0.3 });
-biomeDef(20, 'Badlands', { grass: 0x90814D, foliage: 0x9E814D, water: 0x4E7F81, top: 'red_sand', filler: 'orange_terracotta', grassD: 0, flowerD: 0, sky: 0x6EB1FF });
+biomeDef(20, 'Badlands', { grass: 0x90814D, foliage: 0x9E814D, water: 0x4E7F81, top: 'red_sand', filler: 'orange_terracotta', grassD: 0, flowerD: 0, sky: 0x6EB1FF, dry: true });
 biomeDef(21, 'Mountains', { grass: 0x8AB689, foliage: 0x6DA36B, water: 0x007BF7, trees: 1.5, treeTypes: [['spruce', 60], ['oak', 40]], grassD: 0.05, flowerD: 0.003, animals: ['sheep'] });
 biomeDef(22, 'Snowy Peaks', { grass: 0x80B497, foliage: 0x60A17B, snowy: true, top: 'snow', filler: 'snow', grassD: 0, flowerD: 0 });
 biomeDef(23, 'Mushroom Fields', { grass: 0x55C93F, foliage: 0x2BBB0F, water: 0x8A8997, top: 'mycelium', trees: 1, treeTypes: [['huge_red_mushroom', 50], ['huge_brown_mushroom', 50]], grassD: 0, flowerD: 0, animals: ['cow'] });
@@ -313,8 +313,12 @@ class OverworldGen {
     for (let y = 0; y < CH;) { const c = br.pick(bandCols), n = br.range(1, 4); for (let k = 0; k < n && y < CH; k++, y++) this.bands[y] = c; }
     this.amplified = this.type === 'amplified';
     this.structs = typeof Structures !== 'undefined' ? new Structures(this) : null;
+    // Skyways (21_skyways*.js) builds its own terrain; the overworld code reaches it through climate and generate
+    this.sky = this.type === 'skyways' ? new SkyGen(this, opts.sky) : null;
+    this.tall = this.amplified || !!this.sky;
   }
   climate(x, z, o) {
+    if (this.sky) return this.sky.climate(x, z, o);
     const wx = x + this.nWarp.n2(x * 0.0032, z * 0.0032) * 48;
     const wz = z + this.nWarp.n2(x * 0.0032 + 91.7, z * 0.0032 - 43.1) * 48;
     const cont = clamp(fbm2(this.nCont, wx / 1400, wz / 1400, 5, 0.5) * 1.55 + 0.08, -1, 1);
@@ -408,6 +412,7 @@ class OverworldGen {
   }
   ter3(x, y, z) { return this.nTer.n3(x / 44, y / 30, z / 44) * 0.7 + this.nTer.n3(x / 19 + 50, y / 14, z / 19) * 0.3; }
   surfaceAt(x, z, c) {
+    if (this.sky) return this.sky.surfaceY(x, z);
     const h = c.h, amp = c.amp;
     if (amp < 0.05) return Math.ceil(h) - 1;
     const hi = Math.min(CH - 1, Math.floor(h + amp + 1)), lo = Math.floor(h - amp - 1);
@@ -437,6 +442,7 @@ class OverworldGen {
     const x0 = cx << 4, z0 = cz << 4;
     if (this.cache.size > 30000) this.cache.clear();
     if (this.type === 'flat') return this.generateFlat(ctx);
+    if (this.sky) return this.sky.generate(cx, cz);
     // climate for 18x18 (1 border)
     const H = new Float32Array(324), AMP = new Float32Array(324), BI = new Uint8Array(324);
     for (let dz = -1; dz <= 16; dz++) for (let dx = -1; dx <= 16; dx++) {

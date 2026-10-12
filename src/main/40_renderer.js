@@ -832,7 +832,7 @@ Desktop launcher: ${LAUNCH.browser || 'browser'}${LAUNCH.angle ? ', ANGLE ' + LA
     // drawn at the far plane: the depth test then skips every terrain pixel before the raymarch runs.
     // At or above the deck clouds can hide terrain and need per-pixel depth (which disables that early-out).
     const base = SETTINGS.cloudHeight + 38;
-    const below = this.camY < base - 4 && !(game.gen && game.gen.amplified);
+    const below = this.camY < base - 4 && !(game.gen && game.gen.tall);
     const gl = this.gl, pr = below ? this.progs.scloud : this.progs.scloudDepth, u = pr.u;
     gl.useProgram(pr.p); this.setEnvUniforms(pr);
     gl.uniform3fv(u.uSunDir, env.sunDir);
